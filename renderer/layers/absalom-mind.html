@@ -285,7 +285,13 @@
           initializeGraph(msg.graph);
           break;
           
+        case 'state':
+          // Direct state update from server: { type: 'state', mode: '...' }
+          setMode(msg.mode || 'idle');
+          break;
+          
         case 'state:change':
+          // Legacy format: { type: 'state:change', state: { mode: '...' } }
           setMode(msg.state?.mode || 'idle');
           break;
           
