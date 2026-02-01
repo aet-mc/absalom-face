@@ -1270,15 +1270,22 @@
     // Try HTTP first (more reliable), then WebSocket for live updates
     async function loadCityFromAPI() {
       try {
-        console.log('[API] Fetching city state...');
+        console.log('[API] Fetching city state from:', `${API_URL}/city-state`);
         const res = await fetch(`${API_URL}/city-state`);
+        console.log('[API] Response status:', res.status);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const cityState = await res.json();
-        console.log('[API] Received city state:', cityState.buildings?.length, 'buildings');
-        loadCityFromState(cityState);
-        return true;
+        console.log('[API] Parsed JSON, buildings:', cityState.buildings?.length);
+        console.log('[API] First building:', JSON.stringify(cityState.buildings?.[0]));
+        if (cityState.buildings && cityState.buildings.length > 0) {
+          loadCityFromState(cityState);
+          return true;
+        } else {
+          console.error('[API] No buildings in response');
+          return false;
+        }
       } catch (err) {
-        console.error('[API] Failed:', err);
+        console.error('[API] Failed:', err.message, err);
         return false;
       }
     }
@@ -1324,12 +1331,14 @@
      * Load city buildings from server state
      */
     function loadCityFromState(cityState) {
+      console.log('[LoadCity] Called with', cityState?.buildings?.length, 'buildings');
       if (!cityState.buildings || cityState.buildings.length === 0) {
         console.log('[City] No buildings in state');
         return;
       }
       
       cityLoadedFromServer = true;
+      console.log('[LoadCity] Creating buildings...');
       
       // Clear existing buildings except core spire (first building)
       while (city.buildings.length > 1) {
@@ -1346,17 +1355,25 @@
       }
       
       // Create buildings from state
+      console.log('[LoadCity] Iterating', cityState.buildings.length, 'building specs');
+      let created = 0;
       for (const spec of cityState.buildings) {
-        createBuilding({
-          x: spec.x,
-          z: spec.z,
-          width: spec.width || 2.5,
-          depth: spec.depth || 2.5,
-          height: spec.height,
-          district: spec.district,
-          label: spec.label
-        });
+        try {
+          createBuilding({
+            x: spec.x,
+            z: spec.z,
+            width: spec.width || 2.5,
+            depth: spec.depth || 2.5,
+            height: spec.height,
+            district: spec.district,
+            label: spec.label
+          });
+          created++;
+        } catch (err) {
+          console.error('[LoadCity] Failed to create building:', spec.label, err);
+        }
       }
+      console.log('[LoadCity] Created', created, 'buildings');
       
       // Create connections from state
       if (cityState.connections) {
