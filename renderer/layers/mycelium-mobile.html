@@ -133,26 +133,39 @@
       statusEl.textContent = `${nodes.length} nodes`;
     }
     
-    // Simple physics
+    // Physics with cooling - settles down over time
+    let temperature = 1.0; // Starts hot, cools down
+    let settled = false;
+    
     function updatePhysics(dt) {
+      if (settled) return; // Stop physics once settled
+      
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
       
-      // Center force
-      for (const n of nodes) {
-        n.vx += (cx - n.x) * 0.01;
-        n.vy += (cy - n.y) * 0.01;
+      // Cool down over time
+      temperature *= 0.995;
+      if (temperature < 0.01) {
+        settled = true;
+        return;
       }
       
-      // Repulsion (simplified - only nearby)
+      // Center force (constant, doesn't cool)
+      for (const n of nodes) {
+        n.vx += (cx - n.x) * 0.005;
+        n.vy += (cy - n.y) * 0.005;
+      }
+      
+      // Repulsion (simplified - only nearby) - scales with temperature
+      const repulse = 100 * temperature;
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const a = nodes[i], b = nodes[j];
           const dx = b.x - a.x, dy = b.y - a.y;
           const d2 = dx*dx + dy*dy;
-          if (d2 < 10000 && d2 > 1) { // 100px max
+          if (d2 < 6400 && d2 > 1) { // 80px max
             const d = Math.sqrt(d2);
-            const f = 200 / d2;
+            const f = repulse / d2;
             a.vx -= dx/d * f;
             a.vy -= dy/d * f;
             b.vx += dx/d * f;
@@ -161,13 +174,14 @@
         }
       }
       
-      // Edge springs
+      // Edge springs - scales with temperature
+      const spring = 0.01 * temperature;
       for (const e of edges) {
         const dx = e.target.x - e.source.x;
         const dy = e.target.y - e.source.y;
         const d = Math.sqrt(dx*dx + dy*dy);
         if (d > 1) {
-          const f = (d - 60) * 0.02;
+          const f = (d - 50) * spring;
           e.source.vx += dx/d * f;
           e.source.vy += dy/d * f;
           e.target.vx -= dx/d * f;
@@ -175,12 +189,12 @@
         }
       }
       
-      // Apply velocity
+      // Apply velocity with strong damping
       for (const n of nodes) {
-        n.vx *= 0.9;
-        n.vy *= 0.9;
-        n.x += n.vx;
-        n.y += n.vy;
+        n.vx *= 0.7; // Heavy damping
+        n.vy *= 0.7;
+        n.x += n.vx * temperature;
+        n.y += n.vy * temperature;
         
         // Bounds
         n.x = Math.max(20, Math.min(canvas.width - 20, n.x));
@@ -189,6 +203,12 @@
         // Decay activation
         n.activation *= 0.95;
       }
+    }
+    
+    // Reheat when tapped (allows rearranging)
+    function reheat() {
+      temperature = 0.3;
+      settled = false;
     }
     
     // Simple render - NO gradients, NO filters
@@ -271,6 +291,7 @@
           if (e.source === nearest) e.target.activation = 0.5;
           if (e.target === nearest) e.source.activation = 0.5;
         }
+        reheat(); // Allow some movement when interacting
       }
     };
   </script>
