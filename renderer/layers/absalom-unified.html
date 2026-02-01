@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Absalom — Living Mind</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { 
+      width: 100%; height: 100%; 
+      overflow: hidden; 
+      background: #0a0a0f;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    canvas { 
+      display: block; 
+      position: absolute;
+      top: 0; left: 0;
+    }
+    #sediment { z-index: 1; }
+    #weather { z-index: 2; }
+    #surface { z-index: 3; }
+    
+    .hud {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+      color: rgba(255,255,255,0.6);
+      font-size: 12px;
+      pointer-events: none;
+    }
+    .state-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .state-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3a5f4a;
+      transition: all 0.3s ease;
+    }
+    .state-dot.thinking {
+      background: #7aa2f7;
+      box-shadow: 0 0 12px #7aa2f7;
+    }
+    .state-dot.responding {
+      background: #9ece6a;
+      box-shadow: 0 0 12px #9ece6a;
+    }
+    #fps {
+      opacity: 0.4;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="sediment"></canvas>
+  <canvas id="weather"></canvas>
+  <canvas id="surface"></canvas>
+  
+  <div class="hud">
+    <div class="state-indicator">
+      <div class="state-dot" id="stateDot"></div>
+      <span id="stateText">connecting</span>
+    </div>
+    <div id="fps"></div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════════════
+    // ABSALOM UNIFIED — THREE-LAYER LIVING MIND
+    // Deep: Sediment (geological memory)
+    // Mid: Weather (attention/mood)
+    // Surface: Murmuration (active thoughts)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const sedimentCanvas = document.getElementById('sediment');
+    const weatherCanvas = document.getElementById('weather');
+    const surfaceCanvas = document.getElementById('surface');
+    const sedimentCtx = sedimentCanvas.getContext('2d');
+    const weatherCtx = weatherCanvas.getContext('2d');
+    const surfaceCtx = surfaceCanvas.getContext('2d');
+    
+    const stateDot = document.getElementById('stateDot');
+    const stateText = document.getElementById('stateText');
+    const fpsEl = document.getElementById('fps');
+    
+    let W, H, dpr;
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // GLOBAL STATE
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const state = {
+      mode: 'idle',
+      modeTime: 0,
+      time: 0,
+      touchPos: null,
+      touchStrength: 0,
+      cognitiveLoad: 0,    // 0-1, drives weather intensity
+      crystallization: 0,  // 0-1, drives flock tightening
+    };
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // RESIZE HANDLING
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth;
+      H = window.innerHeight;
+      
+      [sedimentCanvas, weatherCanvas, surfaceCanvas].forEach(c => {
+        c.width = W * dpr;
+        c.height = H * dpr;
+        c.style.width = W + 'px';
+        c.style.height = H + 'px';
+        c.getContext('2d').scale(dpr, dpr);
+      });
+      
+      initSediment();
+      initWeather();
+      initMurmuration();
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // PERLIN NOISE (for organic movement)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const perlin = (() => {
+      const p = new Uint8Array(512);
+      for (let i = 0; i < 256; i++) p[i] = i;
+      for (let i = 255; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [p[i], p[j]] = [p[j], p[i]];
+      }
+      for (let i = 0; i < 256; i++) p[256 + i] = p[i];
+      
+      const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+      const lerp = (a, b, t) => a + t * (b - a);
+      const grad = (hash, x, y) => {
+        const h = hash & 3;
+        const u = h < 2 ? x : y;
+        const v = h < 2 ? y : x;
+        return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+      };
+      
+      return (x, y) => {
+        const X = Math.floor(x) & 255;
+        const Y = Math.floor(y) & 255;
+        x -= Math.floor(x);
+        y -= Math.floor(y);
+        const u = fade(x), v = fade(y);
+        const A = p[X] + Y, B = p[X + 1] + Y;
+        return lerp(
+          lerp(grad(p[A], x, y), grad(p[B], x - 1, y), u),
+          lerp(grad(p[A + 1], x, y - 1), grad(p[B + 1], x - 1, y - 1), u),
+          v
+        );
+      };
+    })();
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // LAYER 1: SEDIMENT (Deep — Geological Memory)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const sediment = {
+      strata: [],
+      scars: [],
+      breathPhase: 0,
+    };
+    
+    function initSediment() {
+      sediment.strata = [];
+      const numLayers = 12;
+      const baseColors = [
+        { h: 220, s: 30, l: 8 },   // deep blue-black
+        { h: 230, s: 25, l: 12 },  // dark slate
+        { h: 200, s: 20, l: 15 },  // deep teal
+        { h: 260, s: 25, l: 10 },  // deep purple
+        { h: 180, s: 15, l: 18 },  // dark cyan
+      ];
+      
+      for (let i = 0; i < numLayers; i++) {
+        const baseColor = baseColors[i % baseColors.length];
+        sediment.strata.push({
+          y: H * (0.5 + i * 0.05),
+          baseY: H * (0.5 + i * 0.05),
+          thickness: 30 + Math.random() * 40,
+          color: baseColor,
+          noiseOffset: Math.random() * 1000,
+          waveSpeed: 0.0002 + Math.random() * 0.0003,
+          waveAmp: 5 + Math.random() * 10,
+        });
+      }
+      
+      // Generate scars (memory marks)
+      sediment.scars = [];
+      for (let i = 0; i < 8; i++) {
+        sediment.scars.push({
+          x: Math.random() * W,
+          y: H * 0.5 + Math.random() * H * 0.4,
+          length: 50 + Math.random() * 150,
+          angle: -0.3 + Math.random() * 0.6,
+          age: Math.random(), // 0 = fresh (bright), 1 = old (faded)
+          width: 1 + Math.random() * 3,
+        });
+      }
+    }
+    
+    function drawSediment(dt) {
+      sedimentCtx.clearRect(0, 0, W, H);
+      
+      // Slow breathing phase
+      sediment.breathPhase += dt * 0.1;
+      const breathScale = 1 + Math.sin(sediment.breathPhase) * 0.02;
+      
+      // Draw strata from bottom up
+      for (let i = sediment.strata.length - 1; i >= 0; i--) {
+        const layer = sediment.strata[i];
+        const waveOffset = Math.sin(state.time * layer.waveSpeed * 1000 + layer.noiseOffset) * layer.waveAmp;
+        
+        // Fault line glow during thinking
+        const faultGlow = state.mode === 'thinking' ? 0.3 : 0;
+        
+        sedimentCtx.beginPath();
+        sedimentCtx.moveTo(0, H);
+        
+        // Wavy top edge
+        for (let x = 0; x <= W; x += 20) {
+          const noise = perlin(x * 0.005 + layer.noiseOffset, state.time * 0.05) * 15;
+          const y = layer.baseY + waveOffset + noise;
+          sedimentCtx.lineTo(x, y);
+        }
+        
+        sedimentCtx.lineTo(W, H);
+        sedimentCtx.closePath();
+        
+        const l = layer.color.l + faultGlow * 20;
+        sedimentCtx.fillStyle = `hsla(${layer.color.h}, ${layer.color.s}%, ${l}%, 0.9)`;
+        sedimentCtx.fill();
+      }
+      
+      // Draw scars
+      sediment.scars.forEach(scar => {
+        const opacity = 0.1 + (1 - scar.age) * 0.4;
+        const glow = state.mode === 'thinking' ? 0.3 : 0;
+        
+        sedimentCtx.save();
+        sedimentCtx.translate(scar.x, scar.y);
+        sedimentCtx.rotate(scar.angle);
+        
+        sedimentCtx.strokeStyle = `rgba(255, 250, 240, ${opacity + glow})`;
+        sedimentCtx.lineWidth = scar.width;
+        sedimentCtx.lineCap = 'round';
+        
+        sedimentCtx.beginPath();
+        sedimentCtx.moveTo(-scar.length / 2, 0);
+        // Jagged scar line
+        for (let i = 0; i < scar.length; i += 10) {
+          const jag = (Math.random() - 0.5) * 4;
+          sedimentCtx.lineTo(-scar.length / 2 + i, jag);
+        }
+        sedimentCtx.stroke();
+        
+        sedimentCtx.restore();
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // LAYER 2: WEATHER (Mid — Attention/Mood)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const weather = {
+      clouds: [],
+      lightning: [],
+      pressure: 0.5,
+      stormCells: [],
+    };
+    
+    function initWeather() {
+      weather.clouds = [];
+      const numClouds = 15;
+      
+      for (let i = 0; i < numClouds; i++) {
+        weather.clouds.push({
+          x: Math.random() * W,
+          y: Math.random() * H * 0.6,
+          radius: 50 + Math.random() * 150,
+          speed: 0.1 + Math.random() * 0.3,
+          opacity: 0.03 + Math.random() * 0.08,
+          noiseOffset: Math.random() * 1000,
+        });
+      }
+      
+      weather.stormCells = [];
+      for (let i = 0; i < 3; i++) {
+        weather.stormCells.push({
+          x: Math.random() * W,
+          y: Math.random() * H * 0.5,
+          radius: 100 + Math.random() * 100,
+          intensity: 0,
+          rotation: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+    
+    function drawWeather(dt) {
+      weatherCtx.clearRect(0, 0, W, H);
+      
+      // Update pressure based on cognitive load
+      const targetPressure = state.mode === 'thinking' ? 0.9 : 
+                             state.mode === 'responding' ? 0.7 : 0.3;
+      weather.pressure += (targetPressure - weather.pressure) * dt * 2;
+      
+      // Atmospheric gradient based on pressure
+      const gradient = weatherCtx.createLinearGradient(0, 0, 0, H);
+      const darkness = weather.pressure * 0.4;
+      gradient.addColorStop(0, `rgba(20, 20, 40, ${darkness})`);
+      gradient.addColorStop(0.5, `rgba(15, 25, 35, ${darkness * 0.5})`);
+      gradient.addColorStop(1, 'rgba(10, 10, 20, 0)');
+      weatherCtx.fillStyle = gradient;
+      weatherCtx.fillRect(0, 0, W, H);
+      
+      // Draw clouds
+      weather.clouds.forEach(cloud => {
+        cloud.x += cloud.speed * (1 + weather.pressure);
+        if (cloud.x > W + cloud.radius) cloud.x = -cloud.radius;
+        
+        const noise = perlin(cloud.x * 0.01 + cloud.noiseOffset, state.time * 0.1);
+        const y = cloud.y + noise * 30;
+        
+        const opacity = cloud.opacity * (0.5 + weather.pressure * 0.5);
+        
+        // Soft cloud blob
+        const grad = weatherCtx.createRadialGradient(
+          cloud.x, y, 0,
+          cloud.x, y, cloud.radius
+        );
+        grad.addColorStop(0, `rgba(100, 120, 150, ${opacity})`);
+        grad.addColorStop(0.5, `rgba(80, 100, 130, ${opacity * 0.5})`);
+        grad.addColorStop(1, 'rgba(60, 80, 110, 0)');
+        
+        weatherCtx.fillStyle = grad;
+        weatherCtx.beginPath();
+        weatherCtx.arc(cloud.x, y, cloud.radius, 0, Math.PI * 2);
+        weatherCtx.fill();
+      });
+      
+      // Storm cells during thinking
+      if (state.mode === 'thinking' || state.mode === 'responding') {
+        weather.stormCells.forEach(cell => {
+          cell.intensity += (0.8 - cell.intensity) * dt * 3;
+          cell.rotation += dt * 0.5;
+          
+          // Rotating storm cell
+          weatherCtx.save();
+          weatherCtx.translate(cell.x, cell.y);
+          weatherCtx.rotate(cell.rotation);
+          
+          const grad = weatherCtx.createRadialGradient(0, 0, 0, 0, 0, cell.radius);
+          grad.addColorStop(0, `rgba(100, 130, 200, ${cell.intensity * 0.3})`);
+          grad.addColorStop(0.3, `rgba(70, 100, 160, ${cell.intensity * 0.2})`);
+          grad.addColorStop(1, 'rgba(50, 70, 120, 0)');
+          
+          weatherCtx.fillStyle = grad;
+          weatherCtx.beginPath();
+          // Spiral shape
+          for (let a = 0; a < Math.PI * 4; a += 0.1) {
+            const r = (a / (Math.PI * 4)) * cell.radius;
+            const x = Math.cos(a) * r;
+            const y = Math.sin(a) * r * 0.6;
+            if (a === 0) weatherCtx.moveTo(x, y);
+            else weatherCtx.lineTo(x, y);
+          }
+          weatherCtx.fill();
+          weatherCtx.restore();
+        });
+      } else {
+        weather.stormCells.forEach(cell => {
+          cell.intensity *= 0.95;
+        });
+      }
+      
+      // Lightning during responding
+      if (state.mode === 'responding' && Math.random() < 0.02) {
+        const lx = W * 0.3 + Math.random() * W * 0.4;
+        const ly = 0;
+        drawLightning(lx, ly, lx + (Math.random() - 0.5) * 100, H * 0.4);
+      }
+    }
+    
+    function drawLightning(x1, y1, x2, y2) {
+      weatherCtx.strokeStyle = 'rgba(200, 220, 255, 0.8)';
+      weatherCtx.lineWidth = 2;
+      weatherCtx.shadowColor = 'rgba(150, 180, 255, 1)';
+      weatherCtx.shadowBlur = 20;
+      
+      weatherCtx.beginPath();
+      weatherCtx.moveTo(x1, y1);
+      
+      let x = x1, y = y1;
+      while (y < y2) {
+        x += (Math.random() - 0.5) * 40;
+        y += 10 + Math.random() * 20;
+        weatherCtx.lineTo(x, y);
+      }
+      
+      weatherCtx.stroke();
+      weatherCtx.shadowBlur = 0;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // LAYER 3: MURMURATION (Surface — Active Thoughts)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const flock = {
+      boids: [],
+      center: { x: 0, y: 0 },
+      crystallizing: false,
+      crystalCenter: { x: 0, y: 0 },
+      crystalFormation: [], // target positions for crystal
+    };
+    
+    const BOID_COUNT = 200;
+    const BOID_COLORS = [
+      { h: 200, s: 70, l: 60 },  // cyan
+      { h: 280, s: 60, l: 65 },  // purple
+      { h: 45, s: 80, l: 65 },   // gold
+      { h: 160, s: 50, l: 55 },  // teal
+      { h: 330, s: 60, l: 65 },  // pink
+    ];
+    
+    function initMurmuration() {
+      flock.boids = [];
+      flock.center = { x: W / 2, y: H / 2 };
+      
+      for (let i = 0; i < BOID_COUNT; i++) {
+        const color = BOID_COLORS[i % BOID_COLORS.length];
+        flock.boids.push({
+          x: Math.random() * W,
+          y: Math.random() * H * 0.7,
+          vx: (Math.random() - 0.5) * 2,
+          vy: (Math.random() - 0.5) * 2,
+          color: color,
+          size: 3 + Math.random() * 2,
+          trail: [],
+        });
+      }
+      
+      // Generate crystal formation targets (hexagonal)
+      flock.crystalFormation = [];
+      const rings = 6;
+      flock.crystalFormation.push({ x: 0, y: 0 }); // center
+      for (let ring = 1; ring <= rings; ring++) {
+        const count = ring * 6;
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2;
+          const radius = ring * 25;
+          flock.crystalFormation.push({
+            x: Math.cos(angle) * radius,
+            y: Math.sin(angle) * radius,
+          });
+        }
+      }
+    }
+    
+    function updateMurmuration(dt) {
+      const params = {
+        separation: 25,
+        alignment: 50,
+        cohesion: 80,
+        separationForce: 0.05,
+        alignmentForce: 0.03,
+        cohesionForce: 0.02,
+        maxSpeed: state.mode === 'thinking' ? 4 : 2,
+        centerAttraction: state.mode === 'thinking' ? 0.001 : 0.0003,
+      };
+      
+      // Crystallization during responding
+      const targetCrystal = state.mode === 'responding' ? 1 : 0;
+      state.crystallization += (targetCrystal - state.crystallization) * dt * 2;
+      
+      flock.crystalCenter = { x: W / 2, y: H / 3 };
+      
+      flock.boids.forEach((boid, i) => {
+        // Store trail
+        boid.trail.push({ x: boid.x, y: boid.y });
+        if (boid.trail.length > 8) boid.trail.shift();
+        
+        let ax = 0, ay = 0;
+        let neighbors = 0;
+        let avgVx = 0, avgVy = 0;
+        let avgX = 0, avgY = 0;
+        
+        // Boids rules
+        flock.boids.forEach((other, j) => {
+          if (i === j) return;
+          const dx = other.x - boid.x;
+          const dy = other.y - boid.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist < params.separation && dist > 0) {
+            ax -= (dx / dist) * params.separationForce;
+            ay -= (dy / dist) * params.separationForce;
+          }
+          
+          if (dist < params.alignment) {
+            avgVx += other.vx;
+            avgVy += other.vy;
+            neighbors++;
+          }
+          
+          if (dist < params.cohesion) {
+            avgX += other.x;
+            avgY += other.y;
+          }
+        });
+        
+        if (neighbors > 0) {
+          avgVx /= neighbors;
+          avgVy /= neighbors;
+          ax += (avgVx - boid.vx) * params.alignmentForce;
+          ay += (avgVy - boid.vy) * params.alignmentForce;
+          
+          avgX /= neighbors;
+          avgY /= neighbors;
+          ax += (avgX - boid.x) * params.cohesionForce;
+          ay += (avgY - boid.y) * params.cohesionForce;
+        }
+        
+        // Center attraction
+        ax += (flock.center.x - boid.x) * params.centerAttraction;
+        ay += (flock.center.y - boid.y) * params.centerAttraction;
+        
+        // Touch interaction
+        if (state.touchPos && state.touchStrength > 0) {
+          const dx = state.touchPos.x - boid.x;
+          const dy = state.touchPos.y - boid.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 150 && dist > 0) {
+            ax += (dx / dist) * state.touchStrength * 0.1;
+            ay += (dy / dist) * state.touchStrength * 0.1;
+          }
+        }
+        
+        // Crystallization pull
+        if (state.crystallization > 0.1) {
+          const target = flock.crystalFormation[i % flock.crystalFormation.length];
+          const tx = flock.crystalCenter.x + target.x;
+          const ty = flock.crystalCenter.y + target.y;
+          ax += (tx - boid.x) * state.crystallization * 0.02;
+          ay += (ty - boid.y) * state.crystallization * 0.02;
+        }
+        
+        // Apply acceleration
+        boid.vx += ax;
+        boid.vy += ay;
+        
+        // Limit speed
+        const speed = Math.sqrt(boid.vx * boid.vx + boid.vy * boid.vy);
+        if (speed > params.maxSpeed) {
+          boid.vx = (boid.vx / speed) * params.maxSpeed;
+          boid.vy = (boid.vy / speed) * params.maxSpeed;
+        }
+        
+        // Update position
+        boid.x += boid.vx;
+        boid.y += boid.vy;
+        
+        // Wrap edges
+        if (boid.x < 0) boid.x = W;
+        if (boid.x > W) boid.x = 0;
+        if (boid.y < 0) boid.y = H * 0.7;
+        if (boid.y > H * 0.7) boid.y = 0;
+      });
+    }
+    
+    function drawMurmuration() {
+      surfaceCtx.clearRect(0, 0, W, H);
+      
+      flock.boids.forEach(boid => {
+        const { h, s, l } = boid.color;
+        
+        // Draw trail
+        if (boid.trail.length > 1) {
+          surfaceCtx.beginPath();
+          surfaceCtx.moveTo(boid.trail[0].x, boid.trail[0].y);
+          boid.trail.forEach((p, i) => {
+            surfaceCtx.lineTo(p.x, p.y);
+          });
+          surfaceCtx.strokeStyle = `hsla(${h}, ${s}%, ${l}%, 0.2)`;
+          surfaceCtx.lineWidth = 1;
+          surfaceCtx.stroke();
+        }
+        
+        // Draw boid as elongated shape pointing in velocity direction
+        const angle = Math.atan2(boid.vy, boid.vx);
+        const speed = Math.sqrt(boid.vx * boid.vx + boid.vy * boid.vy);
+        const stretch = 1 + speed * 0.3;
+        
+        surfaceCtx.save();
+        surfaceCtx.translate(boid.x, boid.y);
+        surfaceCtx.rotate(angle);
+        
+        // Glow
+        const glow = state.mode === 'thinking' ? 0.6 : 0.3;
+        surfaceCtx.shadowColor = `hsla(${h}, ${s}%, ${l}%, ${glow})`;
+        surfaceCtx.shadowBlur = 8;
+        
+        surfaceCtx.fillStyle = `hsla(${h}, ${s}%, ${l}%, 0.8)`;
+        surfaceCtx.beginPath();
+        surfaceCtx.ellipse(0, 0, boid.size * stretch, boid.size * 0.5, 0, 0, Math.PI * 2);
+        surfaceCtx.fill();
+        
+        surfaceCtx.shadowBlur = 0;
+        surfaceCtx.restore();
+      });
+      
+      // Draw crystal connections during crystallization
+      if (state.crystallization > 0.3) {
+        surfaceCtx.strokeStyle = `rgba(255, 255, 255, ${state.crystallization * 0.2})`;
+        surfaceCtx.lineWidth = 1;
+        
+        flock.boids.forEach((boid, i) => {
+          // Connect to nearby boids
+          flock.boids.forEach((other, j) => {
+            if (j <= i) return;
+            const dx = other.x - boid.x;
+            const dy = other.y - boid.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 40) {
+              surfaceCtx.beginPath();
+              surfaceCtx.moveTo(boid.x, boid.y);
+              surfaceCtx.lineTo(other.x, other.y);
+              surfaceCtx.stroke();
+            }
+          });
+        });
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // WEBSOCKET CONNECTION
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const WS_URL = 'wss://geometry-grid-table-reading.trycloudflare.com';
+    let ws;
+    
+    function connect() {
+      ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        stateText.textContent = 'idle';
+        console.log('[WS] Connected');
+      };
+      
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          handleMessage(msg);
+        } catch (err) {}
+      };
+      
+      ws.onclose = () => {
+        stateText.textContent = 'offline';
+        setTimeout(connect, 3000);
+      };
+      
+      ws.onerror = () => ws.close();
+    }
+    
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'state':
+          setMode(msg.mode || 'idle');
+          break;
+        case 'graph:full':
+          // Could use to position boids based on knowledge
+          break;
+      }
+    }
+    
+    function setMode(mode) {
+      if (state.mode !== mode) {
+        state.mode = mode;
+        state.modeTime = 0;
+        stateText.textContent = mode;
+        stateDot.className = 'state-dot' + (mode !== 'idle' ? ' ' + mode : '');
+        console.log('[State]', mode);
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // TOUCH HANDLING
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function handleTouch(e) {
+      e.preventDefault();
+      const touch = e.touches ? e.touches[0] : e;
+      state.touchPos = { x: touch.clientX, y: touch.clientY };
+      state.touchStrength = 1;
+    }
+    
+    function handleTouchEnd() {
+      state.touchStrength = 0;
+    }
+    
+    surfaceCanvas.addEventListener('touchstart', handleTouch, { passive: false });
+    surfaceCanvas.addEventListener('touchmove', handleTouch, { passive: false });
+    surfaceCanvas.addEventListener('touchend', handleTouchEnd);
+    surfaceCanvas.addEventListener('mousedown', handleTouch);
+    surfaceCanvas.addEventListener('mousemove', (e) => {
+      if (e.buttons) handleTouch(e);
+    });
+    surfaceCanvas.addEventListener('mouseup', handleTouchEnd);
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // ANIMATION LOOP
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    let lastTime = 0;
+    let frameCount = 0;
+    let lastFpsUpdate = 0;
+    
+    function animate(time) {
+      const dt = Math.min((time - lastTime) / 1000, 0.1);
+      lastTime = time;
+      state.time += dt;
+      state.modeTime += dt;
+      
+      // FPS counter
+      frameCount++;
+      if (time - lastFpsUpdate > 1000) {
+        fpsEl.textContent = `${frameCount} fps`;
+        frameCount = 0;
+        lastFpsUpdate = time;
+      }
+      
+      // Decay touch strength
+      if (state.touchStrength > 0 && !state.touchPos) {
+        state.touchStrength *= 0.9;
+      }
+      
+      // Update and draw all layers
+      drawSediment(dt);
+      drawWeather(dt);
+      updateMurmuration(dt);
+      drawMurmuration();
+      
+      requestAnimationFrame(animate);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    window.addEventListener('resize', resize);
+    resize();
+    connect();
+    requestAnimationFrame(animate);
+    
+    console.log('Absalom Unified — Three-Layer Living Mind');
+  </script>
+</body>
+</html>
