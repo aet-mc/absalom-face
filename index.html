@@ -568,9 +568,38 @@
     // WebSocket Connection for Live State Sync
     // ============================================
     
-    const WS_URL = new URLSearchParams(window.location.search).get('ws') || 
-                   localStorage.getItem('absalom_ws') ||
-                   null;
+    // Try to get WS URL from: query param > localStorage > remote config
+    let WS_URL = new URLSearchParams(window.location.search).get('ws') || 
+                 localStorage.getItem('absalom_ws') ||
+                 null;
+    
+    // Fetch latest WS URL from config file (auto-updates when tunnel changes)
+    async function fetchWsUrl() {
+      try {
+        const resp = await fetch('ws-url.txt?t=' + Date.now());
+        if (resp.ok) {
+          const url = (await resp.text()).trim();
+          if (url && url.startsWith('wss://')) {
+            console.log('Loaded WS URL from config:', url);
+            return url;
+          }
+        }
+      } catch (e) {
+        console.log('Could not fetch ws-url.txt, using fallback');
+      }
+      return null;
+    }
+    
+    // Initialize WS connection
+    (async () => {
+      if (!WS_URL) {
+        WS_URL = await fetchWsUrl();
+      }
+      if (WS_URL) {
+        localStorage.setItem('absalom_ws', WS_URL);
+        connectWebSocket();
+      }
+    })();
     
     let ws = null;
     let wsRetryTimeout = null;
@@ -578,7 +607,11 @@
     
     function connectWebSocket() {
       if (!WS_URL) {
-        console.log('No WebSocket URL configured. Use ?ws=wss://your-server or click to demo.');
+        console.log('No WebSocket URL configured. Retrying in 5s...');
+        setTimeout(async () => {
+          WS_URL = await fetchWsUrl();
+          if (WS_URL) connectWebSocket();
+        }, 5000);
         return;
       }
       
@@ -627,13 +660,6 @@
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
       };
-    }
-    
-    // Start WebSocket connection if URL provided
-    if (WS_URL) {
-      connectWebSocket();
-      // Disable click-to-change when connected
-      document.removeEventListener('click', arguments.callee);
     }
     
     // Save WS URL to localStorage if provided in query
