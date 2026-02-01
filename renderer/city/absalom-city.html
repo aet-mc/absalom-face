@@ -4787,11 +4787,22 @@
       const meshes = getBuildingMeshes();
       if (meshes.length === 0) return null;
       
-      const intersects = interaction.raycaster.intersectObjects(meshes, false);
+      // Use recursive=true to find children of compound buildings
+      const intersects = interaction.raycaster.intersectObjects(meshes, true);
       
       if (intersects.length > 0 && intersects[0].object) {
-        const mesh = intersects[0].object;
-        return city.buildings.find(b => b.mesh === mesh) || null;
+        let mesh = intersects[0].object;
+        
+        // Traverse up to find the building group (parent might be the actual building)
+        while (mesh && mesh.parent) {
+          // Check if this mesh or its parent is a building
+          const building = city.buildings.find(b => b.mesh === mesh);
+          if (building) return building;
+          mesh = mesh.parent;
+        }
+        
+        // Fallback: direct match
+        return city.buildings.find(b => b.mesh === intersects[0].object) || null;
       }
       return null;
     }
