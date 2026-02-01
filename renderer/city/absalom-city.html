@@ -777,6 +777,7 @@
       if (building.height < 25) return; // Only the tallest buildings
       
       const elevatorCount = Math.floor(building.height / 40) + 1; // Fewer elevators
+      const baseHeight = 2; // Above the base/lobby section
       
       for (let e = 0; e < elevatorCount; e++) {
         const elevatorGeo = new THREE.BoxGeometry(0.15, 0.4, 0.15);
@@ -791,10 +792,10 @@
         const side = e % 4;
         const offset = building.width / 2 + 0.1;
         switch (side) {
-          case 0: elevator.position.set(offset, 0, 0); break;
-          case 1: elevator.position.set(-offset, 0, 0); break;
-          case 2: elevator.position.set(0, 0, offset); break;
-          case 3: elevator.position.set(0, 0, -offset); break;
+          case 0: elevator.position.set(offset, baseHeight, 0); break;
+          case 1: elevator.position.set(-offset, baseHeight, 0); break;
+          case 2: elevator.position.set(0, baseHeight, offset); break;
+          case 3: elevator.position.set(0, baseHeight, -offset); break;
         }
         
         elevator.userData = {
@@ -804,7 +805,8 @@
           speed: 0.002 + Math.random() * 0.004, // Slower elevators
           waitTime: 0,
           maxWait: 200 + Math.random() * 400, // Much longer waits between trips
-          buildingHeight: building.height
+          buildingHeight: building.height,
+          baseHeight: baseHeight // Floor where elevator starts
         };
         
         building.mesh.add(elevator);
@@ -835,8 +837,10 @@
           data.floor += Math.sign(diff) * data.speed * 0.5; // Move slower
         }
         
-        // Position elevator
-        const yPos = -data.buildingHeight / 2 + data.floor * data.buildingHeight;
+        // Position elevator - now goes from baseHeight to buildingHeight
+        const baseHeight = data.baseHeight || 2;
+        const travelHeight = data.buildingHeight - baseHeight;
+        const yPos = baseHeight + data.floor * travelHeight;
         elevator.position.y = yPos;
       });
     }
@@ -1253,20 +1257,40 @@
     
     function initializeWindowStates(building) {
       const windowStates = [];
-      building.mesh.children.forEach((child, index) => {
-        if (child.geometry && (child.geometry.type === 'BoxGeometry' || child.geometry.type === 'TorusGeometry')) {
+      
+      // Recursively find all window-like elements in the building
+      function findWindows(obj) {
+        if (!obj) return;
+        
+        // Check if this is a window-like element (plane with basic material, not a frame line)
+        if (obj.geometry && obj.material && 
+            (obj.geometry.type === 'PlaneGeometry' || 
+             obj.geometry.type === 'BoxGeometry' || 
+             obj.geometry.type === 'TorusGeometry') &&
+            obj.material.type === 'MeshBasicMaterial' &&
+            obj.material.transparent === true &&
+            !obj.userData.hologram) { // Exclude holograms
+          
           const state = {
             isOn: Math.random() > 0.08,  // 92% windows stay lit - stable city
             isTV: Math.random() < 0.03,  // Only 3% are TVs - much rarer
-            targetOpacity: 0.4 + Math.random() * 0.3, // Stable warm glow
+            baseOpacity: obj.material.opacity,
+            targetOpacity: obj.material.opacity,
             transitionSpeed: 0.003 + Math.random() * 0.005, // Very slow transitions
-            // MUCH longer intervals: 5-15 seconds between any change (300-900 frames at 60fps)
             nextToggle: 300 + Math.random() * 600,
-            tvFlickerPhase: Math.random() * Math.PI * 2
+            tvFlickerPhase: Math.random() * Math.PI * 2,
+            originalColor: obj.material.color.clone()
           };
-          windowStates.push({ child, state, index });
+          windowStates.push({ child: obj, state });
         }
-      });
+        
+        // Recurse into children
+        if (obj.children) {
+          obj.children.forEach(child => findWindows(child));
+        }
+      }
+      
+      findWindows(building.mesh);
       city.windowStates.set(building, windowStates);
     }
     
@@ -1283,7 +1307,9 @@
             // Windows almost always stay on (95%+), especially at night
             const onChance = 0.92 + city.nightIntensity * 0.06;
             state.isOn = Math.random() < onChance;
-            state.targetOpacity = state.isOn ? (0.35 + Math.random() * 0.25) : 0.08;
+            state.targetOpacity = state.isOn ? 
+              (state.baseOpacity * 0.8 + Math.random() * state.baseOpacity * 0.4) : 
+              0.08;
             // Very long intervals: 8-20 seconds before next possible change
             state.nextToggle = 500 + Math.random() * 700;
           }
@@ -1301,10 +1327,12 @@
             const diff = state.targetOpacity - current;
             child.material.opacity = current + diff * state.transitionSpeed;
             
-            // Reset color for non-TV windows
-            if (!state.isTV) {
-              const warmth = city.nightIntensity * 0.2;
-              child.material.color.setRGB(1, 0.9 - warmth * 0.1, 0.7 - warmth * 0.3);
+            // Restore original district color with night warmth adjustment
+            if (!state.isTV && state.originalColor) {
+              const warmth = city.nightIntensity * 0.15;
+              child.material.color.copy(state.originalColor);
+              child.material.color.r = Math.min(1, state.originalColor.r + warmth * 0.3);
+              child.material.color.g = Math.min(1, state.originalColor.g + warmth * 0.1);
             }
           }
         });
@@ -1323,29 +1351,36 @@
         const pulse = Math.sin(dt * rhythm.pulseFrequency) * 0.5 + 0.5;
         
         // Activity burst - almost never in idle state
-        // Only meaningful when there's actual cognitive activity
         const burst = Math.random() < rhythm.burstChance ? 0.15 : 0;
         
-        // Apply to building emissive - much more subtle
-        if (building.mesh.material && building.mesh.material.emissiveIntensity !== undefined) {
-          // Base glow is stable, minimal variation
-          const baseIntensity = 0.25 + city.nightIntensity * 0.2;
-          // Very subtle rhythm, barely perceptible
-          const rhythmIntensity = pulse * rhythm.activityLevel * 0.08;
-          building.mesh.material.emissiveIntensity = baseIntensity + rhythmIntensity + burst;
+        // Base glow is stable, minimal variation
+        const baseIntensity = 0.25 + city.nightIntensity * 0.2;
+        const rhythmIntensity = pulse * rhythm.activityLevel * 0.08;
+        const targetEmissive = baseIntensity + rhythmIntensity + burst;
+        
+        // Recursively update emissive materials and pulsing elements
+        function updateMesh(obj) {
+          if (!obj) return;
+          
+          // Update emissive intensity on materials
+          if (obj.material && obj.material.emissiveIntensity !== undefined) {
+            obj.material.emissiveIntensity = targetEmissive;
+          }
+          
+          // Update pulsing beacons/lights
+          if (obj.userData && obj.userData.pulse) {
+            const beaconPulse = Math.sin(dt * rhythm.pulseFrequency * 0.5 + obj.userData.pulsePhase);
+            const scale = 1 + beaconPulse * 0.1 * rhythm.activityLevel;
+            obj.scale.set(scale, scale, scale);
+          }
+          
+          // Recurse into children
+          if (obj.children) {
+            obj.children.forEach(child => updateMesh(child));
+          }
         }
         
-        // Beacon pulse - also calmed down significantly
-        if (building.mesh && building.mesh.children) {
-          building.mesh.children.forEach(child => {
-            if (child.userData && child.userData.pulse) {
-              // Very slow, subtle beacon pulse
-              const beaconPulse = Math.sin(dt * rhythm.pulseFrequency * 0.5 + child.userData.pulsePhase);
-              const scale = 1 + beaconPulse * 0.1 * rhythm.activityLevel;
-              child.scale.set(scale, scale, scale);
-            }
-          });
-        }
+        updateMesh(building.mesh);
       });
     }
     
