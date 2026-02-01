@@ -93,13 +93,18 @@
     drag to orbit · scroll to zoom · shift+drag to pan
   </div>
 
-  <!-- Three.js -->
+  <!-- Three.js with post-processing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
   
   <script>
     // ═══════════════════════════════════════════════════════════════════════
-    // ABSALOM CITY — A Mind Made Manifest
+    // ABSALOM CITY — A Mind Made Manifest (Cyberpunk Utopia Edition)
     // ═══════════════════════════════════════════════════════════════════════
     
     const canvas = document.getElementById('canvas');
@@ -110,12 +115,16 @@
     const timeDisplayEl = document.getElementById('timeDisplay');
     const cyclePhaseEl = document.getElementById('cyclePhase');
     
+    // Performance detection
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const qualityLevel = isMobile ? 'low' : 'high';
+    
     // ═══════════════════════════════════════════════════════════════════════
     // SCENE SETUP
     // ═══════════════════════════════════════════════════════════════════════
     
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x0a0a15, 0.008);
+    scene.fog = new THREE.FogExp2(0x0a0a15, 0.006);
     
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(30, 40, 50);
@@ -123,21 +132,34 @@
     
     const renderer = new THREE.WebGLRenderer({ 
       canvas, 
-      antialias: true,
+      antialias: !isMobile,
       powerPreference: 'high-performance'
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
+    renderer.shadowMap.enabled = !isMobile;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     
-    // Orbit controls (Google Maps style)
+    // Post-processing: Bloom
+    const composer = new THREE.EffectComposer(renderer);
+    const renderPass = new THREE.RenderPass(scene, camera);
+    composer.addPass(renderPass);
+    
+    const bloomPass = new THREE.UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      isMobile ? 0.8 : 1.2,  // strength
+      0.4,                    // radius
+      0.85                    // threshold
+    );
+    composer.addPass(bloomPass);
+    
+    // Orbit controls
     const controls = new THREE.OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2.1; // Don't go below ground
+    controls.maxPolarAngle = Math.PI / 2.1;
     controls.minDistance = 10;
     controls.maxDistance = 150;
     controls.target.set(0, 5, 0);
@@ -148,36 +170,36 @@
     
     const DISTRICTS = {
       core: { 
-        name: 'Core', 
-        color: new THREE.Color(0x00ffff), // Cyan
+        name: 'NEXUS CORE', 
+        color: new THREE.Color(0x00ffff),
         emissive: new THREE.Color(0x003344),
         position: new THREE.Vector3(0, 0, 0),
         keywords: ['self', 'identity', 'soul', 'absalom']
       },
       trading: { 
-        name: 'Trading', 
-        color: new THREE.Color(0xffd700), // Gold
+        name: 'MARKET SPIRES', 
+        color: new THREE.Color(0xffd700),
         emissive: new THREE.Color(0x332200),
         position: new THREE.Vector3(25, 0, 10),
         keywords: ['stock', 'trading', 'market', 'options', 'scanner', 'asymmetry']
       },
       infrastructure: { 
-        name: 'Infrastructure', 
-        color: new THREE.Color(0xff6b9d), // Pink
+        name: 'DATAFORGE', 
+        color: new THREE.Color(0xff6b9d),
         emissive: new THREE.Color(0x331122),
         position: new THREE.Vector3(-20, 0, 15),
         keywords: ['server', 'deploy', 'docker', 'tailscale', 'coolify', 'pm2']
       },
       projects: { 
-        name: 'Projects', 
-        color: new THREE.Color(0x9d6bff), // Purple
+        name: 'CREATION LABS', 
+        color: new THREE.Color(0x9d6bff),
         emissive: new THREE.Color(0x220033),
         position: new THREE.Vector3(10, 0, -25),
         keywords: ['project', 'build', 'create', 'app', 'visualization']
       },
       memory: { 
-        name: 'Memory', 
-        color: new THREE.Color(0x6bff9d), // Green
+        name: 'MEMORY BANKS', 
+        color: new THREE.Color(0x6bff9d),
         emissive: new THREE.Color(0x113322),
         position: new THREE.Vector3(-15, 0, -20),
         keywords: ['memory', 'remember', 'decision', 'learned', 'preference']
@@ -192,21 +214,73 @@
       buildings: [],
       connections: [],
       districts: new Map(),
+      drones: [],
+      particles: null,
+      districtLabels: [],
+      stars: null,
+      coreRings: [],
       time: 0,
       realTime: new Date(),
       sunPosition: new THREE.Vector3(),
+      nightIntensity: 0,
     };
     
     // ═══════════════════════════════════════════════════════════════════════
-    // GROUND PLANE
+    // STARFIELD SKYBOX
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createStarfield() {
+      const starCount = isMobile ? 1000 : 3000;
+      const starGeometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(starCount * 3);
+      const colors = new Float32Array(starCount * 3);
+      const sizes = new Float32Array(starCount);
+      
+      for (let i = 0; i < starCount; i++) {
+        // Distribute on a large sphere
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const radius = 400 + Math.random() * 100;
+        
+        positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+        positions[i * 3 + 1] = Math.abs(radius * Math.cos(phi)); // Only upper hemisphere
+        positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+        
+        // Slight color variation (warm to cool white)
+        const temp = 0.8 + Math.random() * 0.4;
+        colors[i * 3] = temp;
+        colors[i * 3 + 1] = temp * 0.95;
+        colors[i * 3 + 2] = temp * (0.8 + Math.random() * 0.2);
+        
+        sizes[i] = 0.5 + Math.random() * 1.5;
+      }
+      
+      starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      starGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      starGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+      
+      const starMaterial = new THREE.PointsMaterial({
+        size: 1.5,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0,
+        sizeAttenuation: false,
+      });
+      
+      city.stars = new THREE.Points(starGeometry, starMaterial);
+      scene.add(city.stars);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // HEX GRID GROUND WITH GLOWING ROADS
     // ═══════════════════════════════════════════════════════════════════════
     
     function createGround() {
-      // Main ground
-      const groundGeo = new THREE.PlaneGeometry(200, 200, 50, 50);
+      // Dark base plane
+      const groundGeo = new THREE.PlaneGeometry(250, 250);
       const groundMat = new THREE.MeshStandardMaterial({
-        color: 0x0a0a15,
-        roughness: 0.9,
+        color: 0x050510,
+        roughness: 0.95,
         metalness: 0.1,
       });
       const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -214,46 +288,128 @@
       ground.receiveShadow = true;
       scene.add(ground);
       
-      // Grid overlay
-      const gridHelper = new THREE.GridHelper(200, 100, 0x1a1a2e, 0x1a1a2e);
-      gridHelper.position.y = 0.01;
-      scene.add(gridHelper);
+      // Hex grid
+      createHexGrid();
       
-      // Glowing grid lines (major)
-      const majorGrid = new THREE.GridHelper(200, 20, 0x00334455, 0x00223344);
-      majorGrid.position.y = 0.02;
-      scene.add(majorGrid);
+      // Glowing road network
+      createRoadNetwork();
+    }
+    
+    function createHexGrid() {
+      const hexRadius = 3;
+      const hexHeight = hexRadius * Math.sqrt(3);
+      const gridSize = 15;
+      
+      const hexShape = new THREE.Shape();
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2 - Math.PI / 6;
+        const x = Math.cos(angle) * hexRadius * 0.95;
+        const y = Math.sin(angle) * hexRadius * 0.95;
+        if (i === 0) hexShape.moveTo(x, y);
+        else hexShape.lineTo(x, y);
+      }
+      hexShape.closePath();
+      
+      const hexLineGeo = new THREE.EdgesGeometry(new THREE.ShapeGeometry(hexShape));
+      const hexLineMat = new THREE.LineBasicMaterial({
+        color: 0x1a2a3a,
+        transparent: true,
+        opacity: 0.4,
+      });
+      
+      // Instanced hex outlines
+      for (let q = -gridSize; q <= gridSize; q++) {
+        for (let r = -gridSize; r <= gridSize; r++) {
+          if (Math.abs(q + r) > gridSize) continue;
+          
+          const x = hexRadius * 1.5 * q;
+          const z = hexHeight * (r + q / 2);
+          
+          // Skip center area for core
+          if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
+          
+          const hexLine = new THREE.LineSegments(hexLineGeo, hexLineMat);
+          hexLine.rotation.x = -Math.PI / 2;
+          hexLine.position.set(x, 0.05, z);
+          scene.add(hexLine);
+        }
+      }
+    }
+    
+    function createRoadNetwork() {
+      const roadMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.15,
+      });
+      
+      const roadGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.6,
+      });
+      
+      // Main roads connecting districts
+      const districtPositions = Object.values(DISTRICTS).map(d => d.position);
+      
+      districtPositions.forEach((pos, i) => {
+        // Road to center
+        createRoadSegment(pos.x, pos.z, 0, 0, roadMaterial, roadGlowMaterial);
+        
+        // Connect to next district
+        const next = districtPositions[(i + 1) % districtPositions.length];
+        createRoadSegment(pos.x, pos.z, next.x, next.z, roadMaterial, roadGlowMaterial);
+      });
+    }
+    
+    function createRoadSegment(x1, z1, x2, z2, baseMat, glowMat) {
+      const length = Math.sqrt((x2 - x1) ** 2 + (z2 - z1) ** 2);
+      const angle = Math.atan2(z2 - z1, x2 - x1);
+      
+      // Base road
+      const roadGeo = new THREE.PlaneGeometry(length, 1.5);
+      const road = new THREE.Mesh(roadGeo, baseMat);
+      road.rotation.x = -Math.PI / 2;
+      road.rotation.z = -angle;
+      road.position.set((x1 + x2) / 2, 0.06, (z1 + z2) / 2);
+      scene.add(road);
+      
+      // Center glow line
+      const lineGeo = new THREE.PlaneGeometry(length, 0.15);
+      const line = new THREE.Mesh(lineGeo, glowMat);
+      line.rotation.x = -Math.PI / 2;
+      line.rotation.z = -angle;
+      line.position.set((x1 + x2) / 2, 0.08, (z1 + z2) / 2);
+      scene.add(line);
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // LIGHTING (Real-time day/night)
+    // LIGHTING
     // ═══════════════════════════════════════════════════════════════════════
     
     let sunLight, moonLight, ambientLight;
     
     function createLighting() {
-      // Sun
       sunLight = new THREE.DirectionalLight(0xffeedd, 1);
-      sunLight.castShadow = true;
-      sunLight.shadow.mapSize.width = 2048;
-      sunLight.shadow.mapSize.height = 2048;
-      sunLight.shadow.camera.near = 0.5;
-      sunLight.shadow.camera.far = 200;
-      sunLight.shadow.camera.left = -50;
-      sunLight.shadow.camera.right = 50;
-      sunLight.shadow.camera.top = 50;
-      sunLight.shadow.camera.bottom = -50;
+      if (!isMobile) {
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 200;
+        sunLight.shadow.camera.left = -50;
+        sunLight.shadow.camera.right = 50;
+        sunLight.shadow.camera.top = 50;
+        sunLight.shadow.camera.bottom = -50;
+      }
       scene.add(sunLight);
       
-      // Moon (subtle blue)
       moonLight = new THREE.DirectionalLight(0x4466aa, 0.3);
       scene.add(moonLight);
       
-      // Ambient
       ambientLight = new THREE.AmbientLight(0x111122, 0.5);
       scene.add(ambientLight);
       
-      // Hemisphere light for sky color
       const hemiLight = new THREE.HemisphereLight(0x0a0a20, 0x000000, 0.3);
       scene.add(hemiLight);
     }
@@ -262,15 +418,13 @@
       const now = new Date();
       const hours = now.getHours() + now.getMinutes() / 60;
       
-      // Update time display
       timeDisplayEl.textContent = now.toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit',
         hour12: false 
       });
       
-      // Calculate sun position (0-24 hours mapped to full circle)
-      const sunAngle = ((hours - 6) / 24) * Math.PI * 2; // 6am = sunrise
+      const sunAngle = ((hours - 6) / 24) * Math.PI * 2;
       const sunHeight = Math.sin(sunAngle);
       const sunX = Math.cos(sunAngle) * 50;
       const sunY = Math.max(sunHeight * 50, -20);
@@ -279,22 +433,31 @@
       sunLight.position.set(sunX, sunY, sunZ);
       moonLight.position.set(-sunX, -sunY + 30, -sunZ);
       
-      // Day/night intensity
       const dayIntensity = Math.max(0, sunHeight);
-      const nightIntensity = Math.max(0, -sunHeight);
+      city.nightIntensity = Math.max(0, -sunHeight);
       
       sunLight.intensity = dayIntensity * 1.2;
-      moonLight.intensity = nightIntensity * 0.4;
+      moonLight.intensity = city.nightIntensity * 0.4;
       ambientLight.intensity = 0.2 + dayIntensity * 0.3;
       
       // Sky color
-      const skyHue = dayIntensity > 0.1 ? 0.6 : 0.7;
-      const skySat = dayIntensity > 0.1 ? 0.3 : 0.5;
-      const skyLight = 0.02 + dayIntensity * 0.08;
+      const skyHue = dayIntensity > 0.1 ? 0.6 : 0.68;
+      const skySat = dayIntensity > 0.1 ? 0.3 : 0.6;
+      const skyLight = 0.01 + dayIntensity * 0.06;
       scene.background = new THREE.Color().setHSL(skyHue, skySat, skyLight);
       scene.fog.color = scene.background;
       
-      // Cycle phase text
+      // Stars visibility at night
+      if (city.stars) {
+        city.stars.material.opacity = Math.max(0, city.nightIntensity * 0.9);
+      }
+      
+      // Bloom intensity increases at night
+      bloomPass.strength = isMobile ? 
+        (0.6 + city.nightIntensity * 0.6) : 
+        (0.8 + city.nightIntensity * 0.8);
+      
+      // Cycle phase
       let phase = 'night';
       if (hours >= 5 && hours < 7) phase = 'dawn';
       else if (hours >= 7 && hours < 12) phase = 'morning';
@@ -302,14 +465,146 @@
       else if (hours >= 17 && hours < 20) phase = 'evening';
       else if (hours >= 20 && hours < 22) phase = 'dusk';
       cyclePhaseEl.textContent = phase;
-      
-      // Building emissives glow more at night
-      const emissiveBoost = 1 + nightIntensity * 2;
-      city.buildings.forEach(b => {
-        if (b.mesh.material.emissive) {
-          b.mesh.material.emissiveIntensity = 0.5 * emissiveBoost;
-        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // PROCEDURAL BUILDING SHAPES
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const BUILDING_TYPES = {
+      tower: (w, h, d) => new THREE.BoxGeometry(w, h, d),
+      cylinder: (w, h, d) => new THREE.CylinderGeometry(w/2, w/2, h, 8),
+      tapered: (w, h, d) => new THREE.CylinderGeometry(w/3, w/2, h, 6),
+      spire: (w, h, d) => new THREE.ConeGeometry(w/2, h, 6),
+      dome: (w, h, d) => {
+        const geo = new THREE.SphereGeometry(w, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+        return geo;
+      },
+      hexPrism: (w, h, d) => new THREE.CylinderGeometry(w/2, w/2, h, 6),
+      octagon: (w, h, d) => new THREE.CylinderGeometry(w/2, w/2, h, 8),
+    };
+    
+    function getRandomBuildingType() {
+      const types = Object.keys(BUILDING_TYPES);
+      const weights = [3, 2, 2, 1, 1, 1, 1]; // Tower most common
+      const total = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * total;
+      for (let i = 0; i < types.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return types[i];
+      }
+      return 'tower';
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // BUILDING FEATURES
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function addAntennaArray(mesh, height, color) {
+      const antennaCount = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < antennaCount; i++) {
+        const antennaHeight = 2 + Math.random() * 4;
+        const antennaGeo = new THREE.CylinderGeometry(0.05, 0.08, antennaHeight, 4);
+        const antennaMat = new THREE.MeshBasicMaterial({ color: 0x333344 });
+        const antenna = new THREE.Mesh(antennaGeo, antennaMat);
+        
+        const angle = (i / antennaCount) * Math.PI * 2;
+        const radius = 0.5 + Math.random() * 0.5;
+        antenna.position.set(
+          Math.cos(angle) * radius,
+          height / 2 + antennaHeight / 2,
+          Math.sin(angle) * radius
+        );
+        mesh.add(antenna);
+        
+        // Blinking light on top
+        const lightGeo = new THREE.SphereGeometry(0.1, 4, 4);
+        const lightMat = new THREE.MeshBasicMaterial({ color: color });
+        const light = new THREE.Mesh(lightGeo, lightMat);
+        light.position.y = antennaHeight / 2 + 0.1;
+        light.userData.blink = true;
+        light.userData.blinkPhase = Math.random() * Math.PI * 2;
+        antenna.add(light);
+      }
+    }
+    
+    function addRooftopGarden(mesh, width, depth, height) {
+      const gardenGeo = new THREE.BoxGeometry(width * 0.7, 0.5, depth * 0.7);
+      const gardenMat = new THREE.MeshBasicMaterial({
+        color: 0x2d5a2d,
+        transparent: true,
+        opacity: 0.9,
       });
+      const garden = new THREE.Mesh(gardenGeo, gardenMat);
+      garden.position.y = height / 2 + 0.25;
+      mesh.add(garden);
+      
+      // Glowing foliage particles
+      const particleCount = 20;
+      const particleGeo = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      
+      for (let i = 0; i < particleCount; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * width * 0.6;
+        positions[i * 3 + 1] = height / 2 + 0.5 + Math.random() * 0.8;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * depth * 0.6;
+      }
+      
+      particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const particleMat = new THREE.PointsMaterial({
+        color: 0x6bff9d,
+        size: 0.3,
+        transparent: true,
+        opacity: 0.7,
+      });
+      const particles = new THREE.Points(particleGeo, particleMat);
+      mesh.add(particles);
+    }
+    
+    function addHolographicAd(mesh, width, height, districtColor) {
+      const adHeight = 2 + Math.random() * 2;
+      const adWidth = width * 0.8;
+      
+      // Hologram base
+      const holoGeo = new THREE.PlaneGeometry(adWidth, adHeight);
+      const holoMat = new THREE.MeshBasicMaterial({
+        color: districtColor,
+        transparent: true,
+        opacity: 0.4,
+        side: THREE.DoubleSide,
+      });
+      const holo = new THREE.Mesh(holoGeo, holoMat);
+      
+      // Position on building side
+      const side = Math.floor(Math.random() * 4);
+      const offset = width / 2 + 0.1;
+      const yPos = height * 0.3 + Math.random() * height * 0.4;
+      
+      switch(side) {
+        case 0: holo.position.set(offset, yPos, 0); holo.rotation.y = Math.PI / 2; break;
+        case 1: holo.position.set(-offset, yPos, 0); holo.rotation.y = -Math.PI / 2; break;
+        case 2: holo.position.set(0, yPos, offset); break;
+        case 3: holo.position.set(0, yPos, -offset); holo.rotation.y = Math.PI; break;
+      }
+      
+      holo.userData.hologram = true;
+      holo.userData.flickerPhase = Math.random() * Math.PI * 2;
+      mesh.add(holo);
+      
+      // Scanlines effect (horizontal bars)
+      for (let i = 0; i < 3; i++) {
+        const lineGeo = new THREE.PlaneGeometry(adWidth, 0.05);
+        const lineMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.3,
+          side: THREE.DoubleSide,
+        });
+        const line = new THREE.Mesh(lineGeo, lineMat);
+        line.position.y = -adHeight/2 + (i + 1) * (adHeight / 4);
+        line.position.z = 0.01;
+        holo.add(line);
+      }
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -324,47 +619,82 @@
         height = 5 + Math.random() * 20,
         district = 'core',
         label = '',
+        type = getRandomBuildingType(),
       } = config;
       
       const districtData = DISTRICTS[district] || DISTRICTS.core;
       
-      // Main structure
-      const geometry = new THREE.BoxGeometry(width, height, depth);
+      // Create geometry based on type
+      const geometry = BUILDING_TYPES[type](width, height, depth);
+      
       const material = new THREE.MeshStandardMaterial({
-        color: districtData.color.clone().multiplyScalar(0.3),
+        color: districtData.color.clone().multiplyScalar(0.25),
         emissive: districtData.emissive,
         emissiveIntensity: 0.5,
-        roughness: 0.7,
-        metalness: 0.3,
+        roughness: 0.6,
+        metalness: 0.4,
       });
       
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(x, height / 2, z);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
       
-      // Window glow strips
-      const windowCount = Math.floor(height / 3);
-      for (let i = 0; i < windowCount; i++) {
-        const windowGeo = new THREE.BoxGeometry(width * 0.8, 0.3, depth + 0.1);
-        const windowMat = new THREE.MeshBasicMaterial({
-          color: districtData.color,
-          transparent: true,
-          opacity: 0.6 + Math.random() * 0.4,
-        });
-        const windowMesh = new THREE.Mesh(windowGeo, windowMat);
-        windowMesh.position.y = -height / 2 + 2 + i * 3;
-        mesh.add(windowMesh);
+      // Position adjustment for different types
+      if (type === 'dome') {
+        mesh.position.set(x, width, z);
+      } else {
+        mesh.position.set(x, height / 2, z);
+      }
+      
+      mesh.castShadow = !isMobile;
+      mesh.receiveShadow = !isMobile;
+      
+      // Window glow strips (not for domes/spires)
+      if (type !== 'dome' && type !== 'spire') {
+        const windowCount = Math.floor(height / 4);
+        for (let i = 0; i < windowCount; i++) {
+          const isGlowing = Math.random() > 0.3;
+          if (!isGlowing) continue;
+          
+          let windowGeo;
+          if (type === 'cylinder' || type === 'tapered' || type === 'hexPrism' || type === 'octagon') {
+            windowGeo = new THREE.TorusGeometry(width / 2 + 0.05, 0.08, 4, type === 'hexPrism' ? 6 : 8);
+          } else {
+            windowGeo = new THREE.BoxGeometry(width * 0.85, 0.2, depth + 0.1);
+          }
+          
+          const windowMat = new THREE.MeshBasicMaterial({
+            color: districtData.color,
+            transparent: true,
+            opacity: 0.5 + Math.random() * 0.5,
+          });
+          const windowMesh = new THREE.Mesh(windowGeo, windowMat);
+          
+          if (type === 'cylinder' || type === 'tapered' || type === 'hexPrism' || type === 'octagon') {
+            windowMesh.rotation.x = Math.PI / 2;
+          }
+          
+          windowMesh.position.y = -height / 2 + 2 + i * 4;
+          mesh.add(windowMesh);
+        }
+      }
+      
+      // Random features
+      const featureRoll = Math.random();
+      if (height > 12 && featureRoll < 0.25) {
+        addAntennaArray(mesh, height, districtData.color);
+      } else if (height > 8 && featureRoll < 0.45) {
+        addRooftopGarden(mesh, width, depth, height);
+      } else if (height > 10 && featureRoll < 0.65) {
+        addHolographicAd(mesh, width, height, districtData.color);
       }
       
       // Top beacon for tall buildings
-      if (height > 15) {
-        const beaconGeo = new THREE.SphereGeometry(0.3, 8, 8);
-        const beaconMat = new THREE.MeshBasicMaterial({
-          color: districtData.color,
-        });
+      if (height > 15 && type !== 'spire') {
+        const beaconGeo = new THREE.SphereGeometry(0.25, 6, 6);
+        const beaconMat = new THREE.MeshBasicMaterial({ color: districtData.color });
         const beacon = new THREE.Mesh(beaconGeo, beaconMat);
-        beacon.position.y = height / 2 + 0.5;
+        beacon.position.y = type === 'dome' ? width : height / 2 + 0.4;
+        beacon.userData.pulse = true;
+        beacon.userData.pulsePhase = Math.random() * Math.PI * 2;
         mesh.add(beacon);
       }
       
@@ -374,14 +704,14 @@
         mesh,
         district,
         label,
+        type,
         x, z,
-        height,
+        width, depth, height,
         createdAt: Date.now(),
       };
       
       city.buildings.push(building);
       
-      // Track district
       if (!city.districts.has(district)) {
         city.districts.set(district, []);
       }
@@ -392,20 +722,26 @@
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // CONNECTION LINES (Transit/Roads)
+    // CONNECTION LINES
     // ═══════════════════════════════════════════════════════════════════════
     
     function createConnection(building1, building2) {
-      const points = [
+      const curve = new THREE.QuadraticBezierCurve3(
         new THREE.Vector3(building1.x, 0.5, building1.z),
-        new THREE.Vector3(building2.x, 0.5, building2.z),
-      ];
+        new THREE.Vector3(
+          (building1.x + building2.x) / 2,
+          2 + Math.random() * 2,
+          (building1.z + building2.z) / 2
+        ),
+        new THREE.Vector3(building2.x, 0.5, building2.z)
+      );
       
+      const points = curve.getPoints(20);
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       const material = new THREE.LineBasicMaterial({
         color: 0x00ffff,
         transparent: true,
-        opacity: 0.3,
+        opacity: 0.25,
       });
       
       const line = new THREE.Line(geometry, material);
@@ -416,143 +752,372 @@
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // CORE SPIRE (Central Identity)
+    // HOLOGRAPHIC DISTRICT LABELS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createDistrictLabels() {
+      Object.entries(DISTRICTS).forEach(([key, district]) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 512;
+        canvas.height = 128;
+        
+        // Transparent background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Glowing text
+        ctx.font = 'bold 48px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Glow effect
+        ctx.shadowColor = '#' + district.color.getHexString();
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = '#' + district.color.getHexString();
+        ctx.fillText(district.name, canvas.width / 2, canvas.height / 2);
+        
+        // Brighter center
+        ctx.shadowBlur = 5;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(district.name, canvas.width / 2, canvas.height / 2);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        
+        const labelMat = new THREE.SpriteMaterial({
+          map: texture,
+          transparent: true,
+          opacity: 0.8,
+        });
+        
+        const label = new THREE.Sprite(labelMat);
+        label.position.set(
+          district.position.x,
+          25 + Math.random() * 5,
+          district.position.z
+        );
+        label.scale.set(15, 4, 1);
+        
+        label.userData.baseY = label.position.y;
+        label.userData.floatPhase = Math.random() * Math.PI * 2;
+        
+        scene.add(label);
+        city.districtLabels.push(label);
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // FLYING DRONES/VEHICLES
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createDrones() {
+      const droneCount = isMobile ? 8 : 15;
+      
+      for (let i = 0; i < droneCount; i++) {
+        const droneGroup = new THREE.Group();
+        
+        // Main body
+        const bodyGeo = new THREE.SphereGeometry(0.3, 6, 4);
+        const bodyMat = new THREE.MeshBasicMaterial({
+          color: 0x00ffff,
+          transparent: true,
+          opacity: 0.8,
+        });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        droneGroup.add(body);
+        
+        // Light trail
+        const trailGeo = new THREE.ConeGeometry(0.15, 1.5, 4);
+        const trailMat = new THREE.MeshBasicMaterial({
+          color: 0x00ffff,
+          transparent: true,
+          opacity: 0.3,
+        });
+        const trail = new THREE.Mesh(trailGeo, trailMat);
+        trail.rotation.x = Math.PI / 2;
+        trail.position.z = 0.8;
+        droneGroup.add(trail);
+        
+        // Random patrol path
+        const pathRadius = 15 + Math.random() * 40;
+        const pathHeight = 10 + Math.random() * 25;
+        const pathSpeed = 0.2 + Math.random() * 0.3;
+        const pathOffset = Math.random() * Math.PI * 2;
+        const pathTilt = (Math.random() - 0.5) * 0.5;
+        
+        droneGroup.userData = {
+          pathRadius,
+          pathHeight,
+          pathSpeed,
+          pathOffset,
+          pathTilt,
+        };
+        
+        scene.add(droneGroup);
+        city.drones.push(droneGroup);
+      }
+    }
+    
+    function updateDrones(time) {
+      city.drones.forEach(drone => {
+        const { pathRadius, pathHeight, pathSpeed, pathOffset, pathTilt } = drone.userData;
+        
+        const t = time * pathSpeed + pathOffset;
+        const x = Math.cos(t) * pathRadius;
+        const z = Math.sin(t) * pathRadius + Math.sin(t * 2) * pathRadius * 0.2;
+        const y = pathHeight + Math.sin(t * 1.5) * 5;
+        
+        drone.position.set(x, y, z);
+        
+        // Face movement direction
+        const nextT = t + 0.1;
+        const nextX = Math.cos(nextT) * pathRadius;
+        const nextZ = Math.sin(nextT) * pathRadius + Math.sin(nextT * 2) * pathRadius * 0.2;
+        drone.lookAt(nextX, y, nextZ);
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AMBIENT PARTICLES
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createParticles() {
+      const particleCount = isMobile ? 200 : 500;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      const velocities = new Float32Array(particleCount * 3);
+      
+      for (let i = 0; i < particleCount; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * 100;
+        positions[i * 3 + 1] = Math.random() * 50;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+        
+        velocities[i * 3] = (Math.random() - 0.5) * 0.02;
+        velocities[i * 3 + 1] = Math.random() * 0.02 + 0.01;
+        velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
+      }
+      
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.userData = { velocities };
+      
+      const material = new THREE.PointsMaterial({
+        color: 0x66ddff,
+        size: 0.15,
+        transparent: true,
+        opacity: 0.6,
+        sizeAttenuation: true,
+      });
+      
+      city.particles = new THREE.Points(geometry, material);
+      scene.add(city.particles);
+    }
+    
+    function updateParticles() {
+      if (!city.particles) return;
+      
+      const positions = city.particles.geometry.attributes.position.array;
+      const velocities = city.particles.geometry.userData.velocities;
+      
+      for (let i = 0; i < positions.length / 3; i++) {
+        positions[i * 3] += velocities[i * 3];
+        positions[i * 3 + 1] += velocities[i * 3 + 1];
+        positions[i * 3 + 2] += velocities[i * 3 + 2];
+        
+        // Reset particles that go too high
+        if (positions[i * 3 + 1] > 60) {
+          positions[i * 3] = (Math.random() - 0.5) * 100;
+          positions[i * 3 + 1] = 0;
+          positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+        }
+      }
+      
+      city.particles.geometry.attributes.position.needsUpdate = true;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // CORE SPIRE
     // ═══════════════════════════════════════════════════════════════════════
     
     function createCoreSpire() {
-      // Main spire
-      const spireGeo = new THREE.CylinderGeometry(0.5, 2, 35, 8);
+      // Main crystalline spire
+      const spireGeo = new THREE.CylinderGeometry(0.3, 2.5, 40, 8);
       const spireMat = new THREE.MeshStandardMaterial({
         color: 0x001a1a,
         emissive: 0x00ffff,
-        emissiveIntensity: 0.8,
-        roughness: 0.3,
-        metalness: 0.7,
+        emissiveIntensity: 1.0,
+        roughness: 0.2,
+        metalness: 0.8,
+        transparent: true,
+        opacity: 0.9,
       });
       const spire = new THREE.Mesh(spireGeo, spireMat);
-      spire.position.set(0, 17.5, 0);
-      spire.castShadow = true;
+      spire.position.set(0, 20, 0);
+      spire.castShadow = !isMobile;
       scene.add(spire);
       
-      // Rotating rings
-      for (let i = 0; i < 3; i++) {
-        const ringGeo = new THREE.TorusGeometry(3 + i * 1.5, 0.1, 8, 32);
+      // Inner glow core
+      const coreGeo = new THREE.SphereGeometry(1.5, 16, 16);
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.8,
+      });
+      const core = new THREE.Mesh(coreGeo, coreMat);
+      core.position.set(0, 8, 0);
+      core.userData.pulse = true;
+      scene.add(core);
+      city.coreGlow = core;
+      
+      // Rotating energy rings
+      for (let i = 0; i < 4; i++) {
+        const ringGeo = new THREE.TorusGeometry(3 + i * 2, 0.08, 8, 32);
         const ringMat = new THREE.MeshBasicMaterial({
           color: 0x00ffff,
           transparent: true,
-          opacity: 0.5 - i * 0.1,
+          opacity: 0.6 - i * 0.1,
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.position.set(0, 10 + i * 8, 0);
-        ring.rotation.x = Math.PI / 2;
-        ring.userData.rotationSpeed = 0.3 + i * 0.2;
+        ring.position.set(0, 8 + i * 7, 0);
+        ring.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+        ring.userData.rotationSpeed = 0.4 + i * 0.15;
         ring.userData.rotationAxis = i % 2 === 0 ? 'z' : 'y';
+        ring.userData.wobble = Math.random() * 0.02;
         scene.add(ring);
-        city.coreRings = city.coreRings || [];
         city.coreRings.push(ring);
       }
       
-      // Base platform
-      const baseGeo = new THREE.CylinderGeometry(5, 6, 1, 8);
+      // Energy beams shooting up
+      for (let i = 0; i < 3; i++) {
+        const beamGeo = new THREE.CylinderGeometry(0.05, 0.15, 50, 4);
+        const beamMat = new THREE.MeshBasicMaterial({
+          color: 0x00ffff,
+          transparent: true,
+          opacity: 0.3,
+        });
+        const beam = new THREE.Mesh(beamGeo, beamMat);
+        const angle = (i / 3) * Math.PI * 2;
+        beam.position.set(Math.cos(angle) * 2, 25, Math.sin(angle) * 2);
+        beam.userData.beamPhase = i * 0.7;
+        scene.add(beam);
+        city.coreRings.push(beam);
+      }
+      
+      // Base platform with glow
+      const baseGeo = new THREE.CylinderGeometry(6, 7, 1.5, 8);
       const baseMat = new THREE.MeshStandardMaterial({
         color: 0x0a1a1a,
-        emissive: 0x003333,
-        emissiveIntensity: 0.5,
-        roughness: 0.5,
-        metalness: 0.5,
+        emissive: 0x004444,
+        emissiveIntensity: 0.8,
+        roughness: 0.4,
+        metalness: 0.6,
       });
       const base = new THREE.Mesh(baseGeo, baseMat);
-      base.position.set(0, 0.5, 0);
+      base.position.set(0, 0.75, 0);
       base.receiveShadow = true;
       scene.add(base);
+      
+      // Pulsing floor rings
+      for (let i = 0; i < 3; i++) {
+        const floorRingGeo = new THREE.TorusGeometry(8 + i * 3, 0.15, 4, 32);
+        const floorRingMat = new THREE.MeshBasicMaterial({
+          color: 0x00ffff,
+          transparent: true,
+          opacity: 0.3 - i * 0.08,
+        });
+        const floorRing = new THREE.Mesh(floorRingGeo, floorRingMat);
+        floorRing.rotation.x = -Math.PI / 2;
+        floorRing.position.y = 0.1;
+        floorRing.userData.pulseRing = true;
+        floorRing.userData.pulsePhase = i * 0.5;
+        scene.add(floorRing);
+        city.coreRings.push(floorRing);
+      }
       
       city.buildings.push({
         mesh: spire,
         district: 'core',
-        label: 'Core Spire',
+        label: 'Nexus Core',
         x: 0, z: 0,
-        height: 35,
+        height: 40,
         createdAt: Date.now(),
       });
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // SEED INITIAL CITY FROM KNOWLEDGE
+    // SEED CITY
     // ═══════════════════════════════════════════════════════════════════════
     
     function seedCity() {
       createCoreSpire();
       
-      // Create initial district seed buildings
       Object.entries(DISTRICTS).forEach(([key, district]) => {
         if (key === 'core') return;
         
         const pos = district.position;
-        // District anchor building
+        
+        // District anchor - always a significant tower
         createBuilding({
           x: pos.x,
           z: pos.z,
-          height: 12 + Math.random() * 8,
-          width: 4,
-          depth: 4,
+          height: 18 + Math.random() * 12,
+          width: 4 + Math.random() * 2,
+          depth: 4 + Math.random() * 2,
           district: key,
           label: `${district.name} Hub`,
+          type: Math.random() > 0.5 ? 'tapered' : 'tower',
         });
         
-        // A few surrounding buildings
-        for (let i = 0; i < 3; i++) {
-          const angle = (i / 3) * Math.PI * 2 + Math.random() * 0.5;
-          const radius = 5 + Math.random() * 5;
+        // Surrounding buildings with variety
+        const buildingCount = isMobile ? 4 : 6;
+        for (let i = 0; i < buildingCount; i++) {
+          const angle = (i / buildingCount) * Math.PI * 2 + Math.random() * 0.5;
+          const radius = 6 + Math.random() * 8;
           createBuilding({
             x: pos.x + Math.cos(angle) * radius,
             z: pos.z + Math.sin(angle) * radius,
-            height: 5 + Math.random() * 10,
+            height: 5 + Math.random() * 15,
             district: key,
           });
         }
       });
       
-      // Create some initial connections
+      // Create connections
       const districtKeys = Object.keys(DISTRICTS).filter(k => k !== 'core');
       districtKeys.forEach(key => {
         const districtBuildings = city.districts.get(key) || [];
         if (districtBuildings.length > 0) {
-          // Connect to core
           createConnection(city.buildings[0], districtBuildings[0]);
         }
       });
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // GROWTH SYSTEM (New buildings over time)
+    // GROWTH SYSTEM
     // ═══════════════════════════════════════════════════════════════════════
     
     let lastGrowth = Date.now();
-    const GROWTH_INTERVAL = 30000; // New building every 30 seconds for demo
+    const GROWTH_INTERVAL = 30000;
     
     function growCity() {
       const now = Date.now();
       if (now - lastGrowth < GROWTH_INTERVAL) return;
       lastGrowth = now;
       
-      // Pick random district
       const districtKeys = Object.keys(DISTRICTS);
       const district = districtKeys[Math.floor(Math.random() * districtKeys.length)];
       const districtData = DISTRICTS[district];
       
-      // Find existing buildings in district
       const existing = city.districts.get(district) || [];
       let x, z;
       
       if (existing.length > 0) {
-        // Grow near existing
         const parent = existing[Math.floor(Math.random() * existing.length)];
         const angle = Math.random() * Math.PI * 2;
-        const radius = 4 + Math.random() * 6;
+        const radius = 5 + Math.random() * 8;
         x = parent.x + Math.cos(angle) * radius;
         z = parent.z + Math.sin(angle) * radius;
       } else {
-        // New district seed
         x = districtData.position.x + (Math.random() - 0.5) * 10;
         z = districtData.position.z + (Math.random() - 0.5) * 10;
       }
@@ -563,7 +1128,6 @@
         height: 5 + Math.random() * 15,
       });
       
-      // Connect to nearby building
       if (existing.length > 0) {
         const nearest = existing.reduce((best, b) => {
           const d1 = Math.hypot(b.x - x, b.z - z);
@@ -572,12 +1136,10 @@
         });
         createConnection(newBuilding, nearest);
       }
-      
-      console.log(`[City] New ${district} building at (${x.toFixed(1)}, ${z.toFixed(1)})`);
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // STATS UPDATE
+    // STATS
     // ═══════════════════════════════════════════════════════════════════════
     
     function updateStats() {
@@ -598,7 +1160,7 @@
       
       const dt = time * 0.001;
       
-      // FPS counter
+      // FPS
       frameCount++;
       if (time - lastFpsTime > 1000) {
         fpsEl.textContent = `${frameCount} fps`;
@@ -606,33 +1168,81 @@
         lastFpsTime = time;
       }
       
-      // Update controls
       controls.update();
-      
-      // Update lighting based on real time
       updateLighting();
       
-      // Animate core rings
+      // Core animations
       if (city.coreRings) {
         city.coreRings.forEach(ring => {
           if (ring.userData.rotationAxis === 'z') {
             ring.rotation.z += ring.userData.rotationSpeed * 0.01;
-          } else {
+            ring.rotation.x = Math.PI / 2 + Math.sin(dt + ring.userData.wobble) * 0.1;
+          } else if (ring.userData.rotationAxis === 'y') {
             ring.rotation.y += ring.userData.rotationSpeed * 0.01;
+          } else if (ring.userData.beamPhase !== undefined) {
+            ring.material.opacity = 0.2 + Math.sin(dt * 2 + ring.userData.beamPhase) * 0.15;
+          } else if (ring.userData.pulseRing) {
+            const scale = 1 + Math.sin(dt * 1.5 + ring.userData.pulsePhase) * 0.1;
+            ring.scale.set(scale, scale, 1);
           }
         });
       }
       
-      // Pulse connections
+      // Core glow pulse
+      if (city.coreGlow) {
+        const pulse = 1 + Math.sin(dt * 2) * 0.2;
+        city.coreGlow.scale.set(pulse, pulse, pulse);
+        city.coreGlow.material.opacity = 0.6 + Math.sin(dt * 3) * 0.2;
+      }
+      
+      // Building effects (throttled for performance)
+      if (Math.floor(time) % 100 < 16) {
+        const emissiveBoost = 1 + city.nightIntensity * 2;
+        city.buildings.forEach(b => {
+          if (b.mesh.material && b.mesh.material.emissive) {
+            b.mesh.material.emissiveIntensity = 0.5 * emissiveBoost;
+          }
+          
+          // Animate child elements
+          b.mesh.children.forEach(child => {
+            if (child.userData.blink) {
+              child.material.opacity = Math.sin(dt * 4 + child.userData.blinkPhase) > 0.7 ? 1 : 0.2;
+            }
+            if (child.userData.pulse) {
+              const p = 1 + Math.sin(dt * 2 + child.userData.pulsePhase) * 0.3;
+              child.scale.set(p, p, p);
+            }
+            if (child.userData.hologram) {
+              child.material.opacity = 0.3 + Math.sin(dt * 5 + child.userData.flickerPhase) * 0.15 +
+                (Math.random() > 0.95 ? -0.2 : 0); // Random flicker
+            }
+          });
+        });
+      }
+      
+      // Connection pulse
       city.connections.forEach((conn, i) => {
-        const pulse = Math.sin(dt * 2 + i) * 0.15 + 0.35;
-        conn.line.material.opacity = pulse;
+        const pulse = Math.sin(dt * 2 + i * 0.5) * 0.15 + 0.25;
+        conn.line.material.opacity = pulse * (1 + city.nightIntensity);
       });
+      
+      // District labels float
+      city.districtLabels.forEach(label => {
+        label.position.y = label.userData.baseY + Math.sin(dt * 0.5 + label.userData.floatPhase) * 1;
+        label.material.opacity = 0.5 + city.nightIntensity * 0.4;
+      });
+      
+      // Drones
+      updateDrones(dt);
+      
+      // Particles
+      updateParticles();
       
       // City growth
       growCity();
       
-      renderer.render(scene, camera);
+      // Render with bloom
+      composer.render();
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -643,29 +1253,26 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      composer.setSize(window.innerWidth, window.innerHeight);
     });
     
     // ═══════════════════════════════════════════════════════════════════════
-    // WEBSOCKET CONNECTION (for live knowledge updates)
+    // WEBSOCKET
     // ═══════════════════════════════════════════════════════════════════════
     
     const WS_URL = 'wss://geometry-grid-table-reading.trycloudflare.com';
     
     function connectKnowledge() {
       const ws = new WebSocket(WS_URL);
-      
       ws.onopen = () => console.log('[WS] Connected to knowledge engine');
-      
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
           if (msg.type === 'graph:full') {
-            // Could seed more buildings from knowledge graph
             console.log('[WS] Received knowledge graph:', msg.nodes?.length, 'nodes');
           }
         } catch (err) {}
       };
-      
       ws.onclose = () => setTimeout(connectKnowledge, 5000);
       ws.onerror = () => ws.close();
     }
@@ -674,13 +1281,18 @@
     // INIT
     // ═══════════════════════════════════════════════════════════════════════
     
+    createStarfield();
     createGround();
     createLighting();
+    createDistrictLabels();
+    createDrones();
+    createParticles();
     seedCity();
     connectKnowledge();
     animate(0);
     
-    console.log('Absalom City — A Mind Made Manifest');
+    console.log('Absalom City — A Mind Made Manifest (Cyberpunk Utopia Edition)');
+    console.log(`Quality: ${qualityLevel} | Mobile: ${isMobile}`);
   </script>
 </body>
 </html>
