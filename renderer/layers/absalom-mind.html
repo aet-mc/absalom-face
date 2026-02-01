@@ -453,9 +453,15 @@
     
     function render() {
       const { colors, animation } = CONFIG;
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
       
-      // Clear
-      ctx.fillStyle = colors.background;
+      // Background with subtle radial gradient
+      const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(canvas.width, canvas.height) * 0.7);
+      bgGrad.addColorStop(0, '#0f1f1a');    // Slightly lighter center
+      bgGrad.addColorStop(0.5, '#0c1814');  
+      bgGrad.addColorStop(1, '#080f0c');    // Darker edges
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Global breath scale
@@ -479,60 +485,137 @@
     }
     
     function renderEdges() {
-      // Base edges (very subtle)
-      ctx.strokeStyle = 'rgba(61, 90, 80, 0.12)';
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      for (const e of edges) {
-        if (e.activation < 0.1) {
-          ctx.moveTo(e.source.x, e.source.y);
-          ctx.lineTo(e.target.x, e.target.y);
-        }
-      }
-      ctx.stroke();
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const maxDist = Math.min(canvas.width, canvas.height) * 0.4;
       
-      // Active edges (brighter)
+      // Inactive edges (batched for performance)
+      ctx.lineCap = 'round';
+      
+      // Group edges by approximate weight for batching
+      const lightEdges = [];
+      const mediumEdges = [];
+      const heavyEdges = [];
+      const activeEdges = [];
+      
       for (const e of edges) {
         if (e.activation >= 0.1) {
-          const alpha = 0.15 + e.activation * 0.4;
-          ctx.strokeStyle = `rgba(45, 212, 168, ${alpha})`;
-          ctx.lineWidth = 0.5 + e.activation * 1.5;
-          ctx.beginPath();
+          activeEdges.push(e);
+        } else if (e.weight >= 4) {
+          heavyEdges.push(e);
+        } else if (e.weight >= 2) {
+          mediumEdges.push(e);
+        } else {
+          lightEdges.push(e);
+        }
+      }
+      
+      // Light edges
+      if (lightEdges.length > 0) {
+        ctx.strokeStyle = 'rgba(50, 80, 70, 0.08)';
+        ctx.lineWidth = 0.3;
+        ctx.beginPath();
+        for (const e of lightEdges) {
           ctx.moveTo(e.source.x, e.source.y);
           ctx.lineTo(e.target.x, e.target.y);
-          ctx.stroke();
         }
+        ctx.stroke();
+      }
+      
+      // Medium edges
+      if (mediumEdges.length > 0) {
+        ctx.strokeStyle = 'rgba(55, 90, 80, 0.12)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        for (const e of mediumEdges) {
+          ctx.moveTo(e.source.x, e.source.y);
+          ctx.lineTo(e.target.x, e.target.y);
+        }
+        ctx.stroke();
+      }
+      
+      // Heavy edges
+      if (heavyEdges.length > 0) {
+        ctx.strokeStyle = 'rgba(60, 100, 88, 0.18)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        for (const e of heavyEdges) {
+          ctx.moveTo(e.source.x, e.source.y);
+          ctx.lineTo(e.target.x, e.target.y);
+        }
+        ctx.stroke();
+      }
+      
+      // Active edges (rendered individually for glow effect)
+      for (const e of activeEdges) {
+        const alpha = 0.2 + e.activation * 0.5;
+        const width = 0.6 + e.weight * 0.15 + e.activation * 1.5;
+        
+        // Glow
+        ctx.strokeStyle = `rgba(45, 212, 168, ${alpha * 0.3})`;
+        ctx.lineWidth = width * 3;
+        ctx.beginPath();
+        ctx.moveTo(e.source.x, e.source.y);
+        ctx.lineTo(e.target.x, e.target.y);
+        ctx.stroke();
+        
+        // Core
+        ctx.strokeStyle = `rgba(45, 212, 168, ${alpha})`;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(e.source.x, e.source.y);
+        ctx.lineTo(e.target.x, e.target.y);
+        ctx.stroke();
       }
     }
     
     function renderNodes() {
-      for (const n of nodes) {
-        const size = n.baseSize * (1 + n.activation * 0.5);
-        const breath = Math.sin(state.breathPhase + n.breathOffset) * 0.15;
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const maxDist = Math.min(canvas.width, canvas.height) * 0.4;
+      
+      // Sort by distance from center (further = behind)
+      const sorted = [...nodes].sort((a, b) => {
+        const da = Math.sqrt((a.x - cx) ** 2 + (a.y - cy) ** 2);
+        const db = Math.sqrt((b.x - cx) ** 2 + (b.y - cy) ** 2);
+        return db - da; // Further nodes first (behind)
+      });
+      
+      for (const n of sorted) {
+        // Distance-based depth effect
+        const dist = Math.sqrt((n.x - cx) ** 2 + (n.y - cy) ** 2);
+        const depthFactor = 1 - Math.min(dist / maxDist, 1) * 0.25; // 0.75-1.0
+        
+        const size = n.baseSize * (1 + n.activation * 0.5) * depthFactor;
+        const breath = Math.sin(state.breathPhase + n.breathOffset) * 0.12;
         const finalSize = size * (1 + breath);
+        
+        // Adjusted saturation/lightness by depth
+        const sat = n.sat * depthFactor;
+        const baseLightness = 50 + 10 * depthFactor;
         
         // Glow for active nodes
         if (n.activation > 0.05) {
           const glowSize = finalSize * (2 + n.activation * 3);
-          const alpha = n.activation * 0.3;
-          ctx.fillStyle = `hsla(${n.hue}, ${n.sat}%, 60%, ${alpha})`;
+          const alpha = n.activation * 0.25 * depthFactor;
+          ctx.fillStyle = `hsla(${n.hue}, ${sat}%, 55%, ${alpha})`;
           ctx.beginPath();
           ctx.arc(n.x, n.y, glowSize, 0, Math.PI * 2);
           ctx.fill();
         }
         
         // Core
-        const lightness = 55 + n.activation * 20;
-        ctx.fillStyle = `hsl(${n.hue}, ${n.sat}%, ${lightness}%)`;
+        const lightness = baseLightness + n.activation * 20;
+        ctx.fillStyle = `hsl(${n.hue}, ${sat}%, ${lightness}%)`;
         ctx.beginPath();
         ctx.arc(n.x, n.y, finalSize, 0, Math.PI * 2);
         ctx.fill();
         
-        // Bright center
-        if (finalSize > 3) {
-          ctx.fillStyle = `hsla(${n.hue}, ${n.sat - 20}%, 85%, 0.8)`;
+        // Bright center (only on larger, closer nodes)
+        if (finalSize > 3 && depthFactor > 0.85) {
+          ctx.fillStyle = `hsla(${n.hue}, ${sat - 15}%, 88%, ${0.7 * depthFactor})`;
           ctx.beginPath();
-          ctx.arc(n.x, n.y, finalSize * 0.4, 0, Math.PI * 2);
+          ctx.arc(n.x, n.y, finalSize * 0.35, 0, Math.PI * 2);
           ctx.fill();
         }
       }
