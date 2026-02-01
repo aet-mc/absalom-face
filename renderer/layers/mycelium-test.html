@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mycelium Layer — Absalom Face v3.0</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Absalom">
+  <meta name="theme-color" content="#030908">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon.svg">
+  <title>Absalom Mind</title>
   <style>
     * {
       margin: 0;
@@ -14,11 +21,20 @@
     body {
       background: #030908;
       min-height: 100vh;
+      min-height: -webkit-fill-available;
       display: flex;
       flex-direction: column;
       font-family: 'SF Mono', Monaco, Consolas, monospace;
       color: #2dd4a8;
       overflow: hidden;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    
+    html {
+      height: -webkit-fill-available;
     }
     
     .container {
@@ -163,8 +179,8 @@
     /* Stats — barely visible until needed */
     .stats {
       position: fixed;
-      top: 20px;
-      left: 20px;
+      top: max(20px, env(safe-area-inset-top));
+      left: max(20px, env(safe-area-inset-left));
       font-size: 10px;
       opacity: 0.3;
       letter-spacing: 1px;
@@ -173,13 +189,37 @@
     /* Ambient title */
     .title {
       position: fixed;
-      bottom: 30px;
-      right: 30px;
+      bottom: max(30px, env(safe-area-inset-bottom));
+      right: max(30px, env(safe-area-inset-right));
       font-size: 11px;
       letter-spacing: 4px;
       text-transform: uppercase;
       opacity: 0.15;
       pointer-events: none;
+    }
+    
+    /* Mobile styles */
+    @media (max-width: 768px), (pointer: coarse) {
+      .controls, .legend {
+        display: none;
+      }
+      
+      .stats {
+        top: max(10px, env(safe-area-inset-top));
+        left: max(10px, env(safe-area-inset-left));
+        font-size: 9px;
+      }
+      
+      .title {
+        bottom: max(15px, env(safe-area-inset-bottom));
+        right: max(15px, env(safe-area-inset-right));
+        font-size: 9px;
+        letter-spacing: 3px;
+      }
+      
+      .water-line {
+        display: none;
+      }
     }
   </style>
 </head>
@@ -239,19 +279,34 @@
   
   <script src="mycelium.js"></script>
   <script>
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+    
     // Initialize
     const canvas = document.getElementById('mycelium');
     const waterLineEl = document.getElementById('water-line');
     const statsEl = document.getElementById('stats');
     
-    // Set canvas size
+    // Set canvas size with device pixel ratio for crisp mobile rendering
     function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      mycelium.resize(canvas.width, canvas.height);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2); // Cap at 2x for performance
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      
+      mycelium.resize(width, height);
       
       // Position water line
-      const waterY = canvas.height * 0.3;
+      const waterY = height * 0.3;
       mycelium.setWaterLine(waterY);
       waterLineEl.style.top = waterY + 'px';
     }
@@ -554,6 +609,46 @@
         if (demoMode) demoLoop();
         console.log('Demo mode:', demoMode ? 'ON' : 'OFF');
       }
+    });
+    
+    // Touch support - tap to activate nearby nodes
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+      
+      // Find nearest node within 80px
+      let nearest = null;
+      let nearestDist = 80;
+      
+      for (const node of mycelium.nodes) {
+        const dx = node.x - x;
+        const dy = node.y - y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = node;
+        }
+      }
+      
+      if (nearest) {
+        mycelium.activate([nearest.id], 1.0);
+      } else {
+        // No node nearby - random activation
+        activateRandom();
+      }
+    }, { passive: false });
+    
+    // Double tap for path activation
+    let lastTap = 0;
+    canvas.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        activatePath();
+      }
+      lastTap = now;
     });
   </script>
 </body>

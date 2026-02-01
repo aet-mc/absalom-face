@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#030908"/>
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#2dd4a8" stroke-width="4" opacity="0.3"/>
+  <circle cx="256" cy="256" r="80" fill="none" stroke="#2dd4a8" stroke-width="3" opacity="0.5"/>
+  <circle cx="256" cy="256" r="40" fill="none" stroke="#2dd4a8" stroke-width="2" opacity="0.7"/>
+  <circle cx="256" cy="256" r="15" fill="#2dd4a8"/>
+  <circle cx="256" cy="256" r="8" fill="#fff"/>
+  <!-- Nodes -->
+  <circle cx="180" cy="200" r="8" fill="#fbbf24"/>
+  <circle cx="320" cy="180" r="10" fill="#60a5fa"/>
+  <circle cx="340" cy="300" r="7" fill="#a78bfa"/>
+  <circle cx="200" cy="340" r="9" fill="#f472b6"/>
+  <circle cx="150" cy="280" r="6" fill="#2dd4a8"/>
+  <!-- Connections -->
+  <line x1="256" y1="256" x2="180" y2="200" stroke="#2dd4a8" stroke-width="1" opacity="0.4"/>
+  <line x1="256" y1="256" x2="320" y2="180" stroke="#2dd4a8" stroke-width="1" opacity="0.4"/>
+  <line x1="256" y1="256" x2="340" y2="300" stroke="#2dd4a8" stroke-width="1" opacity="0.4"/>
+  <line x1="256" y1="256" x2="200" y2="340" stroke="#2dd4a8" stroke-width="1" opacity="0.4"/>
+  <line x1="180" y1="200" x2="150" y2="280" stroke="#2dd4a8" stroke-width="1" opacity="0.3"/>
+</svg>

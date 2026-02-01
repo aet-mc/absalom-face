@@ -1,0 +1,18 @@
+{
+  "name": "Absalom Mind",
+  "short_name": "Absalom",
+  "description": "Living visualization of Absalom's knowledge network",
+  "start_url": "/renderer/layers/mycelium-test.html",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#030908",
+  "theme_color": "#2dd4a8",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
