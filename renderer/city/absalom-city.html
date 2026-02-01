@@ -388,7 +388,7 @@
   </div>
   
   <div class="controls-hint">
-    drag to orbit · scroll to zoom · shift+drag to pan · R/F/A/C weather · S sound · M mute
+    drag to orbit · scroll to zoom · click to select · 1-5 districts · 0/ESC reset · SPACE pause · arrows rotate
   </div>
   
   <div class="cognitive-indicator" id="cognitiveIndicator">
@@ -1318,6 +1318,627 @@
         });
       });
     }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // SOUND MANAGER — Ambient Soundscape
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    class SoundManager {
+      constructor() {
+        this.enabled = false;
+        this.muted = false;
+        this.context = null;
+        this.masterGain = null;
+        this.initialized = false;
+        
+        // Sound layers
+        this.layers = {
+          cityHum: null,      // Constant low drone
+          wind: null,         // Altitude-based wind
+          electrical: null,   // Building hum
+          morning: null,      // Bird-like chirps
+          night: null,        // Cricket/owl sounds
+          thinking: null,     // Processing sounds
+          responding: null,   // Response chime
+        };
+        
+        // Current state
+        this.currentPhase = 'day';
+        this.cognitiveState = 'idle';
+        this.cameraDistance = 50;
+        
+        // UI elements
+        this.soundToggleBtn = document.getElementById('soundToggle');
+        this.muteToggleBtn = document.getElementById('muteToggle');
+        
+        this.setupUI();
+        this.setupKeyboard();
+      }
+      
+      setupUI() {
+        if (this.soundToggleBtn) {
+          this.soundToggleBtn.addEventListener('click', () => this.toggle());
+        }
+        if (this.muteToggleBtn) {
+          this.muteToggleBtn.addEventListener('click', () => this.toggleMute());
+        }
+      }
+      
+      setupKeyboard() {
+        window.addEventListener('keydown', (e) => {
+          if (e.key.toLowerCase() === 's' && !e.ctrlKey && !e.metaKey) {
+            this.toggle();
+          }
+          if (e.key.toLowerCase() === 'm' && !e.ctrlKey && !e.metaKey) {
+            this.toggleMute();
+          }
+        });
+      }
+      
+      async init() {
+        if (this.initialized) return;
+        
+        try {
+          this.context = new (window.AudioContext || window.webkitAudioContext)();
+          
+          // Master gain for overall volume
+          this.masterGain = this.context.createGain();
+          this.masterGain.gain.value = 0.3; // Start quiet
+          this.masterGain.connect(this.context.destination);
+          
+          // Create all sound layers
+          this.createCityHum();
+          this.createWind();
+          this.createElectrical();
+          this.createMorningSounds();
+          this.createNightSounds();
+          this.createThinkingSound();
+          this.createRespondingSound();
+          
+          this.initialized = true;
+          console.log('[Sound] Initialized');
+        } catch (err) {
+          console.error('[Sound] Init failed:', err);
+        }
+      }
+      
+      // === SOUND GENERATORS (Oscillator-based, no external files) ===
+      
+      createCityHum() {
+        // Low frequency drone - the heartbeat of the city
+        const osc1 = this.context.createOscillator();
+        const osc2 = this.context.createOscillator();
+        const gain = this.context.createGain();
+        const filter = this.context.createBiquadFilter();
+        
+        osc1.type = 'sine';
+        osc1.frequency.value = 55; // Low A
+        osc2.type = 'sine';
+        osc2.frequency.value = 82.5; // Harmonic
+        
+        filter.type = 'lowpass';
+        filter.frequency.value = 200;
+        
+        gain.gain.value = 0;
+        
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        
+        osc1.start();
+        osc2.start();
+        
+        this.layers.cityHum = { oscillators: [osc1, osc2], gain, filter };
+      }
+      
+      createWind() {
+        // White noise with bandpass for wind effect
+        const bufferSize = 2 * this.context.sampleRate;
+        const noiseBuffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.random() * 2 - 1;
+        }
+        
+        const noise = this.context.createBufferSource();
+        noise.buffer = noiseBuffer;
+        noise.loop = true;
+        
+        const filter = this.context.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 800;
+        filter.Q.value = 0.5;
+        
+        const gain = this.context.createGain();
+        gain.gain.value = 0;
+        
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        
+        noise.start();
+        
+        this.layers.wind = { source: noise, gain, filter };
+      }
+      
+      createElectrical() {
+        // High-frequency hum with slight modulation
+        const osc = this.context.createOscillator();
+        const modulator = this.context.createOscillator();
+        const modulatorGain = this.context.createGain();
+        const gain = this.context.createGain();
+        const filter = this.context.createBiquadFilter();
+        
+        osc.type = 'sawtooth';
+        osc.frequency.value = 120; // Electrical hum frequency
+        
+        modulator.type = 'sine';
+        modulator.frequency.value = 0.5; // Slow wobble
+        modulatorGain.gain.value = 5;
+        
+        modulator.connect(modulatorGain);
+        modulatorGain.connect(osc.frequency);
+        
+        filter.type = 'highpass';
+        filter.frequency.value = 1000;
+        
+        gain.gain.value = 0;
+        
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        
+        osc.start();
+        modulator.start();
+        
+        this.layers.electrical = { oscillators: [osc, modulator], gain, filter };
+      }
+      
+      createMorningSounds() {
+        // Bird-like chirps using FM synthesis
+        const gain = this.context.createGain();
+        gain.gain.value = 0;
+        gain.connect(this.masterGain);
+        
+        this.layers.morning = { 
+          gain,
+          lastChirp: 0,
+          active: false
+        };
+      }
+      
+      playChirp() {
+        if (!this.enabled || this.muted || !this.layers.morning?.active) return;
+        
+        const now = this.context.currentTime;
+        const osc = this.context.createOscillator();
+        const modulator = this.context.createOscillator();
+        const modGain = this.context.createGain();
+        const env = this.context.createGain();
+        
+        // Random bird-like frequency
+        const baseFreq = 1200 + Math.random() * 800;
+        osc.type = 'sine';
+        osc.frequency.value = baseFreq;
+        
+        modulator.type = 'sine';
+        modulator.frequency.value = 20 + Math.random() * 30;
+        modGain.gain.value = baseFreq * 0.3;
+        
+        modulator.connect(modGain);
+        modGain.connect(osc.frequency);
+        
+        // Quick attack, medium decay
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.15, now + 0.02);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        
+        osc.connect(env);
+        env.connect(this.layers.morning.gain);
+        
+        osc.start(now);
+        modulator.start(now);
+        osc.stop(now + 0.2);
+        modulator.stop(now + 0.2);
+      }
+      
+      createNightSounds() {
+        // Cricket-like chirps and occasional owl hoot
+        const gain = this.context.createGain();
+        gain.gain.value = 0;
+        gain.connect(this.masterGain);
+        
+        this.layers.night = {
+          gain,
+          lastCricket: 0,
+          active: false
+        };
+      }
+      
+      playCricket() {
+        if (!this.enabled || this.muted || !this.layers.night?.active) return;
+        
+        const now = this.context.currentTime;
+        const osc = this.context.createOscillator();
+        const env = this.context.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.value = 4000 + Math.random() * 1000;
+        
+        // Rapid on-off pattern
+        const duration = 0.3 + Math.random() * 0.2;
+        const pulses = 3 + Math.floor(Math.random() * 4);
+        const pulseLength = duration / (pulses * 2);
+        
+        env.gain.setValueAtTime(0, now);
+        for (let i = 0; i < pulses; i++) {
+          const t = now + i * pulseLength * 2;
+          env.gain.setValueAtTime(0.08, t);
+          env.gain.setValueAtTime(0, t + pulseLength * 0.8);
+        }
+        
+        osc.connect(env);
+        env.connect(this.layers.night.gain);
+        
+        osc.start(now);
+        osc.stop(now + duration);
+      }
+      
+      createThinkingSound() {
+        // Electronic processing hum - pulsing, digital feel
+        const osc1 = this.context.createOscillator();
+        const osc2 = this.context.createOscillator();
+        const lfo = this.context.createOscillator();
+        const lfoGain = this.context.createGain();
+        const gain = this.context.createGain();
+        const filter = this.context.createBiquadFilter();
+        
+        osc1.type = 'triangle';
+        osc1.frequency.value = 220;
+        
+        osc2.type = 'sine';
+        osc2.frequency.value = 330;
+        
+        lfo.type = 'sine';
+        lfo.frequency.value = 4; // Pulsing rhythm
+        lfoGain.gain.value = 0.3;
+        
+        lfo.connect(lfoGain);
+        lfoGain.connect(gain.gain);
+        
+        filter.type = 'bandpass';
+        filter.frequency.value = 600;
+        filter.Q.value = 2;
+        
+        gain.gain.value = 0;
+        
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        
+        osc1.start();
+        osc2.start();
+        lfo.start();
+        
+        this.layers.thinking = { oscillators: [osc1, osc2, lfo], gain, filter };
+      }
+      
+      createRespondingSound() {
+        // Soft chime/pulse when responding
+        const gain = this.context.createGain();
+        gain.gain.value = 0;
+        gain.connect(this.masterGain);
+        
+        this.layers.responding = { gain, active: false };
+      }
+      
+      playResponseChime() {
+        if (!this.enabled || this.muted) return;
+        
+        const now = this.context.currentTime;
+        const frequencies = [523, 659, 784]; // C, E, G chord
+        
+        frequencies.forEach((freq, i) => {
+          const osc = this.context.createOscillator();
+          const env = this.context.createGain();
+          
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          
+          const delay = i * 0.05;
+          env.gain.setValueAtTime(0, now + delay);
+          env.gain.linearRampToValueAtTime(0.12, now + delay + 0.05);
+          env.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.8);
+          
+          osc.connect(env);
+          env.connect(this.layers.responding.gain);
+          
+          osc.start(now + delay);
+          osc.stop(now + delay + 1);
+        });
+      }
+      
+      // === STATE CONTROL ===
+      
+      async toggle() {
+        if (!this.enabled) {
+          await this.init();
+          this.enable();
+        } else {
+          this.disable();
+        }
+      }
+      
+      enable() {
+        if (!this.initialized) return;
+        
+        this.enabled = true;
+        
+        // Resume context if suspended (required for mobile)
+        if (this.context.state === 'suspended') {
+          this.context.resume();
+        }
+        
+        // Fade in base layers
+        this.fadeLayer('cityHum', 0.12, 2);
+        
+        this.updateUI();
+        console.log('[Sound] Enabled');
+      }
+      
+      disable() {
+        this.enabled = false;
+        
+        // Fade out all layers
+        Object.keys(this.layers).forEach(key => {
+          this.fadeLayer(key, 0, 0.5);
+        });
+        
+        this.updateUI();
+        console.log('[Sound] Disabled');
+      }
+      
+      toggleMute() {
+        if (!this.enabled) return;
+        
+        this.muted = !this.muted;
+        
+        if (this.muted) {
+          this.masterGain.gain.linearRampToValueAtTime(0, this.context.currentTime + 0.1);
+        } else {
+          this.masterGain.gain.linearRampToValueAtTime(0.3, this.context.currentTime + 0.1);
+        }
+        
+        this.updateUI();
+        console.log('[Sound] Muted:', this.muted);
+      }
+      
+      updateUI() {
+        if (this.soundToggleBtn) {
+          this.soundToggleBtn.textContent = this.enabled ? '🔊 On' : '🔇 Off';
+          this.soundToggleBtn.classList.toggle('active', this.enabled);
+        }
+        if (this.muteToggleBtn) {
+          this.muteToggleBtn.style.display = this.enabled ? 'block' : 'none';
+          this.muteToggleBtn.textContent = this.muted ? '🔇' : '🔊';
+          this.muteToggleBtn.classList.toggle('muted', this.muted);
+        }
+      }
+      
+      fadeLayer(layerName, targetVolume, duration = 1) {
+        const layer = this.layers[layerName];
+        if (!layer || !layer.gain) return;
+        
+        const now = this.context.currentTime;
+        layer.gain.gain.linearRampToValueAtTime(targetVolume, now + duration);
+      }
+      
+      // === REACTIVE UPDATES ===
+      
+      updateTimePhase(hours, nightIntensity) {
+        if (!this.enabled || !this.initialized) return;
+        
+        let newPhase = 'day';
+        if (hours >= 5 && hours < 8) newPhase = 'morning';
+        else if (hours >= 8 && hours < 18) newPhase = 'day';
+        else if (hours >= 18 && hours < 21) newPhase = 'evening';
+        else newPhase = 'night';
+        
+        if (newPhase !== this.currentPhase) {
+          this.currentPhase = newPhase;
+          this.transitionToPhase(newPhase, nightIntensity);
+        }
+        
+        // Continuous adjustments
+        this.updateContinuousLayers(nightIntensity);
+        
+        // Trigger occasional sounds
+        this.triggerPhaseSounds(newPhase);
+      }
+      
+      transitionToPhase(phase, nightIntensity) {
+        const fadeTime = 3;
+        
+        // Base city hum - always present, louder during day
+        const humVolume = phase === 'night' ? 0.06 : 0.12;
+        this.fadeLayer('cityHum', humVolume, fadeTime);
+        
+        // Morning sounds (birds)
+        if (this.layers.morning) {
+          this.layers.morning.active = (phase === 'morning');
+          this.fadeLayer('morning', phase === 'morning' ? 0.4 : 0, fadeTime);
+        }
+        
+        // Night sounds (crickets)
+        if (this.layers.night) {
+          this.layers.night.active = (phase === 'night');
+          this.fadeLayer('night', phase === 'night' ? 0.3 : 0, fadeTime);
+        }
+        
+        // Electrical hum - more noticeable at night
+        const elecVolume = phase === 'night' ? 0.08 : 0.03;
+        this.fadeLayer('electrical', elecVolume, fadeTime);
+        
+        console.log('[Sound] Phase:', phase);
+      }
+      
+      updateContinuousLayers(nightIntensity) {
+        if (!this.layers.cityHum) return;
+        
+        // Modulate city hum pitch slightly based on time
+        const basePitch = 55 + nightIntensity * 10;
+        if (this.layers.cityHum.oscillators) {
+          this.layers.cityHum.oscillators[0].frequency.value = basePitch;
+          this.layers.cityHum.oscillators[1].frequency.value = basePitch * 1.5;
+        }
+      }
+      
+      triggerPhaseSounds(phase) {
+        const now = Date.now();
+        
+        // Morning bird chirps
+        if (phase === 'morning' && this.layers.morning?.active) {
+          if (now - this.layers.morning.lastChirp > 2000 + Math.random() * 5000) {
+            this.playChirp();
+            // Sometimes double chirp
+            if (Math.random() > 0.6) {
+              setTimeout(() => this.playChirp(), 100 + Math.random() * 200);
+            }
+            this.layers.morning.lastChirp = now;
+          }
+        }
+        
+        // Night crickets
+        if (phase === 'night' && this.layers.night?.active) {
+          if (now - this.layers.night.lastCricket > 1500 + Math.random() * 3000) {
+            this.playCricket();
+            this.layers.night.lastCricket = now;
+          }
+        }
+      }
+      
+      updateCameraDistance(distance) {
+        if (!this.enabled || !this.initialized) return;
+        
+        this.cameraDistance = distance;
+        
+        // Wind increases with altitude/distance
+        const windVolume = Math.min(0.15, (distance - 20) / 200);
+        this.fadeLayer('wind', Math.max(0, windVolume), 0.5);
+        
+        // City hum decreases with distance
+        const humVolume = Math.max(0.03, 0.12 - (distance - 30) / 300);
+        if (this.currentPhase === 'night') {
+          this.fadeLayer('cityHum', humVolume * 0.5, 0.5);
+        } else {
+          this.fadeLayer('cityHum', humVolume, 0.5);
+        }
+      }
+      
+      updateCognitiveState(state, message = '') {
+        if (!this.enabled || !this.initialized) return;
+        
+        const prevState = this.cognitiveState;
+        this.cognitiveState = state;
+        
+        if (state === 'thinking' && prevState !== 'thinking') {
+          // Start thinking sound
+          this.fadeLayer('thinking', 0.08, 0.5);
+        } else if (state !== 'thinking' && prevState === 'thinking') {
+          // Stop thinking sound
+          this.fadeLayer('thinking', 0, 0.5);
+        }
+        
+        if (state === 'responding' && prevState !== 'responding') {
+          this.playResponseChime();
+        }
+      }
+      
+      // Interactive sounds
+      playZoomSound(zoomingIn) {
+        if (!this.enabled || this.muted) return;
+        
+        const now = this.context.currentTime;
+        const osc = this.context.createOscillator();
+        const env = this.context.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(zoomingIn ? 300 : 500, now);
+        osc.frequency.exponentialRampToValueAtTime(zoomingIn ? 500 : 300, now + 0.15);
+        
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.05, now + 0.02);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        
+        osc.connect(env);
+        env.connect(this.masterGain);
+        
+        osc.start(now);
+        osc.stop(now + 0.25);
+      }
+      
+      playDistrictActivation(districtName) {
+        if (!this.enabled || this.muted) return;
+        
+        const now = this.context.currentTime;
+        
+        // Whoosh + tonal element
+        const noise = this.context.createBufferSource();
+        const noiseBuffer = this.context.createBuffer(1, this.context.sampleRate * 0.5, this.context.sampleRate);
+        const noiseData = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < noiseData.length; i++) {
+          noiseData[i] = Math.random() * 2 - 1;
+        }
+        noise.buffer = noiseBuffer;
+        
+        const noiseFilter = this.context.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.frequency.setValueAtTime(200, now);
+        noiseFilter.frequency.exponentialRampToValueAtTime(2000, now + 0.15);
+        noiseFilter.frequency.exponentialRampToValueAtTime(500, now + 0.4);
+        noiseFilter.Q.value = 1;
+        
+        const noiseEnv = this.context.createGain();
+        noiseEnv.gain.setValueAtTime(0, now);
+        noiseEnv.gain.linearRampToValueAtTime(0.08, now + 0.05);
+        noiseEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseEnv);
+        noiseEnv.connect(this.masterGain);
+        
+        noise.start(now);
+        
+        console.log('[Sound] District activation:', districtName);
+      }
+      
+      playInfoPing() {
+        if (!this.enabled || this.muted) return;
+        
+        const now = this.context.currentTime;
+        const osc = this.context.createOscillator();
+        const env = this.context.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.1, now + 0.01);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        
+        osc.connect(env);
+        env.connect(this.masterGain);
+        
+        osc.start(now);
+        osc.stop(now + 0.35);
+      }
+    }
+    
+    // Initialize sound manager (sounds OFF by default)
+    const soundManager = new SoundManager();
     
     // ═══════════════════════════════════════════════════════════════════════
     // SKY DOME WITH DYNAMIC GRADIENT
@@ -4083,16 +4704,25 @@
     
     let frameCount = 0;
     let lastFpsTime = 0;
+    let pausedTime = 0;
     
     function animate(time) {
       requestAnimationFrame(animate);
       
-      const dt = time * 0.001;
+      // Handle pause - freeze animation time but keep rendering
+      let dt;
+      if (interaction.isPaused) {
+        if (pausedTime === 0) pausedTime = time;
+        dt = pausedTime * 0.001;
+      } else {
+        if (pausedTime > 0) pausedTime = 0;
+        dt = time * 0.001;
+      }
       
       // FPS
       frameCount++;
       if (time - lastFpsTime > 1000) {
-        fpsEl.textContent = `${frameCount} fps`;
+        fpsEl.textContent = `${frameCount} fps${interaction.isPaused ? ' (paused)' : ''}`;
         frameCount = 0;
         lastFpsTime = time;
       }
@@ -4100,6 +4730,14 @@
       controls.update();
       updateLighting();
       updateWeather(dt);
+      
+      // Sound system updates
+      if (soundManager.enabled) {
+        const now = new Date();
+        const hours = now.getHours() + now.getMinutes() / 60;
+        soundManager.updateTimePhase(hours, city.nightIntensity);
+        soundManager.updateCameraDistance(camera.position.distanceTo(controls.target));
+      }
       
       // Core animations - more vibrant at night
       if (city.coreRings) {
