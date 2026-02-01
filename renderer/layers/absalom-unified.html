@@ -453,7 +453,7 @@
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 
                      window.innerWidth < 768;
     
-    const BOID_COUNT = isMobile ? 50 : 80;
+    const BOID_COUNT = isMobile ? 100 : 150;
     const BOID_COLORS = [
       { h: 190, s: 85, l: 65 },  // bright cyan
       { h: 270, s: 75, l: 70 },  // vibrant purple
@@ -477,6 +477,7 @@
           color: color,
           size: 3 + Math.random() * 2,
           trail: [],
+          trailLength: 6 + Math.floor(Math.random() * 4),
         });
       }
       
@@ -631,6 +632,10 @@
         boid.x += boid.vx;
         boid.y += boid.vy;
         
+        // Update trail
+        boid.trail.unshift({ x: boid.x, y: boid.y });
+        if (boid.trail.length > boid.trailLength) boid.trail.pop();
+        
         // Hard clamp safety (use >= for edge case)
         if (boid.x <= 0) { boid.x = 10; boid.vx = Math.abs(boid.vx); }
         if (boid.x >= W) { boid.x = W - 10; boid.vx = -Math.abs(boid.vx); }
@@ -644,6 +649,19 @@
       
       flock.boids.forEach(boid => {
         const { h, s, l } = boid.color;
+        
+        // Draw trail first (behind boid)
+        if (boid.trail.length > 1) {
+          surfaceCtx.beginPath();
+          surfaceCtx.moveTo(boid.trail[0].x, boid.trail[0].y);
+          for (let i = 1; i < boid.trail.length; i++) {
+            surfaceCtx.lineTo(boid.trail[i].x, boid.trail[i].y);
+          }
+          surfaceCtx.strokeStyle = `hsla(${h}, ${s}%, ${l}%, 0.3)`;
+          surfaceCtx.lineWidth = boid.size * 0.5;
+          surfaceCtx.lineCap = 'round';
+          surfaceCtx.stroke();
+        }
         
         const angle = Math.atan2(boid.vy, boid.vx);
         const speed = Math.sqrt(boid.vx * boid.vx + boid.vy * boid.vy);
