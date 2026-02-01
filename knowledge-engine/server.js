@@ -7,9 +7,12 @@
  */
 
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 3847;
+const CITY_STATE_PATH = path.join(__dirname, '../data/city-state.json');
 
 class KnowledgeServer {
   constructor(options = {}) {
@@ -32,6 +35,91 @@ class KnowledgeServer {
       version: 0,
       lastUpdate: Date.now()
     };
+    
+    // City state (for Absalom City visualization)
+    this.cityState = this.loadCityState();
+  }
+  
+  /**
+   * Load city state from disk
+   */
+  loadCityState() {
+    try {
+      if (fs.existsSync(CITY_STATE_PATH)) {
+        const data = fs.readFileSync(CITY_STATE_PATH, 'utf8');
+        return JSON.parse(data);
+      }
+    } catch (e) {
+      console.warn('[Server] Failed to load city state:', e.message);
+    }
+    return {
+      version: 0,
+      lastUpdate: 0,
+      buildings: [],
+      connections: [],
+      activeDistrict: null,
+      cognitiveState: 'idle',
+      districtActivity: {}
+    };
+  }
+  
+  /**
+   * Regenerate city state from knowledge
+   */
+  async regenerateCityState() {
+    try {
+      const scriptPath = path.join(__dirname, '../scripts/knowledge-to-city.js');
+      const { main } = require(scriptPath);
+      this.cityState = main();
+      this.broadcastCityState();
+      return this.cityState;
+    } catch (e) {
+      console.error('[Server] Failed to regenerate city:', e.message);
+      return null;
+    }
+  }
+  
+  /**
+   * Update cognitive state and district activity
+   */
+  setCognitiveState(mode, context = '') {
+    this.cityState.cognitiveState = mode;
+    
+    // Parse context for district activity hints
+    if (context) {
+      const lower = context.toLowerCase();
+      const districtKeywords = {
+        trading: ['stock', 'trading', 'market', 'ticker', 'price', 'portfolio'],
+        infrastructure: ['server', 'deploy', 'api', 'docker', 'tunnel'],
+        projects: ['project', 'build', 'app', 'visualization', 'face'],
+        memory: ['memory', 'remember', 'decision', 'note', 'log'],
+        core: ['self', 'absalom', 'knowledge', 'engine']
+      };
+      
+      // Boost matching district
+      for (const [district, keywords] of Object.entries(districtKeywords)) {
+        for (const kw of keywords) {
+          if (lower.includes(kw)) {
+            this.cityState.districtActivity[district] = Math.min(1.0, 
+              (this.cityState.districtActivity[district] || 0.3) + 0.2);
+            this.cityState.activeDistrict = district;
+            break;
+          }
+        }
+      }
+    }
+    
+    this.broadcastCityState();
+  }
+  
+  /**
+   * Broadcast city state to all clients
+   */
+  broadcastCityState() {
+    this.broadcast({
+      type: 'city:state',
+      city: this.cityState
+    });
   }
 
   /**
@@ -157,6 +245,12 @@ class KnowledgeServer {
       graph: this.graph
     }));
 
+    // Send current city state
+    ws.send(JSON.stringify({
+      type: 'city:state',
+      city: this.cityState
+    }));
+
     ws.on('close', () => {
       this.clients.delete(ws);
       console.log(`[Server] Client disconnected (${this.clients.size} total)`);
@@ -199,6 +293,17 @@ class KnowledgeServer {
           type: 'state',
           ...this.state
         }));
+        break;
+      
+      case 'city:request':
+        ws.send(JSON.stringify({
+          type: 'city:state',
+          city: this.cityState
+        }));
+        break;
+      
+      case 'city:regenerate':
+        this.regenerateCityState();
         break;
       
       default:
@@ -264,8 +369,46 @@ class KnowledgeServer {
         state: this.state.mode,
         graphNodes: this.graph.nodes.length,
         graphEdges: this.graph.edges.length,
-        graphVersion: this.graph.version
+        graphVersion: this.graph.version,
+        cityBuildings: this.cityState.buildings.length
       }));
+      return;
+    }
+
+    // GET /city-state - current city state for Absalom City
+    if (req.method === 'GET' && req.url === '/city-state') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(this.cityState));
+      return;
+    }
+
+    // POST /city-state/regenerate - regenerate city from knowledge
+    if (req.method === 'POST' && req.url === '/city-state/regenerate') {
+      this.regenerateCityState().then(state => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, buildings: state?.buildings?.length || 0 }));
+      }).catch(err => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      });
+      return;
+    }
+
+    // POST /city-state/cognitive - update cognitive state with context
+    if (req.method === 'POST' && req.url === '/city-state/cognitive') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { mode, context } = JSON.parse(body);
+          this.setCognitiveState(mode, context);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, activeDistrict: this.cityState.activeDistrict }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
       return;
     }
 

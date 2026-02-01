@@ -1257,24 +1257,157 @@
     });
     
     // ═══════════════════════════════════════════════════════════════════════
-    // WEBSOCKET
+    // WEBSOCKET (Live Knowledge Connection)
     // ═══════════════════════════════════════════════════════════════════════
     
-    const WS_URL = 'wss://geometry-grid-table-reading.trycloudflare.com';
+    const WS_URL = 'wss://itself-partners-integrate-memories.trycloudflare.com';
+    let cityWebSocket = null;
+    let districtGlowIntensities = {};
+    let cityLoadedFromServer = false;
     
     function connectKnowledge() {
-      const ws = new WebSocket(WS_URL);
-      ws.onopen = () => console.log('[WS] Connected to knowledge engine');
-      ws.onmessage = (e) => {
+      cityWebSocket = new WebSocket(WS_URL);
+      
+      cityWebSocket.onopen = () => {
+        console.log('[WS] Connected to knowledge engine');
+        cityWebSocket.send(JSON.stringify({ type: 'city:request' }));
+      };
+      
+      cityWebSocket.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
-          if (msg.type === 'graph:full') {
-            console.log('[WS] Received knowledge graph:', msg.nodes?.length, 'nodes');
+          
+          if (msg.type === 'city:state' && msg.city) {
+            console.log('[WS] Received city state:', msg.city.buildings?.length, 'buildings');
+            loadCityFromState(msg.city);
           }
-        } catch (err) {}
+          
+          if (msg.type === 'state') {
+            handleCognitiveState(msg.mode, msg.message);
+          }
+          
+          if (msg.type === 'graph:full') {
+            console.log('[WS] Received knowledge graph:', msg.graph?.nodes?.length, 'nodes');
+          }
+        } catch (err) {
+          console.error('[WS] Parse error:', err);
+        }
       };
-      ws.onclose = () => setTimeout(connectKnowledge, 5000);
-      ws.onerror = () => ws.close();
+      
+      cityWebSocket.onclose = () => {
+        console.log('[WS] Disconnected, reconnecting...');
+        setTimeout(connectKnowledge, 5000);
+      };
+      cityWebSocket.onerror = () => cityWebSocket.close();
+    }
+    
+    /**
+     * Load city buildings from server state
+     */
+    function loadCityFromState(cityState) {
+      if (!cityState.buildings || cityState.buildings.length === 0) {
+        console.log('[City] No buildings in state');
+        return;
+      }
+      
+      cityLoadedFromServer = true;
+      
+      // Clear existing buildings except core spire (first building)
+      while (city.buildings.length > 1) {
+        const b = city.buildings.pop();
+        scene.remove(b.mesh);
+      }
+      city.connections.forEach(c => scene.remove(c.line));
+      city.connections = [];
+      
+      // Reset districts, keep core
+      city.districts.clear();
+      if (city.buildings.length > 0) {
+        city.districts.set('core', [city.buildings[0]]);
+      }
+      
+      // Create buildings from state
+      for (const spec of cityState.buildings) {
+        createBuilding({
+          x: spec.x,
+          z: spec.z,
+          width: spec.width || 2.5,
+          depth: spec.depth || 2.5,
+          height: spec.height,
+          district: spec.district,
+          label: spec.label
+        });
+      }
+      
+      // Create connections from state
+      if (cityState.connections) {
+        const idToBuilding = new Map();
+        cityState.buildings.forEach((spec, i) => {
+          // Match spec to building by position
+          const b = city.buildings.find(bld => 
+            Math.abs(bld.x - spec.x) < 0.5 && Math.abs(bld.z - spec.z) < 0.5
+          );
+          if (b) idToBuilding.set(spec.id, b);
+        });
+        
+        for (const conn of cityState.connections) {
+          const fromB = idToBuilding.get(conn.from);
+          const toB = idToBuilding.get(conn.to);
+          if (fromB && toB) {
+            createConnection(fromB, toB);
+          }
+        }
+      }
+      
+      // Set district activity
+      if (cityState.districtActivity) {
+        districtGlowIntensities = { ...cityState.districtActivity };
+      }
+      
+      console.log(`[City] Loaded ${city.buildings.length} buildings from knowledge`);
+      updateStats();
+    }
+    
+    /**
+     * Handle cognitive state changes - district glow mapping
+     */
+    function handleCognitiveState(mode, message = '') {
+      const districtKeywords = {
+        trading: ['stock', 'trading', 'market', 'ticker', 'price', 'portfolio', 'scan', 'asymmetry'],
+        infrastructure: ['server', 'deploy', 'api', 'docker', 'tunnel', 'pm2', 'cloudflare'],
+        projects: ['project', 'build', 'app', 'visualization', 'face', 'city', 'mind'],
+        memory: ['memory', 'remember', 'decision', 'note', 'log', 'history'],
+        core: ['self', 'absalom', 'knowledge', 'engine', 'think', 'process']
+      };
+      
+      const lower = (message || '').toLowerCase();
+      
+      // Reset all to base
+      for (const district of Object.keys(DISTRICTS)) {
+        districtGlowIntensities[district] = 0.3;
+      }
+      
+      // Boost matching districts based on cognitive state
+      if (mode === 'thinking' || mode === 'responding') {
+        districtGlowIntensities['core'] = 0.8;
+        
+        for (const [district, keywords] of Object.entries(districtKeywords)) {
+          for (const kw of keywords) {
+            if (lower.includes(kw)) {
+              districtGlowIntensities[district] = 1.0;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Apply glow to buildings
+      city.buildings.forEach(b => {
+        const intensity = districtGlowIntensities[b.district] || 0.3;
+        if (b.mesh.material && b.mesh.material.emissiveIntensity !== undefined) {
+          b.mesh.material.emissiveIntensity = 0.3 + intensity * 0.7;
+        }
+      });
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -1287,12 +1420,70 @@
     createDistrictLabels();
     createDrones();
     createParticles();
-    seedCity();
+    
+    // Create core spire first (always present)
+    createCoreSpire();
+    city.districts.set('core', [city.buildings[0]]);
+    
+    // Connect to knowledge engine - buildings will load from server
     connectKnowledge();
+    
+    // Fallback: if no WS data after 5s, use seed data
+    setTimeout(() => {
+      if (!cityLoadedFromServer && city.buildings.length <= 1) {
+        console.log('[City] No WS data received, using seed fallback');
+        seedCityFallback();
+      }
+    }, 5000);
+    
     animate(0);
     
-    console.log('Absalom City — A Mind Made Manifest (Cyberpunk Utopia Edition)');
+    console.log('Absalom City — A Mind Made Manifest (Knowledge-Powered Edition)');
     console.log(`Quality: ${qualityLevel} | Mobile: ${isMobile}`);
+    
+    /**
+     * Fallback seeding when WebSocket unavailable
+     */
+    function seedCityFallback() {
+      Object.entries(DISTRICTS).forEach(([key, district]) => {
+        if (key === 'core') return;
+        const pos = district.position;
+        
+        createBuilding({
+          x: pos.x,
+          z: pos.z,
+          height: 18 + Math.random() * 12,
+          width: 4 + Math.random() * 2,
+          depth: 4 + Math.random() * 2,
+          district: key,
+          label: `${district.name} Hub`,
+          type: Math.random() > 0.5 ? 'tapered' : 'tower',
+        });
+        
+        const buildingCount = isMobile ? 4 : 6;
+        for (let i = 0; i < buildingCount; i++) {
+          const angle = (i / buildingCount) * Math.PI * 2 + Math.random() * 0.5;
+          const radius = 6 + Math.random() * 8;
+          createBuilding({
+            x: pos.x + Math.cos(angle) * radius,
+            z: pos.z + Math.sin(angle) * radius,
+            height: 5 + Math.random() * 15,
+            district: key,
+          });
+        }
+      });
+      
+      // Connect districts to core
+      const districtKeys = Object.keys(DISTRICTS).filter(k => k !== 'core');
+      districtKeys.forEach(key => {
+        const districtBuildings = city.districts.get(key) || [];
+        if (districtBuildings.length > 0) {
+          createConnection(city.buildings[0], districtBuildings[0]);
+        }
+      });
+      
+      updateStats();
+    }
   </script>
 </body>
 </html>
