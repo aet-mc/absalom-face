@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Absalom</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: #0a0a0a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+    
+    .container {
+      position: relative;
+      width: 400px;
+      height: 500px;
+    }
+    
+    #face-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    
+    .name {
+      margin-top: 20px;
+      font-size: 1.5rem;
+      letter-spacing: 0.3em;
+      color: #666;
+      text-transform: uppercase;
+    }
+    
+    .status {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #333;
+    }
+    
+    .status span {
+      color: #1a1a2e;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { color: #333; }
+      50% { color: #555; }
+    }
+    
+    /* Particle background */
+    #particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="particles"></canvas>
+  
+  <div class="container">
+    <canvas id="face-canvas" width="400" height="400"></canvas>
+  </div>
+  
+  <div class="name">Absalom</div>
+  <div class="status"><span>●</span> listening</div>
+
+  <script>
+    // Particle background
+    const particles = document.getElementById('particles');
+    const pCtx = particles.getContext('2d');
+    
+    function resizeParticles() {
+      particles.width = window.innerWidth;
+      particles.height = window.innerHeight;
+    }
+    resizeParticles();
+    window.addEventListener('resize', resizeParticles);
+    
+    const dots = [];
+    for (let i = 0; i < 50; i++) {
+      dots.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        size: Math.random() * 2 + 1
+      });
+    }
+    
+    function drawParticles() {
+      pCtx.fillStyle = '#0a0a0a';
+      pCtx.fillRect(0, 0, particles.width, particles.height);
+      
+      dots.forEach(dot => {
+        dot.x += dot.vx;
+        dot.y += dot.vy;
+        
+        if (dot.x < 0 || dot.x > particles.width) dot.vx *= -1;
+        if (dot.y < 0 || dot.y > particles.height) dot.vy *= -1;
+        
+        pCtx.beginPath();
+        pCtx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
+        pCtx.fillStyle = 'rgba(50, 50, 60, 0.5)';
+        pCtx.fill();
+      });
+      
+      // Connect nearby dots
+      dots.forEach((dot, i) => {
+        dots.slice(i + 1).forEach(other => {
+          const dist = Math.hypot(dot.x - other.x, dot.y - other.y);
+          if (dist < 150) {
+            pCtx.beginPath();
+            pCtx.moveTo(dot.x, dot.y);
+            pCtx.lineTo(other.x, other.y);
+            pCtx.strokeStyle = `rgba(40, 40, 50, ${1 - dist / 150})`;
+            pCtx.stroke();
+          }
+        });
+      });
+      
+      requestAnimationFrame(drawParticles);
+    }
+    drawParticles();
+    
+    // Face
+    const canvas = document.getElementById('face-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+    const centerX = W / 2;
+    const centerY = H / 2;
+    
+    let mouseX = centerX;
+    let mouseY = centerY;
+    let targetMouseX = centerX;
+    let targetMouseY = centerY;
+    
+    document.addEventListener('mousemove', (e) => {
+      targetMouseX = e.clientX;
+      targetMouseY = e.clientY;
+    });
+    
+    // State
+    let blinkTimer = 0;
+    let isBlinking = false;
+    let blinkProgress = 0;
+    let breathe = 0;
+    let expression = 'neutral'; // neutral, thinking, alert
+    
+    // Random blink
+    setInterval(() => {
+      if (Math.random() > 0.7) {
+        isBlinking = true;
+        blinkProgress = 0;
+      }
+    }, 2000);
+    
+    // Expression changes
+    setInterval(() => {
+      const rand = Math.random();
+      if (rand < 0.1) expression = 'thinking';
+      else if (rand < 0.15) expression = 'alert';
+      else expression = 'neutral';
+    }, 5000);
+    
+    function drawFace() {
+      ctx.clearRect(0, 0, W, H);
+      
+      // Smooth mouse tracking
+      mouseX += (targetMouseX - mouseX) * 0.05;
+      mouseY += (targetMouseY - mouseY) * 0.05;
+      
+      // Calculate eye direction
+      const eyeOffsetX = (mouseX - window.innerWidth / 2) / window.innerWidth * 15;
+      const eyeOffsetY = (mouseY - window.innerHeight / 2) / window.innerHeight * 10;
+      
+      // Breathe animation
+      breathe += 0.02;
+      const breatheOffset = Math.sin(breathe) * 2;
+      
+      // Blink animation
+      if (isBlinking) {
+        blinkProgress += 0.15;
+        if (blinkProgress >= 1) {
+          isBlinking = false;
+          blinkProgress = 0;
+        }
+      }
+      const blinkAmount = isBlinking ? Math.sin(blinkProgress * Math.PI) : 0;
+      
+      // Head outline - geometric hexagon
+      ctx.save();
+      ctx.translate(centerX, centerY + breatheOffset);
+      
+      // Outer glow
+      const gradient = ctx.createRadialGradient(0, 0, 80, 0, 0, 180);
+      gradient.addColorStop(0, 'rgba(30, 30, 40, 0.3)');
+      gradient.addColorStop(1, 'rgba(10, 10, 10, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(0, 0, 180, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Main face shape - abstract geometric
+      ctx.strokeStyle = '#2a2a35';
+      ctx.lineWidth = 2;
+      
+      // Hexagonal outline
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI / 3) - Math.PI / 2;
+        const radius = 120 + Math.sin(breathe + i) * 3;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      
+      // Inner structure lines
+      ctx.strokeStyle = '#1a1a25';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI / 3) - Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(angle) * 80, Math.sin(angle) * 80);
+        ctx.stroke();
+      }
+      
+      // Eyes
+      const eyeY = -20;
+      const eyeSpacing = 50;
+      const eyeHeight = 25 * (1 - blinkAmount * 0.9);
+      
+      // Left eye
+      drawEye(-eyeSpacing, eyeY, eyeOffsetX, eyeOffsetY, eyeHeight);
+      // Right eye
+      drawEye(eyeSpacing, eyeY, eyeOffsetX, eyeOffsetY, eyeHeight);
+      
+      // Expression indicator (subtle line below eyes)
+      ctx.strokeStyle = expression === 'thinking' ? '#3a3a4a' : 
+                        expression === 'alert' ? '#4a3a3a' : '#2a2a35';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      if (expression === 'thinking') {
+        // Curved thinking line
+        ctx.moveTo(-30, 40);
+        ctx.quadraticCurveTo(0, 50, 30, 40);
+      } else if (expression === 'alert') {
+        // Slight frown
+        ctx.moveTo(-25, 45);
+        ctx.quadraticCurveTo(0, 38, 25, 45);
+      } else {
+        // Neutral
+        ctx.moveTo(-20, 42);
+        ctx.lineTo(20, 42);
+      }
+      ctx.stroke();
+      
+      ctx.restore();
+      
+      requestAnimationFrame(drawFace);
+    }
+    
+    function drawEye(x, y, offsetX, offsetY, height) {
+      // Eye socket (geometric diamond)
+      ctx.fillStyle = '#12121a';
+      ctx.beginPath();
+      ctx.moveTo(x, y - height);
+      ctx.lineTo(x + 25, y);
+      ctx.lineTo(x, y + height);
+      ctx.lineTo(x - 25, y);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Eye border
+      ctx.strokeStyle = '#2a2a40';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      
+      // Iris
+      const irisX = x + offsetX * 0.5;
+      const irisY = y + offsetY * 0.3;
+      
+      ctx.fillStyle = '#1a1a30';
+      ctx.beginPath();
+      ctx.arc(irisX, irisY, 12, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Pupil
+      ctx.fillStyle = '#0f0f18';
+      ctx.beginPath();
+      ctx.arc(irisX + offsetX * 0.1, irisY + offsetY * 0.1, 6, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Highlight
+      ctx.fillStyle = 'rgba(100, 100, 120, 0.3)';
+      ctx.beginPath();
+      ctx.arc(irisX - 3, irisY - 3, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    drawFace();
+  </script>
+</body>
+</html>
