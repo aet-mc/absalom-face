@@ -247,26 +247,34 @@
         sedimentCtx.fill();
       }
       
-      // Draw scars
+      // Draw scars - subtle veins
       sediment.scars.forEach(scar => {
-        const opacity = 0.1 + (1 - scar.age) * 0.4;
-        const glow = state.mode === 'thinking' ? 0.3 : 0;
+        const opacity = 0.05 + (1 - scar.age) * 0.15; // Much more subtle
+        const glow = state.mode === 'thinking' ? 0.1 : 0;
         
         sedimentCtx.save();
         sedimentCtx.translate(scar.x, scar.y);
         sedimentCtx.rotate(scar.angle);
         
-        sedimentCtx.strokeStyle = `rgba(255, 250, 240, ${opacity + glow})`;
-        sedimentCtx.lineWidth = scar.width;
+        // Gradient scar that fades at edges
+        const grad = sedimentCtx.createLinearGradient(-scar.length/2, 0, scar.length/2, 0);
+        grad.addColorStop(0, `rgba(200, 210, 220, 0)`);
+        grad.addColorStop(0.3, `rgba(200, 210, 220, ${opacity + glow})`);
+        grad.addColorStop(0.7, `rgba(200, 210, 220, ${opacity + glow})`);
+        grad.addColorStop(1, `rgba(200, 210, 220, 0)`);
+        
+        sedimentCtx.strokeStyle = grad;
+        sedimentCtx.lineWidth = scar.width * 0.5;
         sedimentCtx.lineCap = 'round';
         
         sedimentCtx.beginPath();
         sedimentCtx.moveTo(-scar.length / 2, 0);
-        // Jagged scar line
-        for (let i = 0; i < scar.length; i += 10) {
-          const jag = (Math.random() - 0.5) * 4;
-          sedimentCtx.lineTo(-scar.length / 2 + i, jag);
-        }
+        // Smoother curve
+        const cp1x = -scar.length / 4;
+        const cp1y = (Math.random() - 0.5) * 8;
+        const cp2x = scar.length / 4;
+        const cp2y = (Math.random() - 0.5) * 8;
+        sedimentCtx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, scar.length / 2, 0);
         sedimentCtx.stroke();
         
         sedimentCtx.restore();
@@ -286,7 +294,7 @@
     
     function initWeather() {
       weather.clouds = [];
-      const numClouds = 15;
+      const numClouds = 8; // Fewer, larger clouds
       
       for (let i = 0; i < numClouds; i++) {
         weather.clouds.push({
@@ -294,7 +302,7 @@
           y: Math.random() * H * 0.6,
           radius: 50 + Math.random() * 150,
           speed: 0.1 + Math.random() * 0.3,
-          opacity: 0.03 + Math.random() * 0.08,
+          opacity: 0.06 + Math.random() * 0.12, // More visible
           noiseOffset: Math.random() * 1000,
         });
       }
@@ -428,7 +436,7 @@
       crystalFormation: [], // target positions for crystal
     };
     
-    const BOID_COUNT = 200;
+    const BOID_COUNT = 120; // Reduced for performance
     const BOID_COLORS = [
       { h: 200, s: 70, l: 60 },  // cyan
       { h: 280, s: 60, l: 65 },  // purple
@@ -439,13 +447,13 @@
     
     function initMurmuration() {
       flock.boids = [];
-      flock.center = { x: W / 2, y: H / 2 };
+      flock.center = { x: W / 2, y: H * 0.3 }; // Center in upper area
       
       for (let i = 0; i < BOID_COUNT; i++) {
         const color = BOID_COLORS[i % BOID_COLORS.length];
         flock.boids.push({
-          x: Math.random() * W,
-          y: Math.random() * H * 0.7,
+          x: W * 0.3 + Math.random() * W * 0.4, // Start clustered in center
+          y: H * 0.15 + Math.random() * H * 0.25, // Upper portion
           vx: (Math.random() - 0.5) * 2,
           vy: (Math.random() - 0.5) * 2,
           color: color,
@@ -473,14 +481,14 @@
     
     function updateMurmuration(dt) {
       const params = {
-        separation: 25,
-        alignment: 50,
-        cohesion: 80,
-        separationForce: 0.05,
-        alignmentForce: 0.03,
-        cohesionForce: 0.02,
-        maxSpeed: state.mode === 'thinking' ? 4 : 2,
-        centerAttraction: state.mode === 'thinking' ? 0.001 : 0.0003,
+        separation: 20,
+        alignment: 60,
+        cohesion: 120,
+        separationForce: 0.04,
+        alignmentForce: 0.05,
+        cohesionForce: 0.03,
+        maxSpeed: state.mode === 'thinking' ? 3 : 1.5,
+        centerAttraction: state.mode === 'thinking' ? 0.002 : 0.001, // Stronger pull to center
       };
       
       // Crystallization during responding
@@ -490,9 +498,7 @@
       flock.crystalCenter = { x: W / 2, y: H / 3 };
       
       flock.boids.forEach((boid, i) => {
-        // Store trail
-        boid.trail.push({ x: boid.x, y: boid.y });
-        if (boid.trail.length > 8) boid.trail.shift();
+        // Skip trail for performance
         
         let ax = 0, ay = 0;
         let neighbors = 0;
@@ -574,52 +580,41 @@
         boid.x += boid.vx;
         boid.y += boid.vy;
         
-        // Wrap edges
-        if (boid.x < 0) boid.x = W;
-        if (boid.x > W) boid.x = 0;
-        if (boid.y < 0) boid.y = H * 0.7;
-        if (boid.y > H * 0.7) boid.y = 0;
+        // Soft boundary - steer away from edges
+        const margin = 50;
+        const turnForce = 0.1;
+        const bottomLimit = H * 0.45; // Stay above sediment
+        
+        if (boid.x < margin) boid.vx += turnForce;
+        if (boid.x > W - margin) boid.vx -= turnForce;
+        if (boid.y < margin) boid.vy += turnForce;
+        if (boid.y > bottomLimit) boid.vy -= turnForce * 2; // Stronger push from bottom
       });
     }
     
     function drawMurmuration() {
       surfaceCtx.clearRect(0, 0, W, H);
       
+      // Batch similar colors to reduce state changes
       flock.boids.forEach(boid => {
         const { h, s, l } = boid.color;
         
-        // Draw trail
-        if (boid.trail.length > 1) {
-          surfaceCtx.beginPath();
-          surfaceCtx.moveTo(boid.trail[0].x, boid.trail[0].y);
-          boid.trail.forEach((p, i) => {
-            surfaceCtx.lineTo(p.x, p.y);
-          });
-          surfaceCtx.strokeStyle = `hsla(${h}, ${s}%, ${l}%, 0.2)`;
-          surfaceCtx.lineWidth = 1;
-          surfaceCtx.stroke();
-        }
-        
-        // Draw boid as elongated shape pointing in velocity direction
+        // Draw boid as simple elongated shape
         const angle = Math.atan2(boid.vy, boid.vx);
         const speed = Math.sqrt(boid.vx * boid.vx + boid.vy * boid.vy);
-        const stretch = 1 + speed * 0.3;
+        const stretch = 1 + speed * 0.2;
         
         surfaceCtx.save();
         surfaceCtx.translate(boid.x, boid.y);
         surfaceCtx.rotate(angle);
         
-        // Glow
-        const glow = state.mode === 'thinking' ? 0.6 : 0.3;
-        surfaceCtx.shadowColor = `hsla(${h}, ${s}%, ${l}%, ${glow})`;
-        surfaceCtx.shadowBlur = 8;
-        
-        surfaceCtx.fillStyle = `hsla(${h}, ${s}%, ${l}%, 0.8)`;
+        // No shadow blur for performance - use opacity instead
+        const brightness = state.mode === 'thinking' ? l + 10 : l;
+        surfaceCtx.fillStyle = `hsla(${h}, ${s}%, ${brightness}%, 0.85)`;
         surfaceCtx.beginPath();
-        surfaceCtx.ellipse(0, 0, boid.size * stretch, boid.size * 0.5, 0, 0, Math.PI * 2);
+        surfaceCtx.ellipse(0, 0, boid.size * stretch, boid.size * 0.4, 0, 0, Math.PI * 2);
         surfaceCtx.fill();
         
-        surfaceCtx.shadowBlur = 0;
         surfaceCtx.restore();
       });
       
