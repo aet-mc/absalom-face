@@ -5618,6 +5618,16 @@
         activityState.packetInterval = null;
       }
       
+      // ═══════════════════════════════════════════════════════════════════════
+      // SOUND INTEGRATION
+      // ═══════════════════════════════════════════════════════════════════════
+      soundManager.updateCognitiveState(mode, message);
+      
+      // Play district activation sound when district changes
+      if (detectedDistrict && detectedDistrict !== prevDistrict && mode !== 'idle') {
+        soundManager.playDistrictActivation(detectedDistrict);
+      }
+      
       // Log state change for debugging
       console.log(`[Cognitive] Mode: ${mode} | District: ${detectedDistrict || 'none'} | Message preview: "${(message || '').slice(0, 50)}..."`);
       
