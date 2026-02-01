@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#030908">
+  <title>Absalom Mind — Mobile</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { 
+      height: 100%; 
+      background: #030908;
+      overflow: hidden;
+      touch-action: none;
+    }
+    canvas { 
+      width: 100%; 
+      height: 100%; 
+      display: block;
+    }
+    .status {
+      position: fixed;
+      top: max(8px, env(safe-area-inset-top));
+      left: 8px;
+      font: 10px monospace;
+      color: #2dd4a8;
+      opacity: 0.5;
+    }
+    .fps {
+      position: fixed;
+      bottom: max(8px, env(safe-area-inset-bottom));
+      right: 8px;
+      font: 10px monospace;
+      color: #2dd4a8;
+      opacity: 0.3;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="status" id="status">connecting...</div>
+  <div class="fps" id="fps">-- fps</div>
+  
+  <script>
+    // ULTRA LIGHTWEIGHT mobile renderer
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('status');
+    const fpsEl = document.getElementById('fps');
+    
+    // Size canvas
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.onresize = resize;
+    
+    // Simple node/edge data
+    let nodes = [];
+    let edges = [];
+    
+    // Colors by type
+    const COLORS = {
+      topics: '#2dd4a8',
+      people: '#fbbf24', 
+      tickers: '#60a5fa',
+      tools: '#a78bfa',
+      headers: '#94a3b8',
+      decisions: '#f472b6',
+      default: '#2dd4a8'
+    };
+    
+    // WebSocket
+    const WS_URL = 'wss://geometry-grid-table-reading.trycloudflare.com';
+    let ws = null;
+    
+    function connect() {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => {
+        statusEl.textContent = 'connected';
+        statusEl.style.color = '#2dd4a8';
+        ws.send(JSON.stringify({ type: 'graph:get' }));
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'graph:full' && msg.graph) {
+            initGraph(msg.graph);
+          }
+        } catch(err) {}
+      };
+      ws.onclose = () => {
+        statusEl.textContent = 'disconnected';
+        statusEl.style.color = '#666';
+        setTimeout(connect, 3000);
+      };
+    }
+    connect();
+    
+    function initGraph(graph) {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      
+      // Simple circular layout
+      nodes = graph.nodes.map((n, i) => {
+        const angle = (i / graph.nodes.length) * Math.PI * 2;
+        const r = 80 + Math.random() * 120;
+        return {
+          id: n.id,
+          label: n.label,
+          type: n.type || 'default',
+          x: cx + Math.cos(angle) * r,
+          y: cy + Math.sin(angle) * r,
+          vx: 0,
+          vy: 0,
+          size: 3 + Math.min(n.weight || 1, 10) * 0.8,
+          activation: 0
+        };
+      });
+      
+      // Build node lookup
+      const nodeMap = new Map(nodes.map(n => [n.id, n]));
+      
+      edges = graph.edges.map(e => ({
+        source: nodeMap.get(e.source),
+        target: nodeMap.get(e.target),
+        weight: e.weight || 1
+      })).filter(e => e.source && e.target);
+      
+      statusEl.textContent = `${nodes.length} nodes`;
+    }
+    
+    // Simple physics
+    function updatePhysics(dt) {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      
+      // Center force
+      for (const n of nodes) {
+        n.vx += (cx - n.x) * 0.01;
+        n.vy += (cy - n.y) * 0.01;
+      }
+      
+      // Repulsion (simplified - only nearby)
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i], b = nodes[j];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const d2 = dx*dx + dy*dy;
+          if (d2 < 10000 && d2 > 1) { // 100px max
+            const d = Math.sqrt(d2);
+            const f = 200 / d2;
+            a.vx -= dx/d * f;
+            a.vy -= dy/d * f;
+            b.vx += dx/d * f;
+            b.vy += dy/d * f;
+          }
+        }
+      }
+      
+      // Edge springs
+      for (const e of edges) {
+        const dx = e.target.x - e.source.x;
+        const dy = e.target.y - e.source.y;
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if (d > 1) {
+          const f = (d - 60) * 0.02;
+          e.source.vx += dx/d * f;
+          e.source.vy += dy/d * f;
+          e.target.vx -= dx/d * f;
+          e.target.vy -= dy/d * f;
+        }
+      }
+      
+      // Apply velocity
+      for (const n of nodes) {
+        n.vx *= 0.9;
+        n.vy *= 0.9;
+        n.x += n.vx;
+        n.y += n.vy;
+        
+        // Bounds
+        n.x = Math.max(20, Math.min(canvas.width - 20, n.x));
+        n.y = Math.max(20, Math.min(canvas.height - 20, n.y));
+        
+        // Decay activation
+        n.activation *= 0.95;
+      }
+    }
+    
+    // Simple render - NO gradients, NO filters
+    function render() {
+      ctx.fillStyle = '#030908';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw edges - simple lines
+      ctx.strokeStyle = 'rgba(45, 180, 150, 0.15)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const e of edges) {
+        ctx.moveTo(e.source.x, e.source.y);
+        ctx.lineTo(e.target.x, e.target.y);
+      }
+      ctx.stroke();
+      
+      // Draw nodes - simple circles
+      for (const n of nodes) {
+        const color = COLORS[n.type] || COLORS.default;
+        const size = n.size * (1 + n.activation * 0.5);
+        
+        // Glow when active
+        if (n.activation > 0.1) {
+          ctx.fillStyle = color;
+          ctx.globalAlpha = n.activation * 0.3;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, size * 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        
+        // Core
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    
+    // Animation loop
+    let lastTime = 0;
+    let frames = 0;
+    let lastFps = 0;
+    
+    function loop(time) {
+      const dt = Math.min((time - lastTime) / 1000, 0.1);
+      lastTime = time;
+      
+      frames++;
+      if (time - lastFps > 1000) {
+        fpsEl.textContent = frames + ' fps';
+        frames = 0;
+        lastFps = time;
+      }
+      
+      updatePhysics(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+    
+    // Touch to activate
+    canvas.ontouchstart = (e) => {
+      e.preventDefault();
+      const t = e.touches[0];
+      const x = t.clientX, y = t.clientY;
+      
+      // Find nearest node
+      let nearest = null, minD = 60;
+      for (const n of nodes) {
+        const d = Math.sqrt((n.x-x)**2 + (n.y-y)**2);
+        if (d < minD) { minD = d; nearest = n; }
+      }
+      
+      if (nearest) {
+        nearest.activation = 1;
+        // Spread to connected
+        for (const e of edges) {
+          if (e.source === nearest) e.target.activation = 0.5;
+          if (e.target === nearest) e.source.activation = 0.5;
+        }
+      }
+    };
+  </script>
+</body>
+</html>
