@@ -537,6 +537,9 @@
       
       // Update particles
       updateParticles(dt);
+      
+      // Update touch ripples
+      updateTouchRipples();
     }
     
     // ═══════════════════════════════════════════════════════════════
@@ -589,6 +592,9 @@
       if (state.mode === 'thinking' || state.mode === 'responding') {
         renderThoughtRipples();
       }
+      
+      // Touch ripples (user interaction feedback)
+      renderTouchRipples();
     }
     
     function renderVignette() {
@@ -951,10 +957,47 @@
         }
       }
       
+      // Spawn a touch ripple
+      spawnTouchRipple(x, y);
+      
       if (nearest) {
         activateNodes([nearest.id], 1);
       }
     }, { passive: false });
+    
+    // Touch ripples (visual feedback)
+    let touchRipples = [];
+    
+    function spawnTouchRipple(x, y) {
+      touchRipples.push({
+        x, y,
+        radius: 0,
+        maxRadius: 60,
+        alpha: 0.4,
+      });
+    }
+    
+    function updateTouchRipples() {
+      const newRipples = [];
+      for (const r of touchRipples) {
+        r.radius += 2;
+        r.alpha *= 0.95;
+        if (r.radius < r.maxRadius && r.alpha > 0.01) {
+          newRipples.push(r);
+        }
+      }
+      touchRipples = newRipples;
+    }
+    
+    function renderTouchRipples() {
+      for (const r of touchRipples) {
+        ctx.strokeStyle = `rgba(45, 212, 168, ${r.alpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
     
     // ═══════════════════════════════════════════════════════════════
     // MAIN LOOP
