@@ -2519,21 +2519,21 @@
       },
       morning: {
         sun: new THREE.Color(0xffeebb), // Warm white
-        ambient: new THREE.Color(0x334455), // Slight cool
-        fog: new THREE.Color(0x151820),
-        skyHue: 0.58, skySat: 0.4, skyLight: 0.12,
+        ambient: new THREE.Color(0x556677), // Brighter ambient
+        fog: new THREE.Color(0x354050),
+        skyHue: 0.58, skySat: 0.5, skyLight: 0.45,
       },
       noon: {
         sun: new THREE.Color(0xffffff), // Neutral white
-        ambient: new THREE.Color(0x445566), // Slight blue
-        fog: new THREE.Color(0x0f1520),
-        skyHue: 0.6, skySat: 0.35, skyLight: 0.1,
+        ambient: new THREE.Color(0x667788), // Bright blue ambient
+        fog: new THREE.Color(0x405060),
+        skyHue: 0.58, skySat: 0.5, skyLight: 0.55,
       },
       afternoon: {
         sun: new THREE.Color(0xfff5e0), // Slightly warm
-        ambient: new THREE.Color(0x3a4455), // Neutral
-        fog: new THREE.Color(0x121825),
-        skyHue: 0.58, skySat: 0.4, skyLight: 0.09,
+        ambient: new THREE.Color(0x556677), // Neutral bright
+        fog: new THREE.Color(0x354555),
+        skyHue: 0.56, skySat: 0.5, skyLight: 0.4,
       },
       goldenHour: {
         sun: new THREE.Color(0xffcc66), // Golden
@@ -2686,7 +2686,7 @@
       
       // Sun intensity: parabolic curve, brightest at noon
       const sunIntensityBase = Math.pow(dayProgress, 0.6); // Softer falloff
-      sunLight.intensity = sunIntensityBase * 1.4;
+      sunLight.intensity = sunIntensityBase * 2.0;
       
       // Night intensity for other systems
       city.nightIntensity = Math.max(0, -sunHeight);
@@ -2697,7 +2697,7 @@
       moonLight.color.setHSL(0.6, 0.5, 0.5 + city.nightIntensity * 0.2);
       
       // Ambient intensity - never fully dark
-      ambientLight.intensity = 0.15 + dayProgress * 0.25 + city.nightIntensity * 0.1;
+      ambientLight.intensity = 0.4 + dayProgress * 0.5 + city.nightIntensity * 0.1;
       
       // Hemisphere light adapts to time
       const skyBlend = blend;
