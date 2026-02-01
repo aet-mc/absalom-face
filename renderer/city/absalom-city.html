@@ -1265,20 +1265,39 @@
     let districtGlowIntensities = {};
     let cityLoadedFromServer = false;
     
+    const API_URL = 'https://itself-partners-integrate-memories.trycloudflare.com';
+    
+    // Try HTTP first (more reliable), then WebSocket for live updates
+    async function loadCityFromAPI() {
+      try {
+        console.log('[API] Fetching city state...');
+        const res = await fetch(`${API_URL}/city-state`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const cityState = await res.json();
+        console.log('[API] Received city state:', cityState.buildings?.length, 'buildings');
+        loadCityFromState(cityState);
+        return true;
+      } catch (err) {
+        console.error('[API] Failed:', err);
+        return false;
+      }
+    }
+    
     function connectKnowledge() {
       cityWebSocket = new WebSocket(WS_URL);
       
       cityWebSocket.onopen = () => {
         console.log('[WS] Connected to knowledge engine');
-        cityWebSocket.send(JSON.stringify({ type: 'city:request' }));
+        // Don't request city state - we already loaded via HTTP
       };
       
       cityWebSocket.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
           
+          // Live updates if city changes
           if (msg.type === 'city:state' && msg.city) {
-            console.log('[WS] Received city state:', msg.city.buildings?.length, 'buildings');
+            console.log('[WS] City update:', msg.city.buildings?.length, 'buildings');
             loadCityFromState(msg.city);
           }
           
@@ -1425,16 +1444,15 @@
     createCoreSpire();
     city.districts.set('core', [city.buildings[0]]);
     
-    // Connect to knowledge engine - buildings will load from server
-    connectKnowledge();
-    
-    // Fallback: if no WS data after 5s, use seed data
-    setTimeout(() => {
-      if (!cityLoadedFromServer && city.buildings.length <= 1) {
-        console.log('[City] No WS data received, using seed fallback');
+    // Load city from HTTP API first (reliable), then connect WebSocket for live updates
+    loadCityFromAPI().then(success => {
+      if (!success) {
+        console.log('[City] API failed, using seed fallback');
         seedCityFallback();
       }
-    }, 5000);
+      // Connect WebSocket for live cognitive state updates
+      connectKnowledge();
+    });
     
     animate(0);
     
