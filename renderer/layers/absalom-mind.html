@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a1612">
+  <link rel="manifest" href="/manifest.json">
+  <title>Absalom</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { 
+      height: 100%; 
+      background: #0a1612;
+      overflow: hidden;
+      touch-action: none;
+      font-family: 'SF Pro', -apple-system, sans-serif;
+    }
+    canvas { 
+      width: 100%; 
+      height: 100%; 
+      display: block;
+    }
+    
+    /* Minimal UI */
+    .ui {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+    }
+    
+    .state {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: rgba(45, 212, 168, 0.6);
+    }
+    
+    .state-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #2dd4a8;
+      box-shadow: 0 0 8px #2dd4a8;
+      transition: all 0.5s;
+    }
+    
+    .state-dot.thinking {
+      background: #fbbf24;
+      box-shadow: 0 0 12px #fbbf24;
+      animation: pulse 0.6s ease-in-out infinite;
+    }
+    
+    .state-dot.responding {
+      background: #60a5fa;
+      box-shadow: 0 0 12px #60a5fa;
+      animation: pulse 0.4s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.7; }
+    }
+    
+    .stats {
+      font-size: 10px;
+      color: rgba(45, 212, 168, 0.3);
+      font-variant-numeric: tabular-nums;
+    }
+    
+    /* Name at bottom */
+    .name {
+      position: fixed;
+      bottom: max(20px, env(safe-area-inset-bottom));
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: rgba(45, 212, 168, 0.15);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  
+  <div class="ui">
+    <div class="state">
+      <div class="state-dot" id="stateDot"></div>
+      <span id="stateText">idle</span>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+  
+  <div class="name">absalom</div>
+  
+  <script>
+    /**
+     * Absalom Mind - A living visualization
+     * 
+     * Design principles:
+     * - Beauty through restraint
+     * - Organic movement, not chaos
+     * - Meaning in every element
+     * - Responsive to state changes
+     */
+    
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const stateDot = document.getElementById('stateDot');
+    const stateText = document.getElementById('stateText');
+    const statsEl = document.getElementById('stats');
+    
+    // ═══════════════════════════════════════════════════════════════
+    // CONFIGURATION
+    // ═══════════════════════════════════════════════════════════════
+    
+    const CONFIG = {
+      // Colors - deep, meaningful palette
+      colors: {
+        background: '#0a1612',
+        primary: '#2dd4a8',     // Consciousness - cyan/teal
+        secondary: '#1a9e7a',   // Deeper teal
+        accent: '#fbbf24',      // Warmth - gold (for people, important things)
+        cool: '#60a5fa',        // Analytical - blue (tickers, data)
+        creative: '#a78bfa',    // Creative - purple (tools, decisions)
+        muted: '#3d5a50',       // Inactive edges
+      },
+      
+      // Node types and their visual identity
+      nodeTypes: {
+        topics:    { hue: 163, sat: 70, base: '#2dd4a8' },
+        people:    { hue: 43,  sat: 85, base: '#fbbf24' },
+        tickers:   { hue: 217, sat: 75, base: '#60a5fa' },
+        tools:     { hue: 262, sat: 65, base: '#a78bfa' },
+        headers:   { hue: 200, sat: 20, base: '#94a3b8' },
+        decisions: { hue: 330, sat: 70, base: '#f472b6' },
+        default:   { hue: 163, sat: 70, base: '#2dd4a8' },
+      },
+      
+      // Physics - tuned for 222 nodes
+      physics: {
+        centerForce: 0.003,      // Gentle pull to center
+        repulsion: 60,           // Soft repulsion
+        repulsionRadius: 60,     // Only nearby nodes repel
+        springForce: 0.005,      // Gentle edge springs
+        springLength: 40,        // Short ideal length
+        damping: 0.85,           // Heavy damping for calm
+        coolingRate: 0.998,      // Slow cooling
+        minTemp: 0.001,          // Stop threshold
+      },
+      
+      // Animation
+      animation: {
+        breathSpeed: 0.0008,     // Very slow breathing
+        breathAmount: 0.02,      // Subtle 2% scale
+      }
+    };
+    
+    // ═══════════════════════════════════════════════════════════════
+    // STATE
+    // ═══════════════════════════════════════════════════════════════
+    
+    let nodes = [];
+    let edges = [];
+    let nodeMap = new Map();
+    
+    let state = {
+      mode: 'idle',           // idle, thinking, responding
+      temperature: 1.0,       // Physics temperature (cools down)
+      time: 0,
+      breathPhase: 0,
+      connected: false,
+    };
+    
+    // ═══════════════════════════════════════════════════════════════
+    // WEBSOCKET
+    // ═══════════════════════════════════════════════════════════════
+    
+    const WS_URL = 'wss://geometry-grid-table-reading.trycloudflare.com';
+    let ws = null;
+    
+    function connect() {
+      stateText.textContent = 'connecting';
+      
+      ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        state.connected = true;
+        stateText.textContent = 'idle';
+        ws.send(JSON.stringify({ type: 'graph:get' }));
+      };
+      
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          handleMessage(msg);
+        } catch (err) {
+          console.error('Parse error:', err);
+        }
+      };
+      
+      ws.onclose = () => {
+        state.connected = false;
+        stateText.textContent = 'offline';
+        stateDot.className = 'state-dot';
+        setTimeout(connect, 3000);
+      };
+      
+      ws.onerror = () => {};
+    }
+    
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'graph:full':
+          initializeGraph(msg.graph);
+          break;
+          
+        case 'state:change':
+          setMode(msg.state?.mode || 'idle');
+          break;
+          
+        case 'activate':
+          if (msg.nodeIds) activateNodes(msg.nodeIds, msg.intensity || 1);
+          break;
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // GRAPH INITIALIZATION
+    // ═══════════════════════════════════════════════════════════════
+    
+    function initializeGraph(graph) {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      
+      nodeMap.clear();
+      
+      // Create nodes with meaningful positioning
+      nodes = graph.nodes.map((data, i) => {
+        const typeConfig = CONFIG.nodeTypes[data.type] || CONFIG.nodeTypes.default;
+        
+        // Position based on type (semantic clustering)
+        const typeAngles = {
+          topics: 0,
+          people: Math.PI * 0.35,
+          tickers: Math.PI * 0.7,
+          tools: Math.PI * 1.1,
+          decisions: Math.PI * 1.45,
+          headers: Math.PI * 1.75,
+        };
+        
+        const baseAngle = typeAngles[data.type] || (i / graph.nodes.length) * Math.PI * 2;
+        const angleSpread = (Math.random() - 0.5) * 0.4;
+        const angle = baseAngle + angleSpread;
+        
+        // Weight affects distance from center (heavier = more central)
+        const weight = data.weight || 1;
+        const weightFactor = Math.min(1, weight / 8);
+        const radius = 60 + (1 - weightFactor) * 100 + Math.random() * 40;
+        
+        const node = {
+          id: data.id,
+          label: data.label,
+          type: data.type || 'default',
+          weight: weight,
+          
+          // Position
+          x: cx + Math.cos(angle) * radius,
+          y: cy + Math.sin(angle) * radius,
+          vx: 0,
+          vy: 0,
+          
+          // Visual
+          baseSize: 2 + Math.min(weight, 10) * 0.6,
+          hue: typeConfig.hue,
+          sat: typeConfig.sat,
+          
+          // Animation
+          activation: 0,
+          breathOffset: Math.random() * Math.PI * 2,
+        };
+        
+        nodeMap.set(node.id, node);
+        return node;
+      });
+      
+      // Create edges
+      edges = graph.edges.map(data => ({
+        source: nodeMap.get(data.source),
+        target: nodeMap.get(data.target),
+        weight: data.weight || 1,
+        activation: 0,
+      })).filter(e => e.source && e.target);
+      
+      // Reset physics
+      state.temperature = 1.0;
+      
+      updateStats();
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // STATE MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════
+    
+    function setMode(mode) {
+      state.mode = mode;
+      stateText.textContent = mode;
+      stateDot.className = 'state-dot' + (mode !== 'idle' ? ' ' + mode : '');
+      
+      // Mode affects visualization
+      if (mode === 'thinking') {
+        // Activate some random nodes to show thinking
+        const count = Math.floor(3 + Math.random() * 5);
+        const ids = nodes.slice(0, count).map(n => n.id);
+        activateNodes(ids, 0.6);
+        state.temperature = Math.max(state.temperature, 0.1); // Slight reheat
+      }
+    }
+    
+    function activateNodes(nodeIds, intensity = 1) {
+      for (const id of nodeIds) {
+        const node = nodeMap.get(id);
+        if (node) {
+          node.activation = Math.max(node.activation, intensity);
+          
+          // Spread to connected nodes
+          for (const edge of edges) {
+            if (edge.source === node || edge.target === node) {
+              const other = edge.source === node ? edge.target : edge.source;
+              other.activation = Math.max(other.activation, intensity * 0.4);
+              edge.activation = Math.max(edge.activation, intensity * 0.6);
+            }
+          }
+        }
+      }
+      
+      // Small reheat for movement
+      state.temperature = Math.max(state.temperature, 0.05);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // PHYSICS
+    // ═══════════════════════════════════════════════════════════════
+    
+    function updatePhysics(dt) {
+      const { physics } = CONFIG;
+      const temp = state.temperature;
+      
+      if (temp < physics.minTemp) return;
+      
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      
+      // Center force
+      for (const n of nodes) {
+        n.vx += (cx - n.x) * physics.centerForce;
+        n.vy += (cy - n.y) * physics.centerForce;
+      }
+      
+      // Repulsion (only nearby)
+      const maxDist2 = physics.repulsionRadius * physics.repulsionRadius;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i], b = nodes[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const d2 = dx * dx + dy * dy;
+          
+          if (d2 < maxDist2 && d2 > 1) {
+            const d = Math.sqrt(d2);
+            const f = physics.repulsion * temp / d2;
+            const fx = (dx / d) * f;
+            const fy = (dy / d) * f;
+            a.vx -= fx;
+            a.vy -= fy;
+            b.vx += fx;
+            b.vy += fy;
+          }
+        }
+      }
+      
+      // Edge springs
+      for (const e of edges) {
+        const dx = e.target.x - e.source.x;
+        const dy = e.target.y - e.source.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        
+        if (d > 1) {
+          const f = (d - physics.springLength) * physics.springForce * temp;
+          const fx = (dx / d) * f;
+          const fy = (dy / d) * f;
+          e.source.vx += fx;
+          e.source.vy += fy;
+          e.target.vx -= fx;
+          e.target.vy -= fy;
+        }
+      }
+      
+      // Apply velocity and damping
+      for (const n of nodes) {
+        n.vx *= physics.damping;
+        n.vy *= physics.damping;
+        n.x += n.vx;
+        n.y += n.vy;
+        
+        // Soft bounds
+        const margin = 30;
+        if (n.x < margin) n.x = margin;
+        if (n.x > canvas.width - margin) n.x = canvas.width - margin;
+        if (n.y < margin) n.y = margin;
+        if (n.y > canvas.height - margin) n.y = canvas.height - margin;
+      }
+      
+      // Cool down
+      state.temperature *= physics.coolingRate;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // ANIMATION
+    // ═══════════════════════════════════════════════════════════════
+    
+    function updateAnimation(dt) {
+      state.time += dt;
+      state.breathPhase += CONFIG.animation.breathSpeed * dt * 1000;
+      
+      // Decay activations
+      for (const n of nodes) {
+        n.activation *= 0.97;
+        if (n.activation < 0.01) n.activation = 0;
+      }
+      
+      for (const e of edges) {
+        e.activation *= 0.97;
+        if (e.activation < 0.01) e.activation = 0;
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // RENDERING
+    // ═══════════════════════════════════════════════════════════════
+    
+    function render() {
+      const { colors, animation } = CONFIG;
+      
+      // Clear
+      ctx.fillStyle = colors.background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Global breath scale
+      const breathScale = 1 + Math.sin(state.breathPhase) * animation.breathAmount;
+      
+      // Transform for breathing
+      ctx.save();
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      ctx.translate(cx, cy);
+      ctx.scale(breathScale, breathScale);
+      ctx.translate(-cx, -cy);
+      
+      // Draw edges
+      renderEdges();
+      
+      // Draw nodes
+      renderNodes();
+      
+      ctx.restore();
+    }
+    
+    function renderEdges() {
+      // Base edges (very subtle)
+      ctx.strokeStyle = 'rgba(61, 90, 80, 0.12)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      for (const e of edges) {
+        if (e.activation < 0.1) {
+          ctx.moveTo(e.source.x, e.source.y);
+          ctx.lineTo(e.target.x, e.target.y);
+        }
+      }
+      ctx.stroke();
+      
+      // Active edges (brighter)
+      for (const e of edges) {
+        if (e.activation >= 0.1) {
+          const alpha = 0.15 + e.activation * 0.4;
+          ctx.strokeStyle = `rgba(45, 212, 168, ${alpha})`;
+          ctx.lineWidth = 0.5 + e.activation * 1.5;
+          ctx.beginPath();
+          ctx.moveTo(e.source.x, e.source.y);
+          ctx.lineTo(e.target.x, e.target.y);
+          ctx.stroke();
+        }
+      }
+    }
+    
+    function renderNodes() {
+      for (const n of nodes) {
+        const size = n.baseSize * (1 + n.activation * 0.5);
+        const breath = Math.sin(state.breathPhase + n.breathOffset) * 0.15;
+        const finalSize = size * (1 + breath);
+        
+        // Glow for active nodes
+        if (n.activation > 0.05) {
+          const glowSize = finalSize * (2 + n.activation * 3);
+          const alpha = n.activation * 0.3;
+          ctx.fillStyle = `hsla(${n.hue}, ${n.sat}%, 60%, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, glowSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        // Core
+        const lightness = 55 + n.activation * 20;
+        ctx.fillStyle = `hsl(${n.hue}, ${n.sat}%, ${lightness}%)`;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, finalSize, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Bright center
+        if (finalSize > 3) {
+          ctx.fillStyle = `hsla(${n.hue}, ${n.sat - 20}%, 85%, 0.8)`;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, finalSize * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // UI
+    // ═══════════════════════════════════════════════════════════════
+    
+    function updateStats() {
+      statsEl.textContent = `${nodes.length} · ${edges.length}`;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // INTERACTION
+    // ═══════════════════════════════════════════════════════════════
+    
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const x = touch.clientX;
+      const y = touch.clientY;
+      
+      // Find nearest node
+      let nearest = null;
+      let minDist = 50;
+      
+      for (const n of nodes) {
+        const d = Math.sqrt((n.x - x) ** 2 + (n.y - y) ** 2);
+        if (d < minDist) {
+          minDist = d;
+          nearest = n;
+        }
+      }
+      
+      if (nearest) {
+        activateNodes([nearest.id], 1);
+      }
+    }, { passive: false });
+    
+    // ═══════════════════════════════════════════════════════════════
+    // MAIN LOOP
+    // ═══════════════════════════════════════════════════════════════
+    
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    
+    let lastTime = 0;
+    let frameCount = 0;
+    let lastFpsTime = 0;
+    
+    function loop(time) {
+      const dt = Math.min((time - lastTime) / 1000, 0.1);
+      lastTime = time;
+      
+      // FPS tracking
+      frameCount++;
+      if (time - lastFpsTime > 2000) {
+        const fps = Math.round(frameCount / 2);
+        frameCount = 0;
+        lastFpsTime = time;
+        // statsEl.textContent = `${nodes.length} · ${fps}fps`;
+      }
+      
+      updatePhysics(dt);
+      updateAnimation(dt);
+      render();
+      
+      requestAnimationFrame(loop);
+    }
+    
+    // Initialize
+    window.addEventListener('resize', resize);
+    resize();
+    connect();
+    requestAnimationFrame(loop);
+    
+    // Periodic random activation to show life (when idle)
+    setInterval(() => {
+      if (state.mode === 'idle' && nodes.length > 0 && Math.random() < 0.3) {
+        const idx = Math.floor(Math.random() * nodes.length);
+        activateNodes([nodes[idx].id], 0.4);
+      }
+    }, 4000);
+  </script>
+</body>
+</html>
