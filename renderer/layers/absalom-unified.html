@@ -499,15 +499,15 @@
       const wanderY = Math.sin(wanderAngle * 0.7) * 0.2;
       
       const params = {
-        separation: 18,
-        alignment: 50,
-        cohesion: 100,
-        separationForce: 0.035,
+        separation: 15,
+        alignment: 40,
+        cohesion: 80,
+        separationForce: 0.03,
         alignmentForce: 0.04,
-        cohesionForce: 0.025,
-        maxSpeed: state.mode === 'thinking' ? 3.5 : 2, // Faster idle
-        centerAttraction: state.mode === 'thinking' ? 0.002 : 0.0008,
-        wander: state.mode === 'idle' ? 0.15 : 0, // Wander when idle
+        cohesionForce: 0.02,
+        maxSpeed: state.mode === 'thinking' ? 3 : 1.8,
+        centerAttraction: state.mode === 'thinking' ? 0.003 : 0.002, // Much stronger center pull
+        wander: state.mode === 'idle' ? 0.08 : 0, // Gentler wander
       };
       
       // Crystallization during responding
@@ -607,15 +607,23 @@
         boid.x += boid.vx;
         boid.y += boid.vy;
         
-        // Soft boundary - steer away from edges
-        const margin = 50;
-        const turnForce = 0.1;
-        const bottomLimit = H * 0.45; // Stay above sediment
+        // Strong boundary - keep boids in view
+        const margin = 100;
+        const turnForce = 0.3;
+        const bottomLimit = H * 0.5;
+        const topLimit = 30;
         
-        if (boid.x < margin) boid.vx += turnForce;
-        if (boid.x > W - margin) boid.vx -= turnForce;
-        if (boid.y < margin) boid.vy += turnForce;
-        if (boid.y > bottomLimit) boid.vy -= turnForce * 2; // Stronger push from bottom
+        // Proportional force - stronger the further out
+        if (boid.x < margin) boid.vx += turnForce * (1 - boid.x / margin);
+        if (boid.x > W - margin) boid.vx -= turnForce * (1 - (W - boid.x) / margin);
+        if (boid.y < topLimit) boid.vy += turnForce * (1 - boid.y / topLimit);
+        if (boid.y > bottomLimit) boid.vy -= turnForce * 2 * ((boid.y - bottomLimit) / (H - bottomLimit));
+        
+        // Hard clamp - never go off screen
+        if (boid.x < 0) { boid.x = 10; boid.vx = Math.abs(boid.vx); }
+        if (boid.x > W) { boid.x = W - 10; boid.vx = -Math.abs(boid.vx); }
+        if (boid.y < 0) { boid.y = 10; boid.vy = Math.abs(boid.vy); }
+        if (boid.y > bottomLimit + 50) { boid.y = bottomLimit; boid.vy = -Math.abs(boid.vy); }
       });
     }
     
