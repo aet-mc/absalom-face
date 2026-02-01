@@ -102,9 +102,9 @@ const PALETTE = {
     default: { r: 45, g: 212, b: 168, h: 163 }     // emerald
   },
   
-  // Edge colors
-  edgeDim: { r: 30, g: 60, b: 55, a: 0.15 },
-  edgeActive: { r: 45, g: 212, b: 168, a: 0.6 },
+  // Edge colors - BOOSTED for visibility
+  edgeDim: { r: 50, g: 120, b: 100, a: 0.35 },
+  edgeActive: { r: 80, g: 230, b: 190, a: 0.85 },
   
   // Particle colors
   particleBase: { r: 120, g: 220, b: 200 },
@@ -134,7 +134,7 @@ class Particle {
     this.hue = options.hue || 163 + (Math.random() - 0.5) * 40;
     this.saturation = 70 + Math.random() * 30;
     this.trail = [];
-    this.maxTrail = Math.floor(3 + Math.random() * 8);
+    this.maxTrail = Math.floor(8 + Math.random() * 15); // Longer trails (was 3-8)
     
     // Movement mode
     this.mode = options.mode || 'ambient'; // 'ambient', 'flow', 'attracted'
@@ -264,9 +264,9 @@ class Particle {
       return;
     }
     
-    // Spiral attraction
-    const angle = Math.atan2(dy, dx) + Math.sin(time * 2 + this.phase) * 0.3;
-    const attractForce = Math.min(1, 50 / dist) * this.speed;
+    // Spiral attraction - stronger pull toward active nodes
+    const angle = Math.atan2(dy, dx) + Math.sin(time * 2 + this.phase) * 0.5;
+    const attractForce = Math.min(2.5, 80 / dist) * this.speed; // Stronger (was min 1, 50/dist)
     
     this.vx += Math.cos(angle) * attractForce * 0.5;
     this.vy += Math.sin(angle) * attractForce * 0.5;
@@ -320,10 +320,10 @@ class Particle {
 }
 
 class ParticleSystem {
-  constructor(maxParticles = 2000) {
+  constructor(maxParticles = 3500) {
     this.particles = [];
     this.maxParticles = maxParticles;
-    this.spawnRate = 30; // particles per second
+    this.spawnRate = 50; // particles per second (was 30)
     this.spawnAccumulator = 0;
   }
   
@@ -451,16 +451,16 @@ class OrganicEdge {
     this.activation = 0;
     this.targetActivation = 0;
     
-    // Organic properties - multiple strands
-    this.strandCount = 2 + Math.floor(Math.random() * 3);
+    // Organic properties - multiple strands (TUNED for visibility)
+    this.strandCount = 3 + Math.floor(Math.random() * 3); // 3-5 strands for fuller tendrils
     this.strands = [];
     for (let i = 0; i < this.strandCount; i++) {
       this.strands.push({
-        offset: (Math.random() - 0.5) * 0.4,
-        thickness: 0.3 + Math.random() * 0.7,
+        offset: (Math.random() - 0.5) * 0.15, // REDUCED: tighter bundle (was 0.4)
+        thickness: 0.6 + Math.random() * 0.5, // BOOSTED: minimum 0.6 (was 0.3)
         phase: Math.random() * Math.PI * 2,
-        waveFreq: 2 + Math.random() * 3,
-        waveAmp: 5 + Math.random() * 10
+        waveFreq: 1.5 + Math.random() * 2, // SLOWER: gentler undulation (was 2-5)
+        waveAmp: 2 + Math.random() * 4 // REDUCED: tighter waves (was 5-15)
       });
     }
     
@@ -483,13 +483,15 @@ class OrganicEdge {
       if (this.targetActivation < 0) this.targetActivation = 0;
     }
     
-    // Spawn energy pulses when active
-    if (this.activation > 0.4 && time - this.lastPulseTime > 0.5) {
+    // Spawn energy pulses - even dim edges get occasional pulses
+    const pulseThreshold = 0.15; // LOWERED from 0.4
+    const pulseInterval = this.activation > 0.5 ? 0.3 : 1.2; // Faster when active
+    if (this.activation > pulseThreshold && time - this.lastPulseTime > pulseInterval) {
       this.pulses.push({
         progress: 0,
-        speed: 0.3 + Math.random() * 0.4,
-        size: 3 + this.activation * 5,
-        brightness: this.activation
+        speed: 0.15 + Math.random() * 0.25 + this.activation * 0.3, // Slower base, faster when active
+        size: 4 + this.activation * 8, // BIGGER pulses (was 3 + act*5)
+        brightness: 0.4 + this.activation * 0.6 // Minimum brightness 0.4
       });
       this.lastPulseTime = time;
     }
@@ -556,8 +558,10 @@ class OrganicEdge {
     );
     if (len < 1) return;
     
-    // Base thickness
-    const baseWidth = 0.5 + Math.min(2, Math.log2(this.weight + 1) * 0.5);
+    // Base thickness - BOOSTED for visibility
+    // High-weight edges are now dramatically thicker
+    const weightFactor = Math.log2(this.weight + 1);
+    const baseWidth = 1.5 + Math.min(4, weightFactor * 1.2); // 1.5-5.5px range (was 0.5-2.5)
     
     // Render each strand
     ctx.save();
@@ -585,9 +589,9 @@ class OrganicEdge {
       const t = i / segments;
       const point = this.getPointOnCurve(t, time);
       
-      // Add strand-specific offset and wave
-      const strandWave = Math.sin(t * strand.waveFreq * Math.PI + time * 0.8 + strand.phase) * strand.waveAmp;
-      const offset = strand.offset * 30 + strandWave;
+      // Add strand-specific offset and wave (TIGHTER bundling)
+      const strandWave = Math.sin(t * strand.waveFreq * Math.PI + time * 0.5 + strand.phase) * strand.waveAmp;
+      const offset = strand.offset * 12 + strandWave; // REDUCED from 30 to 12
       
       points.push({
         x: point.x + point.nx * offset,
@@ -596,17 +600,19 @@ class OrganicEdge {
       });
     }
     
-    // Draw the strand with variable thickness
-    const width = baseWidth * strand.thickness * (1 + this.activation * 0.5);
+    // Draw the strand with variable thickness - BOOSTED
+    const width = baseWidth * strand.thickness * (1 + this.activation * 0.8); // was 0.5
     
-    // Color interpolation
-    const dimAlpha = 0.08 + this.activation * 0.02;
-    const activeAlpha = 0.15 + this.activation * 0.45;
+    // Color interpolation - DRAMATICALLY BOOSTED VISIBILITY
+    // Inactive edges now start at 25% alpha, active reach 80%
+    const dimAlpha = 0.25 + this.weight * 0.03; // Weight adds slight visibility
+    const activeAlpha = 0.80;
     const alpha = dimAlpha + (activeAlpha - dimAlpha) * this.activation;
     
-    const r = Math.round(30 + (45 - 30) * this.activation);
-    const g = Math.round(60 + (212 - 60) * this.activation);
-    const b = Math.round(55 + (168 - 55) * this.activation);
+    // Brighter base colors - visible cyan-green even when dim
+    const r = Math.round(50 + (90 - 50) * this.activation);   // 50-90 (was 30-45)
+    const g = Math.round(130 + (235 - 130) * this.activation); // 130-235 (was 60-212)
+    const b = Math.round(110 + (195 - 110) * this.activation); // 110-195 (was 55-168)
     
     // Draw main line
     ctx.beginPath();
@@ -623,39 +629,88 @@ class OrganicEdge {
       points[points.length - 1].x, points[points.length - 1].y
     );
     
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    // Create gradient between source and target node colors (if different types)
+    const sourceColor = PALETTE.nodes[this.source.type] || PALETTE.nodes.default;
+    const targetColor = PALETTE.nodes[this.target.type] || PALETTE.nodes.default;
+    const useGradient = sourceColor.h !== targetColor.h;
+    
+    if (useGradient && points.length > 1) {
+      // Gradient along edge path
+      const gradient = ctx.createLinearGradient(
+        points[0].x, points[0].y,
+        points[points.length - 1].x, points[points.length - 1].y
+      );
+      // Blend toward edge color at center, node colors at ends
+      const srcR = Math.round(sourceColor.r * 0.3 + r * 0.7);
+      const srcG = Math.round(sourceColor.g * 0.3 + g * 0.7);
+      const srcB = Math.round(sourceColor.b * 0.3 + b * 0.7);
+      const tgtR = Math.round(targetColor.r * 0.3 + r * 0.7);
+      const tgtG = Math.round(targetColor.g * 0.3 + g * 0.7);
+      const tgtB = Math.round(targetColor.b * 0.3 + b * 0.7);
+      
+      gradient.addColorStop(0, `rgba(${srcR}, ${srcG}, ${srcB}, ${alpha})`);
+      gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${alpha})`);
+      gradient.addColorStop(1, `rgba(${tgtR}, ${tgtG}, ${tgtB}, ${alpha})`);
+      ctx.strokeStyle = gradient;
+    } else {
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
     ctx.lineWidth = width;
     ctx.stroke();
     
-    // Glow layer when active
-    if (this.activation > 0.2) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-      ctx.filter = `blur(${3 + this.activation * 5}px)`;
-      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${this.activation * 0.3})`;
-      ctx.lineWidth = width * 2;
+    // AMBIENT GLOW - all edges get subtle glow, active edges get bloom
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    
+    // Subtle ambient glow for ALL edges (always visible)
+    const ambientGlowAlpha = 0.08 + this.activation * 0.15;
+    ctx.filter = `blur(${4 + this.activation * 6}px)`;
+    ctx.strokeStyle = `rgba(${r + 30}, ${g + 20}, ${b + 20}, ${ambientGlowAlpha})`;
+    ctx.lineWidth = width * 2.5;
+    ctx.stroke();
+    
+    // Extra bloom layer when highly active
+    if (this.activation > 0.4) {
+      ctx.filter = `blur(${8 + this.activation * 10}px)`;
+      ctx.strokeStyle = `rgba(${r + 50}, ${g + 30}, ${b + 30}, ${(this.activation - 0.4) * 0.5})`;
+      ctx.lineWidth = width * 4;
       ctx.stroke();
-      ctx.restore();
     }
+    
+    ctx.restore();
   }
   
   renderPulse(ctx, time, pulse) {
     const point = this.getPointOnCurve(pulse.progress, time);
     
-    const r = 45, g = 220, b = 180;
+    // Brighter, more saturated pulse colors
+    const r = 100, g = 245, b = 210;
     const size = pulse.size;
     
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     
-    const glow = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, size * 2);
-    glow.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${pulse.brightness})`);
-    glow.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, ${pulse.brightness * 0.5})`);
-    glow.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+    // Outer bloom (large, soft)
+    const outerGlow = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, size * 4);
+    outerGlow.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${pulse.brightness * 0.4})`);
+    outerGlow.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, ${pulse.brightness * 0.2})`);
+    outerGlow.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
     
     ctx.beginPath();
-    ctx.arc(point.x, point.y, size * 2, 0, Math.PI * 2);
-    ctx.fillStyle = glow;
+    ctx.arc(point.x, point.y, size * 4, 0, Math.PI * 2);
+    ctx.fillStyle = outerGlow;
+    ctx.fill();
+    
+    // Inner core (bright, sharp)
+    const coreGlow = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, size * 1.5);
+    coreGlow.addColorStop(0, `rgba(255, 255, 255, ${pulse.brightness * 0.9})`);
+    coreGlow.addColorStop(0.2, `rgba(${r}, ${g}, ${b}, ${pulse.brightness * 0.8})`);
+    coreGlow.addColorStop(0.6, `rgba(${r - 30}, ${g - 20}, ${b - 20}, ${pulse.brightness * 0.4})`);
+    coreGlow.addColorStop(1, `rgba(${r - 50}, ${g - 40}, ${b - 40}, 0)`);
+    
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, size * 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = coreGlow;
     ctx.fill();
     
     ctx.restore();
@@ -663,8 +718,61 @@ class OrganicEdge {
 }
 
 // ============================================================================
-// ORGANIC NODE - Breathing, pulsing with bloom
+// ORGANIC NODE - Living, breathing entities with rich visual expression
 // ============================================================================
+
+// Type-specific visual signatures
+const NODE_SIGNATURES = {
+  topics: {
+    coronaLayers: 3,      // Number of corona rings
+    coronaSpread: 0.15,   // How far corona extends
+    pulseSpeed: 1.0,      // Breathing speed multiplier
+    coreIntensity: 0.9,   // Core brightness
+    hasRings: false,      // Saturn-like rings
+    hasTendrils: true,    // Organic tendrils reaching out
+  },
+  people: {
+    coronaLayers: 2,
+    coronaSpread: 0.12,
+    pulseSpeed: 1.2,      // Slightly faster - more "alive"
+    coreIntensity: 1.0,   // Brightest core
+    hasRings: false,
+    hasTendrils: false,
+    hasAura: true,        // Warm aura effect
+  },
+  tickers: {
+    coronaLayers: 4,      // More technical, layered look
+    coronaSpread: 0.2,
+    pulseSpeed: 0.8,
+    coreIntensity: 0.85,
+    hasRings: true,       // Data rings
+    hasTendrils: false,
+  },
+  tools: {
+    coronaLayers: 2,
+    coronaSpread: 0.1,
+    pulseSpeed: 0.6,      // Slower, more stable
+    coreIntensity: 0.8,
+    hasRings: true,
+    hasTendrils: false,
+  },
+  decisions: {
+    coronaLayers: 5,      // Most complex - decision nodes are important
+    coronaSpread: 0.25,
+    pulseSpeed: 1.4,      // Quick, alert
+    coreIntensity: 0.95,
+    hasRings: false,
+    hasTendrils: true,
+  },
+  default: {
+    coronaLayers: 2,
+    coronaSpread: 0.12,
+    pulseSpeed: 1.0,
+    coreIntensity: 0.85,
+    hasRings: false,
+    hasTendrils: false,
+  }
+};
 
 class OrganicNode {
   constructor(data) {
@@ -688,11 +796,16 @@ class OrganicNode {
     this.targetActivation = 0;
     this.baseRadius = this.calculateRadius();
     
-    // Organic breathing - multiple overlapping rhythms
+    // Visual signature for this type
+    this.signature = NODE_SIGNATURES[this.type] || NODE_SIGNATURES.default;
+    
+    // Organic breathing - multiple overlapping rhythms (scaled by type)
+    const ps = this.signature.pulseSpeed;
     this.breathPhases = [
-      { phase: Math.random() * Math.PI * 2, speed: 0.3 + Math.random() * 0.2, amp: 0.15 },
-      { phase: Math.random() * Math.PI * 2, speed: 0.7 + Math.random() * 0.3, amp: 0.08 },
-      { phase: Math.random() * Math.PI * 2, speed: 1.5 + Math.random() * 0.5, amp: 0.03 }
+      { phase: Math.random() * Math.PI * 2, speed: (0.3 + Math.random() * 0.2) * ps, amp: 0.18 },
+      { phase: Math.random() * Math.PI * 2, speed: (0.7 + Math.random() * 0.3) * ps, amp: 0.10 },
+      { phase: Math.random() * Math.PI * 2, speed: (1.5 + Math.random() * 0.5) * ps, amp: 0.04 },
+      { phase: Math.random() * Math.PI * 2, speed: (2.5 + Math.random() * 0.8) * ps, amp: 0.02 } // Extra fast flutter
     ];
     
     // Sway motion
@@ -702,10 +815,55 @@ class OrganicNode {
     
     // Color properties
     this.colorShift = Math.random() * Math.PI * 2;
+    
+    // === IDLE "THOUGHTS" - spontaneous micro-activations ===
+    this.thoughtTimer = Math.random() * 10;  // Time until next thought
+    this.thoughtIntensity = 0;               // Current thought glow
+    this.thoughtDecay = 0;
+    
+    // Label visibility (fades in on activation)
+    this.labelOpacity = 0;
+    
+    // Tendril state (for types with tendrils)
+    if (this.signature.hasTendrils) {
+      this.tendrils = [];
+      const tendrilCount = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < tendrilCount; i++) {
+        this.tendrils.push({
+          angle: (i / tendrilCount) * Math.PI * 2 + Math.random() * 0.5,
+          length: 0.5 + Math.random() * 0.5,
+          phase: Math.random() * Math.PI * 2,
+          speed: 0.3 + Math.random() * 0.4
+        });
+      }
+    }
+    
+    // Ring state (for types with rings)
+    if (this.signature.hasRings) {
+      this.rings = [];
+      const ringCount = 1 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < ringCount; i++) {
+        this.rings.push({
+          radius: 1.8 + i * 0.6,
+          rotation: Math.random() * Math.PI * 2,
+          speed: (0.2 + Math.random() * 0.2) * (i % 2 === 0 ? 1 : -1),
+          thickness: 0.5 + Math.random() * 0.5
+        });
+      }
+    }
   }
   
   calculateRadius() {
-    return 4 + Math.min(16, Math.log2(this.weight + 1) * 4);
+    // WIDER SIZE RANGE: exponential scaling for heavy nodes
+    // Light nodes: ~5px, Heavy nodes (weight 50+): up to ~40px
+    const minRadius = 5;
+    const maxRadius = 45;
+    
+    // Exponential curve: small nodes stay small, heavy nodes get MUCH bigger
+    const weightFactor = Math.pow(this.weight, 0.6); // Sublinear but more dramatic than log
+    const normalizedWeight = Math.min(1, weightFactor / 15); // Normalize to 0-1
+    
+    return minRadius + (maxRadius - minRadius) * normalizedWeight;
   }
   
   getColor() {
@@ -714,14 +872,34 @@ class OrganicNode {
   
   update(dt, time) {
     // Smooth activation with asymmetric speed (quick on, slow off)
-    const speed = this.activation < this.targetActivation ? 6 : 2;
+    const speed = this.activation < this.targetActivation ? 8 : 1.5;
     this.activation += (this.targetActivation - this.activation) * Math.min(1, dt * speed);
     
     // Decay activation
     if (this.targetActivation > 0) {
-      this.targetActivation -= dt * 0.25;
+      this.targetActivation -= dt * 0.2;
       if (this.targetActivation < 0) this.targetActivation = 0;
     }
+    
+    // === IDLE THOUGHTS: spontaneous micro-activations ===
+    this.thoughtTimer -= dt;
+    if (this.thoughtTimer <= 0 && this.activation < 0.1) {
+      // Trigger a "thought" - a brief, subtle glow
+      this.thoughtIntensity = 0.15 + Math.random() * 0.25;
+      this.thoughtDecay = 0.8 + Math.random() * 0.5;
+      // Next thought in 5-20 seconds
+      this.thoughtTimer = 5 + Math.random() * 15;
+    }
+    
+    // Decay thought
+    if (this.thoughtIntensity > 0) {
+      this.thoughtIntensity -= dt * this.thoughtDecay;
+      if (this.thoughtIntensity < 0) this.thoughtIntensity = 0;
+    }
+    
+    // === LABEL OPACITY: fade in on activation ===
+    const targetLabelOpacity = this.activation > 0.5 ? Math.min(1, (this.activation - 0.5) * 3) : 0;
+    this.labelOpacity += (targetLabelOpacity - this.labelOpacity) * Math.min(1, dt * 4);
     
     // Update breath phases
     for (const breath of this.breathPhases) {
@@ -730,6 +908,20 @@ class OrganicNode {
     
     // Update sway
     this.swayPhase += dt * this.swaySpeed;
+    
+    // Update tendrils
+    if (this.tendrils) {
+      for (const tendril of this.tendrils) {
+        tendril.phase += dt * tendril.speed;
+      }
+    }
+    
+    // Update rings
+    if (this.rings) {
+      for (const ring of this.rings) {
+        ring.rotation += dt * ring.speed;
+      }
+    }
   }
   
   render(ctx, time) {
@@ -752,42 +944,87 @@ class OrganicNode {
     const hueShift = Math.sin(time * 0.05 + this.colorShift) * 10;
     const hue = (color.h + hueShift + 360) % 360;
     
-    // Calculate glow intensity
-    const baseGlow = 0.15 + breathScale * 0.05;
-    const glowIntensity = baseGlow + this.activation * 0.85;
+    // Combined glow from activation + idle thoughts
+    const effectiveGlow = Math.max(this.activation, this.thoughtIntensity);
     
-    // Calculate radius
-    const radius = this.baseRadius * breathScale * (1 + this.activation * 0.4);
+    // Calculate glow intensity
+    const baseGlow = 0.12 + breathScale * 0.06;
+    const glowIntensity = baseGlow + effectiveGlow * 0.88;
+    
+    // Calculate radius with dramatic activation scaling
+    const activationScale = 1 + effectiveGlow * 0.6;
+    const radius = this.baseRadius * breathScale * activationScale;
     
     ctx.save();
     ctx.translate(x, y);
     
-    // ===== BLOOM LAYER (furthest out) =====
-    if (this.activation > 0.1) {
+    // ===== TENDRILS (behind everything, for organic types) =====
+    if (this.tendrils && effectiveGlow > 0.05) {
+      this.renderTendrils(ctx, time, radius, hue, effectiveGlow);
+    }
+    
+    // ===== RINGS (for technical types) =====
+    if (this.rings) {
+      this.renderRings(ctx, time, radius, hue, glowIntensity);
+    }
+    
+    // ===== OUTER BLOOM (furthest out, very soft) =====
+    if (effectiveGlow > 0.05) {
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
       
-      const bloomRadius = radius * (6 + this.activation * 8);
-      const bloom = ctx.createRadialGradient(0, 0, 0, 0, 0, bloomRadius);
-      bloom.addColorStop(0, `hsla(${hue}, 80%, 60%, ${this.activation * 0.4})`);
-      bloom.addColorStop(0.3, `hsla(${hue}, 70%, 50%, ${this.activation * 0.2})`);
-      bloom.addColorStop(0.6, `hsla(${hue}, 60%, 40%, ${this.activation * 0.05})`);
-      bloom.addColorStop(1, 'transparent');
+      // Multiple bloom layers for richer glow
+      const bloomLayers = this.signature.coronaLayers;
+      for (let i = 0; i < bloomLayers; i++) {
+        const layerT = i / bloomLayers;
+        const bloomRadius = radius * (4 + layerT * 6 + effectiveGlow * 10);
+        const bloomOpacity = effectiveGlow * 0.35 * (1 - layerT * 0.6);
+        const bloomHue = (hue + layerT * 15) % 360; // Slight hue shift per layer
+        
+        const bloom = ctx.createRadialGradient(0, 0, 0, 0, 0, bloomRadius);
+        bloom.addColorStop(0, `hsla(${bloomHue}, 85%, 65%, ${bloomOpacity})`);
+        bloom.addColorStop(0.2, `hsla(${bloomHue}, 75%, 55%, ${bloomOpacity * 0.6})`);
+        bloom.addColorStop(0.5, `hsla(${bloomHue}, 65%, 45%, ${bloomOpacity * 0.2})`);
+        bloom.addColorStop(0.8, `hsla(${bloomHue}, 55%, 35%, ${bloomOpacity * 0.05})`);
+        bloom.addColorStop(1, 'transparent');
+        
+        ctx.beginPath();
+        ctx.arc(0, 0, bloomRadius, 0, Math.PI * 2);
+        ctx.fillStyle = bloom;
+        ctx.fill();
+      }
+      
+      ctx.restore();
+    }
+    
+    // ===== AURA (warm types like people) =====
+    if (this.signature.hasAura && effectiveGlow > 0.1) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      
+      const auraRadius = radius * 2.5;
+      const warmHue = (hue + 20) % 360; // Warmer shift
+      const aura = ctx.createRadialGradient(0, 0, radius * 0.8, 0, 0, auraRadius);
+      aura.addColorStop(0, `hsla(${warmHue}, 90%, 70%, ${effectiveGlow * 0.3})`);
+      aura.addColorStop(0.5, `hsla(${warmHue}, 80%, 60%, ${effectiveGlow * 0.15})`);
+      aura.addColorStop(1, 'transparent');
       
       ctx.beginPath();
-      ctx.arc(0, 0, bloomRadius, 0, Math.PI * 2);
-      ctx.fillStyle = bloom;
+      ctx.arc(0, 0, auraRadius, 0, Math.PI * 2);
+      ctx.fillStyle = aura;
       ctx.fill();
       
       ctx.restore();
     }
     
-    // ===== OUTER GLOW =====
-    const outerRadius = radius * (3 + this.activation * 2);
+    // ===== OUTER CORONA =====
+    const outerRadius = radius * (2.5 + effectiveGlow * 2.5);
     const outerGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, outerRadius);
-    outerGlow.addColorStop(0, `hsla(${hue}, 75%, 65%, ${glowIntensity * 0.6})`);
-    outerGlow.addColorStop(0.3, `hsla(${hue}, 70%, 55%, ${glowIntensity * 0.3})`);
-    outerGlow.addColorStop(0.6, `hsla(${hue}, 65%, 45%, ${glowIntensity * 0.1})`);
+    outerGlow.addColorStop(0, `hsla(${hue}, 80%, 70%, ${glowIntensity * 0.7})`);
+    outerGlow.addColorStop(0.15, `hsla(${hue}, 75%, 60%, ${glowIntensity * 0.5})`);
+    outerGlow.addColorStop(0.35, `hsla(${hue}, 70%, 50%, ${glowIntensity * 0.25})`);
+    outerGlow.addColorStop(0.6, `hsla(${hue}, 65%, 40%, ${glowIntensity * 0.08})`);
+    outerGlow.addColorStop(0.85, `hsla(${hue}, 60%, 35%, ${glowIntensity * 0.02})`);
     outerGlow.addColorStop(1, 'transparent');
     
     ctx.beginPath();
@@ -795,11 +1032,13 @@ class OrganicNode {
     ctx.fillStyle = outerGlow;
     ctx.fill();
     
-    // ===== INNER GLOW =====
-    const innerRadius = radius * 1.8;
+    // ===== INNER GLOW (mid-layer) =====
+    const innerRadius = radius * 1.6;
     const innerGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, innerRadius);
-    innerGlow.addColorStop(0, `hsla(${hue}, 80%, 75%, ${0.8 + glowIntensity * 0.2})`);
-    innerGlow.addColorStop(0.4, `hsla(${hue}, 75%, 60%, ${0.4 + glowIntensity * 0.3})`);
+    innerGlow.addColorStop(0, `hsla(${hue}, 85%, 80%, ${0.85 + glowIntensity * 0.15})`);
+    innerGlow.addColorStop(0.25, `hsla(${hue}, 80%, 70%, ${0.6 + glowIntensity * 0.25})`);
+    innerGlow.addColorStop(0.5, `hsla(${hue}, 75%, 58%, ${0.35 + glowIntensity * 0.2})`);
+    innerGlow.addColorStop(0.8, `hsla(${hue}, 70%, 45%, ${0.1 + glowIntensity * 0.1})`);
     innerGlow.addColorStop(1, 'transparent');
     
     ctx.beginPath();
@@ -807,17 +1046,148 @@ class OrganicNode {
     ctx.fillStyle = innerGlow;
     ctx.fill();
     
-    // ===== CORE =====
-    const coreRadius = radius * 0.6;
+    // ===== CORE (bright center) =====
+    const coreRadius = radius * 0.55;
+    const coreIntensity = this.signature.coreIntensity;
     const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreRadius);
-    core.addColorStop(0, `hsla(${hue}, 50%, 95%, 0.95)`);
-    core.addColorStop(0.5, `hsla(${hue}, 70%, 75%, 0.9)`);
-    core.addColorStop(1, `hsla(${hue}, 80%, 60%, 0.7)`);
+    // More gradient stops for smoother falloff
+    core.addColorStop(0, `hsla(${hue}, 30%, 98%, ${coreIntensity})`);
+    core.addColorStop(0.15, `hsla(${hue}, 45%, 92%, ${coreIntensity * 0.95})`);
+    core.addColorStop(0.35, `hsla(${hue}, 60%, 82%, ${coreIntensity * 0.9})`);
+    core.addColorStop(0.55, `hsla(${hue}, 75%, 70%, ${coreIntensity * 0.8})`);
+    core.addColorStop(0.75, `hsla(${hue}, 82%, 60%, ${coreIntensity * 0.6})`);
+    core.addColorStop(1, `hsla(${hue}, 85%, 50%, ${coreIntensity * 0.3})`);
     
     ctx.beginPath();
     ctx.arc(0, 0, coreRadius, 0, Math.PI * 2);
     ctx.fillStyle = core;
     ctx.fill();
+    
+    // ===== HOT SPOT (tiny bright center) =====
+    const hotspotRadius = radius * 0.15;
+    const hotspot = ctx.createRadialGradient(0, 0, 0, 0, 0, hotspotRadius);
+    hotspot.addColorStop(0, `hsla(${hue}, 20%, 100%, ${0.9 + effectiveGlow * 0.1})`);
+    hotspot.addColorStop(0.5, `hsla(${hue}, 40%, 95%, 0.7)`);
+    hotspot.addColorStop(1, `hsla(${hue}, 60%, 85%, 0)`);
+    
+    ctx.beginPath();
+    ctx.arc(0, 0, hotspotRadius, 0, Math.PI * 2);
+    ctx.fillStyle = hotspot;
+    ctx.fill();
+    
+    // ===== LABEL (appears on activation) =====
+    if (this.labelOpacity > 0.01) {
+      this.renderLabel(ctx, radius, hue);
+    }
+    
+    ctx.restore();
+  }
+  
+  renderTendrils(ctx, time, radius, hue, activation) {
+    if (!this.tendrils) return;
+    
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    
+    for (const tendril of this.tendrils) {
+      const waveOffset = Math.sin(tendril.phase) * 0.3;
+      const angle = tendril.angle + waveOffset;
+      const length = radius * (1.5 + tendril.length * 2 + activation * 2);
+      
+      // Tendril as a tapered line with glow
+      const endX = Math.cos(angle) * length;
+      const endY = Math.sin(angle) * length;
+      
+      const gradient = ctx.createLinearGradient(0, 0, endX, endY);
+      gradient.addColorStop(0, `hsla(${hue}, 70%, 60%, ${activation * 0.4})`);
+      gradient.addColorStop(0.5, `hsla(${hue}, 65%, 50%, ${activation * 0.2})`);
+      gradient.addColorStop(1, `hsla(${hue}, 60%, 40%, 0)`);
+      
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      
+      // Curved tendril using quadratic bezier
+      const controlDist = length * 0.5;
+      const controlAngle = angle + Math.sin(tendril.phase * 2) * 0.5;
+      const cx = Math.cos(controlAngle) * controlDist;
+      const cy = Math.sin(controlAngle) * controlDist;
+      
+      ctx.quadraticCurveTo(cx, cy, endX, endY);
+      
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 2 + activation * 3;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+    
+    ctx.restore();
+  }
+  
+  renderRings(ctx, time, radius, hue, glowIntensity) {
+    if (!this.rings) return;
+    
+    ctx.save();
+    
+    for (const ring of this.rings) {
+      ctx.save();
+      ctx.rotate(ring.rotation);
+      
+      const ringRadius = radius * ring.radius;
+      const thickness = ring.thickness * (1 + this.activation * 0.5);
+      
+      // Draw ring as ellipse
+      ctx.beginPath();
+      ctx.ellipse(0, 0, ringRadius, ringRadius * 0.3, 0, 0, Math.PI * 2);
+      
+      ctx.strokeStyle = `hsla(${hue}, 60%, 55%, ${glowIntensity * 0.4})`;
+      ctx.lineWidth = thickness;
+      ctx.stroke();
+      
+      // Glow on ring
+      if (this.activation > 0.2) {
+        ctx.strokeStyle = `hsla(${hue}, 70%, 65%, ${this.activation * 0.3})`;
+        ctx.lineWidth = thickness * 2;
+        ctx.filter = 'blur(2px)';
+        ctx.stroke();
+      }
+      
+      ctx.restore();
+    }
+    
+    ctx.restore();
+  }
+  
+  renderLabel(ctx, radius, hue) {
+    const label = this.label;
+    if (!label || label.length === 0) return;
+    
+    // Position label above the node
+    const labelY = -radius * 2.5 - 8;
+    
+    ctx.save();
+    
+    // Text styling
+    const fontSize = Math.max(10, Math.min(14, radius * 0.6));
+    ctx.font = `${fontSize}px "Inter", -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Truncate long labels
+    const maxLen = 20;
+    const displayLabel = label.length > maxLen ? label.slice(0, maxLen) + '…' : label;
+    
+    // Glow behind text
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.shadowColor = `hsla(${hue}, 70%, 60%, ${this.labelOpacity * 0.8})`;
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = `hsla(${hue}, 60%, 85%, ${this.labelOpacity * 0.9})`;
+    ctx.fillText(displayLabel, 0, labelY);
+    ctx.restore();
+    
+    // Main text
+    ctx.fillStyle = `rgba(255, 255, 255, ${this.labelOpacity * 0.95})`;
+    ctx.fillText(displayLabel, 0, labelY);
     
     ctx.restore();
   }
@@ -834,16 +1204,20 @@ class ForceSimulation {
     this.width = options.width || 800;
     this.height = options.height || 600;
     
-    this.centerForce = options.centerForce || 0.008;
-    this.repulsionForce = options.repulsionForce || 250;
-    this.edgeForce = options.edgeForce || 0.015;
-    this.edgeLength = options.edgeLength || 100;
+    this.centerForce = options.centerForce || 0.002;    // 4x weaker center pull → more spread
+    this.repulsionForce = options.repulsionForce || 1200; // 5x stronger repulsion
+    this.edgeForce = options.edgeForce || 0.008;         // Softer springs
+    this.edgeLength = options.edgeLength || 180;         // Longer rest length
     this.damping = options.damping || 0.92;
     this.depthInfluence = options.depthInfluence || 0.3;
     
     this.nodes = [];
     this.edges = [];
     this.nodeMap = new Map();
+    
+    // Global breathing - layout expands/contracts
+    this.breathPhase = 0;
+    this.breathAmp = 0.03; // 3% expansion/contraction
   }
   
   setNodes(nodes) {
@@ -860,17 +1234,36 @@ class ForceSimulation {
   }
   
   initializePositions() {
+    // Type-based angular sectors for semantic clustering
+    const typeAngles = {
+      topics: 0,                // 12 o'clock
+      people: Math.PI * 0.4,    // 2 o'clock
+      tickers: Math.PI * 0.8,   // 4 o'clock
+      tools: Math.PI * 1.2,     // 8 o'clock
+      decisions: Math.PI * 1.6, // 10 o'clock
+      headers: Math.PI * 1.8,   // 11 o'clock
+      default: Math.PI          // 6 o'clock
+    };
+    
     for (const node of this.nodes) {
       const hash = this.hashString(node.id);
-      const angle = (hash % 1000) / 1000 * Math.PI * 2;
-      const radius = 100 + (hash % 400);
+      const baseAngle = typeAngles[node.type] || typeAngles.default;
       
-      node.x = this.centerX + Math.cos(angle) * radius * 0.6;
-      node.y = this.centerY + Math.sin(angle) * radius * 0.4;
+      // Spread within sector (±30°)
+      const spread = (hash % 1000) / 1000 - 0.5;
+      const angle = baseAngle + spread * 0.5;
       
+      // Radius based on weight (heavier = more central)
+      const weightFactor = Math.min(1, node.weight / 10);
+      const radius = 120 + (1 - weightFactor) * 280 + (hash % 100);
+      
+      node.x = this.centerX + Math.cos(angle) * radius;
+      node.y = this.centerY + Math.sin(angle) * radius * 0.7; // Squash vertically
+      
+      // Age-based depth still applies
       const age = Date.now() - node.firstSeen;
       const ageDepth = Math.min(1, age / (30 * 24 * 60 * 60 * 1000));
-      node.y += ageDepth * this.height * this.depthInfluence;
+      node.y += ageDepth * this.height * this.depthInfluence * 0.5;
     }
   }
   
@@ -887,9 +1280,9 @@ class ForceSimulation {
   step(dt, time) {
     const alpha = Math.min(dt * 8, 1);
     
-    // Add organic global motion
-    const globalSwayX = Math.sin(time * 0.03) * 0.5;
-    const globalSwayY = Math.cos(time * 0.025) * 0.3;
+    // Add organic global motion - more noticeable drift
+    const globalSwayX = Math.sin(time * 0.03) * 2.5; // 5x (was 0.5)
+    const globalSwayY = Math.cos(time * 0.025) * 1.8; // 6x (was 0.3)
     
     // Reset fixed nodes
     for (const node of this.nodes) {
@@ -903,6 +1296,16 @@ class ForceSimulation {
       const dy = this.centerY + globalSwayY * 20 - node.y;
       node.vx += dx * this.centerForce * alpha;
       node.vy += dy * this.centerForce * alpha;
+      
+      // Slow orbital drift - nodes rotate around center
+      const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+      if (distFromCenter > 50) {
+        const orbitSpeed = 0.0003 * (1 + node.activation * 2);
+        const perpX = -dy / distFromCenter;
+        const perpY = dx / distFromCenter;
+        node.vx += perpX * orbitSpeed * distFromCenter * alpha;
+        node.vy += perpY * orbitSpeed * distFromCenter * alpha;
+      }
     }
     
     // Repulsion
@@ -916,9 +1319,10 @@ class ForceSimulation {
         let dist = Math.sqrt(dx * dx + dy * dy);
         
         if (dist < 1) dist = 1;
-        if (dist > 350) continue;
+        if (dist > 600) continue; // Repulsion reaches farther (was 350)
         
-        const force = this.repulsionForce / (dist * dist) * alpha;
+        // Hybrid falloff - gentler, reaches farther
+        const force = this.repulsionForce / (dist * dist + dist * 50) * alpha;
         const fx = (dx / dist) * force;
         const fy = (dy / dist) * force;
         
@@ -961,6 +1365,17 @@ class ForceSimulation {
       node.vy += (targetY - node.y) * 0.003 * alpha;
     }
     
+    // Global breathing - expand/contract entire layout
+    this.breathPhase += dt * 0.15; // ~42 second full cycle
+    const breathFactor = 1 + Math.sin(this.breathPhase) * this.breathAmp;
+    
+    for (const node of this.nodes) {
+      const dx = node.x - this.centerX;
+      const dy = node.y - this.centerY;
+      node.vx += dx * (breathFactor - 1) * 0.5;
+      node.vy += dy * (breathFactor - 1) * 0.5;
+    }
+    
     // Update positions
     for (const node of this.nodes) {
       if (node.fx === null) {
@@ -993,15 +1408,15 @@ class AtmosphericEffects {
     this.canvas = canvas;
     this.causticPhase = 0;
     
-    // Pre-generate caustic pattern points
+    // Pre-generate caustic pattern points - denser for richer light play
     this.causticPoints = [];
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 50; i++) { // Was 30
       this.causticPoints.push({
         x: Math.random(),
         y: Math.random(),
         phase: Math.random() * Math.PI * 2,
-        speed: 0.3 + Math.random() * 0.5,
-        size: 50 + Math.random() * 150
+        speed: 0.15 + Math.random() * 0.4, // Slower, more hypnotic
+        size: 80 + Math.random() * 200 // Larger caustics
       });
     }
   }
@@ -1027,15 +1442,21 @@ class AtmosphericEffects {
       const baseY = waterLine + point.y * (this.canvas.height - waterLine) * 0.5;
       const y = baseY + Math.sin(time * point.speed + point.phase) * 20;
       
-      // Caustic intensity fades with depth
+      // Caustic intensity fades with depth - warmer tones near surface
       const depthRatio = (y - waterLine) / (this.canvas.height - waterLine);
-      const intensity = 0.03 * (1 - depthRatio * 0.8);
+      const warmth = 1 - depthRatio;
+      const intensity = 0.045 * (1 - depthRatio * 0.7); // Was 0.03
       
       const size = point.size * (1 + Math.sin(time * point.speed * 1.5 + point.phase) * 0.2);
       
+      // Warmer tones near surface, cooler in depths
+      const r = Math.round(80 + warmth * 60);
+      const g = Math.round(180 + warmth * 40);
+      const b = Math.round(140 + warmth * 20);
+      
       const caustic = ctx.createRadialGradient(x, y, 0, x, y, size);
-      caustic.addColorStop(0, `rgba(100, 200, 180, ${intensity})`);
-      caustic.addColorStop(0.4, `rgba(80, 180, 160, ${intensity * 0.5})`);
+      caustic.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${intensity})`);
+      caustic.addColorStop(0.4, `rgba(${r - 20}, ${g - 20}, ${b - 20}, ${intensity * 0.5})`);
       caustic.addColorStop(1, 'transparent');
       
       ctx.fillStyle = caustic;
@@ -1046,12 +1467,14 @@ class AtmosphericEffects {
   }
   
   renderFog(ctx, waterLine) {
-    // Depth fog - increases opacity deeper
+    // Depth fog - richer gradient, true abyss feeling
     const fogGradient = ctx.createLinearGradient(0, waterLine, 0, this.canvas.height);
-    fogGradient.addColorStop(0, 'rgba(8, 20, 26, 0)');
-    fogGradient.addColorStop(0.5, 'rgba(6, 16, 22, 0.2)');
-    fogGradient.addColorStop(0.8, 'rgba(4, 12, 16, 0.4)');
-    fogGradient.addColorStop(1, 'rgba(3, 10, 14, 0.6)');
+    fogGradient.addColorStop(0, 'rgba(10, 25, 32, 0)');
+    fogGradient.addColorStop(0.3, 'rgba(8, 20, 26, 0.15)');
+    fogGradient.addColorStop(0.5, 'rgba(6, 16, 22, 0.35)');
+    fogGradient.addColorStop(0.75, 'rgba(4, 12, 16, 0.55)');
+    fogGradient.addColorStop(0.9, 'rgba(3, 10, 14, 0.75)');
+    fogGradient.addColorStop(1, 'rgba(2, 6, 10, 0.85)'); // True abyss (was 0.6 max)
     
     ctx.fillStyle = fogGradient;
     ctx.fillRect(0, waterLine, this.canvas.width, this.canvas.height - waterLine);
@@ -1059,13 +1482,15 @@ class AtmosphericEffects {
   
   renderVignette(ctx) {
     const cx = this.canvas.width / 2;
-    const cy = this.canvas.height / 2;
-    const radius = Math.max(this.canvas.width, this.canvas.height) * 0.8;
+    const cy = this.canvas.height * 0.55; // Bias focus slightly downward toward mycelium
+    const radius = Math.max(this.canvas.width, this.canvas.height) * 0.85;
     
-    const vignette = ctx.createRadialGradient(cx, cy, radius * 0.3, cx, cy, radius);
+    const vignette = ctx.createRadialGradient(cx, cy, radius * 0.4, cx, cy, radius);
     vignette.addColorStop(0, 'transparent');
-    vignette.addColorStop(0.7, 'rgba(0, 0, 0, 0.1)');
-    vignette.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+    vignette.addColorStop(0.5, 'rgba(0, 0, 0, 0.05)');
+    vignette.addColorStop(0.75, 'rgba(0, 0, 0, 0.2)');
+    vignette.addColorStop(0.9, 'rgba(0, 0, 0, 0.45)');
+    vignette.addColorStop(1, 'rgba(0, 0, 0, 0.65)'); // Darker corners (was 0.5)
     
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -1122,6 +1547,21 @@ class MyceliumLayer {
     this.waterLine = canvas.height * 0.3;
     this.time = 0;
     
+    // Global color temperature - slow hue shift over time
+    this.colorTemperature = {
+      phase: 0,
+      speed: 0.02, // Very slow shift
+      range: 15    // ±15 hue degrees
+    };
+    
+    // Global breathing rhythm
+    this.globalBreath = {
+      phase: 0,
+      speed: 0.15,     // ~42 second full cycle
+      scaleAmp: 0.008, // 0.8% scale pulse
+      driftAmp: 3      // 3px drift pulse
+    };
+    
     // Performance tracking
     this.lastFrameTime = 0;
     this.frameCount = 0;
@@ -1172,25 +1612,34 @@ class MyceliumLayer {
           brightness: 0.7 + intensity * 0.3
         });
         
-        this.spreadActivation(node, intensity * 0.6, new Set([id]));
+        this.spreadActivation(node, intensity * 0.7, new Set([id]), 0);
       }
     }
     
-    // Activate edges between active nodes
+    // Activate edges between active nodes (LOWERED threshold for better connectivity visibility)
     for (const edge of this.edges) {
-      const sourceActive = edge.source.targetActivation > 0.3;
-      const targetActive = edge.target.targetActivation > 0.3;
-      if (sourceActive && targetActive) {
-        edge.targetActivation = Math.max(
-          edge.targetActivation,
-          Math.min(edge.source.targetActivation, edge.target.targetActivation) * 0.8
-        );
+      const sourceActive = edge.source.targetActivation > 0.15; // was 0.3
+      const targetActive = edge.target.targetActivation > 0.15; // was 0.3
+      if (sourceActive || targetActive) { // OR instead of AND - single active node lights its edges
+        const maxActivation = Math.max(edge.source.targetActivation, edge.target.targetActivation);
+        const minActivation = Math.min(edge.source.targetActivation, edge.target.targetActivation);
+        // Stronger activation when both ends are active
+        const edgeStrength = sourceActive && targetActive 
+          ? (maxActivation + minActivation) * 0.5 
+          : maxActivation * 0.4;
+        edge.targetActivation = Math.max(edge.targetActivation, edgeStrength);
       }
     }
   }
   
-  spreadActivation(node, intensity, visited) {
-    if (intensity < 0.08) return;
+  spreadActivation(node, intensity, visited, depth = 0) {
+    // Activation threshold - below this, we stop spreading
+    const threshold = 0.06;
+    if (intensity < threshold) return;
+    
+    // Max spread depth (prevent infinite recursion, also controls "reach")
+    const maxDepth = 4;
+    if (depth >= maxDepth) return;
     
     for (const edge of this.edges) {
       let neighbor = null;
@@ -1200,13 +1649,27 @@ class MyceliumLayer {
       if (neighbor && !visited.has(neighbor.id)) {
         visited.add(neighbor.id);
         
-        const decay = 0.5 + 0.25 * Math.min(1, edge.weight / 5);
-        const spreadIntensity = intensity * decay;
+        // Decay based on edge weight (stronger connections preserve more signal)
+        // Heavy edges: ~80% transmission, light edges: ~45% transmission
+        const weightFactor = Math.min(1, edge.weight / 5);
+        const decay = 0.45 + 0.35 * weightFactor;
         
-        neighbor.targetActivation = Math.max(neighbor.targetActivation, spreadIntensity);
-        edge.targetActivation = Math.max(edge.targetActivation, spreadIntensity);
+        // Distance-based falloff (further = weaker, simulates neural delay)
+        const depthDecay = 1 - (depth * 0.12);
         
-        this.spreadActivation(neighbor, spreadIntensity * 0.5, visited);
+        const spreadIntensity = intensity * decay * depthDecay;
+        
+        // Apply to neighbor with slight delay simulation (staggered targeting)
+        // Using setTimeout would be ideal but we'll approximate with reduced initial hit
+        const neighborIntensity = spreadIntensity * (0.85 + Math.random() * 0.15);
+        neighbor.targetActivation = Math.max(neighbor.targetActivation, neighborIntensity);
+        
+        // Edge gets activated too (energy flowing through it)
+        edge.targetActivation = Math.max(edge.targetActivation, spreadIntensity * 0.9);
+        
+        // Recursively spread with diminishing returns
+        // The 0.65 multiplier ensures it doesn't spread too far too fast
+        this.spreadActivation(neighbor, spreadIntensity * 0.65, visited, depth + 1);
       }
     }
   }
@@ -1248,8 +1711,20 @@ class MyceliumLayer {
   update(dt) {
     this.time += dt;
     
+    // Update color temperature - slow global hue shift
+    this.colorTemperature.phase += dt * this.colorTemperature.speed;
+    const globalHueShift = Math.sin(this.colorTemperature.phase) * this.colorTemperature.range;
+    
+    // Update global breath
+    this.globalBreath.phase += dt * this.globalBreath.speed;
+    
     // Physics
     this.simulation.step(dt, this.time);
+    
+    // Update simulation center with breath drift
+    const breathDriftX = Math.sin(this.globalBreath.phase * 0.7) * this.globalBreath.driftAmp;
+    const breathDriftY = Math.cos(this.globalBreath.phase * 0.5) * this.globalBreath.driftAmp * 0.6;
+    this.simulation.centerX = this.canvas.width / 2 + breathDriftX;
     
     // Nodes
     for (const node of this.nodes) {
