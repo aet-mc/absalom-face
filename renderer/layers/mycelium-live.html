@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Absalom Live">
+  <meta name="theme-color" content="#030908">
+  <title>Absalom Mind — LIVE</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: -webkit-fill-available; }
+    
+    body {
+      background: #030908;
+      min-height: 100vh;
+      min-height: -webkit-fill-available;
+      display: flex;
+      flex-direction: column;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      color: #2dd4a8;
+      overflow: hidden;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    
+    .container { flex: 1; display: flex; flex-direction: column; }
+    #canvas-container { flex: 1; position: relative; }
+    canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    
+    .status {
+      position: fixed;
+      top: max(10px, env(safe-area-inset-top));
+      left: max(10px, env(safe-area-inset-left));
+      font-size: 10px;
+      opacity: 0.5;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #666;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    
+    .status-dot.connected {
+      background: #2dd4a8;
+      box-shadow: 0 0 10px #2dd4a8;
+    }
+    
+    .status-dot.thinking {
+      background: #fbbf24;
+      box-shadow: 0 0 10px #fbbf24;
+      animation: pulse 0.5s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.3); }
+    }
+    
+    .stats {
+      position: fixed;
+      bottom: max(10px, env(safe-area-inset-bottom));
+      left: max(10px, env(safe-area-inset-left));
+      font-size: 9px;
+      opacity: 0.3;
+      letter-spacing: 1px;
+    }
+    
+    .title {
+      position: fixed;
+      bottom: max(15px, env(safe-area-inset-bottom));
+      right: max(15px, env(safe-area-inset-right));
+      font-size: 9px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+    
+    .mode-badge {
+      position: fixed;
+      top: max(35px, calc(env(safe-area-inset-top) + 25px));
+      left: max(10px, env(safe-area-inset-left));
+      font-size: 11px;
+      opacity: 0;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      transition: opacity 0.5s;
+      color: #fbbf24;
+    }
+    
+    .mode-badge.visible { opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="canvas-container">
+      <canvas id="mycelium"></canvas>
+    </div>
+  </div>
+  
+  <div class="status">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">connecting...</span>
+  </div>
+  
+  <div class="mode-badge" id="mode-badge">thinking</div>
+  
+  <div class="stats" id="stats">nodes 0 · edges 0 · fps 0</div>
+  <div class="title">absalom live</div>
+  
+  <script src="mycelium.js"></script>
+  <script>
+    // Config - knowledge engine WebSocket
+    const WS_URL = 'wss://geometry-grid-table-reading.trycloudflare.com';
+    
+    const canvas = document.getElementById('mycelium');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const modeBadge = document.getElementById('mode-badge');
+    const statsEl = document.getElementById('stats');
+    
+    // Resize with DPR
+    function resizeCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      
+      mycelium.resize(width, height);
+      mycelium.setWaterLine(height * 0.25);
+    }
+    
+    const mycelium = new MyceliumLayer(canvas);
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    
+    // WebSocket connection
+    let ws = null;
+    let reconnectTimer = null;
+    
+    function connect() {
+      statusText.textContent = 'connecting...';
+      statusDot.className = 'status-dot';
+      
+      ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        statusText.textContent = 'connected';
+        statusDot.className = 'status-dot connected';
+        
+        // Request initial graph
+        ws.send(JSON.stringify({ type: 'graph:get' }));
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          handleMessage(msg);
+        } catch (e) {
+          console.error('Parse error:', e);
+        }
+      };
+      
+      ws.onclose = () => {
+        statusText.textContent = 'disconnected';
+        statusDot.className = 'status-dot';
+        scheduleReconnect();
+      };
+      
+      ws.onerror = () => {
+        statusText.textContent = 'error';
+        statusDot.className = 'status-dot';
+      };
+    }
+    
+    function scheduleReconnect() {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 3000);
+    }
+    
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'graph:full':
+          console.log('Received graph:', msg.graph.nodes.length, 'nodes,', msg.graph.edges.length, 'edges');
+          mycelium.setGraph(msg.graph);
+          break;
+          
+        case 'graph:update':
+          // Incremental update
+          if (msg.addNodes) {
+            for (const node of msg.addNodes) {
+              mycelium.addNode(node);
+            }
+          }
+          if (msg.removeNodes) {
+            for (const id of msg.removeNodes) {
+              mycelium.removeNode(id);
+            }
+          }
+          break;
+          
+        case 'state:change':
+          handleStateChange(msg.state);
+          break;
+          
+        case 'activate':
+          // Direct activation command
+          if (msg.nodeIds) {
+            mycelium.activate(msg.nodeIds, msg.intensity || 1.0);
+          }
+          if (msg.path) {
+            mycelium.activatePath(msg.path, msg.intensity || 1.0);
+          }
+          break;
+      }
+    }
+    
+    function handleStateChange(state) {
+      const mode = state.mode || 'idle';
+      
+      // Update status indicator
+      if (mode === 'thinking' || mode === 'responding') {
+        statusDot.className = 'status-dot thinking';
+        modeBadge.textContent = mode;
+        modeBadge.className = 'mode-badge visible';
+      } else {
+        statusDot.className = 'status-dot connected';
+        modeBadge.className = 'mode-badge';
+      }
+      
+      // If there's focus info, activate relevant nodes
+      if (state.focus) {
+        // Try to find nodes matching focus target
+        const matches = mycelium.nodes.filter(n => 
+          n.id.includes(state.focus) || 
+          n.label.toLowerCase().includes(state.focus.toLowerCase())
+        );
+        if (matches.length > 0) {
+          mycelium.activate(matches.map(n => n.id), state.intensity || 0.8);
+        }
+      }
+    }
+    
+    // Start connection
+    connect();
+    
+    // Animation loop
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let lastFpsUpdate = 0;
+    let fps = 0;
+    
+    function animate(time) {
+      const dt = Math.min((time - lastTime) / 1000, 0.1);
+      lastTime = time;
+      
+      frameCount++;
+      if (time - lastFpsUpdate > 1000) {
+        fps = Math.round(frameCount * 1000 / (time - lastFpsUpdate));
+        lastFpsUpdate = time;
+        frameCount = 0;
+        statsEl.textContent = `nodes ${mycelium.nodes.length} · edges ${mycelium.edges.length} · fps ${fps}`;
+      }
+      
+      mycelium.update(dt);
+      
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#030908';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      mycelium.render(ctx);
+      
+      requestAnimationFrame(animate);
+    }
+    
+    requestAnimationFrame(animate);
+    
+    // Touch to activate random (for testing)
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+      
+      let nearest = null;
+      let nearestDist = 100;
+      
+      for (const node of mycelium.nodes) {
+        const dx = node.x - x;
+        const dy = node.y - y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = node;
+        }
+      }
+      
+      if (nearest) {
+        mycelium.activate([nearest.id], 1.0);
+      }
+    }, { passive: false });
+  </script>
+</body>
+</html>
