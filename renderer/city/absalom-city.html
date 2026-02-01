@@ -615,40 +615,46 @@
     // DISTRICT RHYTHM PROFILES - Each district has its own "personality"
     // ═══════════════════════════════════════════════════════════════════════
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // DISTRICT RHYTHM PROFILES - CALMED DOWN for peaceful idle state
+    // Activity should only be noticeable during actual cognitive work
+    // Idle = quiet city at 3am, not epileptic lightshow
+    // ═══════════════════════════════════════════════════════════════════════
+    
     const DISTRICT_RHYTHMS = {
       core: {
-        baseSpeed: 1.0,
-        pulseFrequency: 2.0,
-        activityLevel: 0.8,
-        burstChance: 0.02,
+        baseSpeed: 0.3,         // Slow, meditative
+        pulseFrequency: 0.4,    // Very gentle breathing
+        activityLevel: 0.15,    // Minimal idle activity
+        burstChance: 0.0001,    // Almost never in idle
         color: 0x00ffff
       },
       trading: {
-        baseSpeed: 1.8,        // Fastest, most frenetic
-        pulseFrequency: 4.0,   // Rapid pulses like stock tickers
-        activityLevel: 0.95,   // Almost always active
-        burstChance: 0.08,     // Frequent bursts of activity
+        baseSpeed: 0.5,         // Calmed from 1.8
+        pulseFrequency: 0.6,    // Slow pulse, not frantic ticker
+        activityLevel: 0.2,     // Low idle activity
+        burstChance: 0.0002,    // Very rare (only during actual trading)
         color: 0xffd700
       },
       infrastructure: {
-        baseSpeed: 0.7,        // Steady, reliable
-        pulseFrequency: 1.2,   // Slow, consistent rhythm
-        activityLevel: 0.6,    // Moderate, always-on servers
-        burstChance: 0.01,     // Rare spikes
+        baseSpeed: 0.2,         // Steady, quiet
+        pulseFrequency: 0.3,    // Slow server heartbeat
+        activityLevel: 0.1,     // Minimal, steady
+        burstChance: 0.00005,   // Servers rarely spike when idle
         color: 0xff6b9d
       },
       projects: {
-        baseSpeed: 1.2,        // Creative bursts
-        pulseFrequency: 2.5,
-        activityLevel: 0.7,
-        burstChance: 0.05,     // Occasional creative sparks
+        baseSpeed: 0.3,         // Dormant until active
+        pulseFrequency: 0.4,
+        activityLevel: 0.12,
+        burstChance: 0.0001,    // Creative work is intentional
         color: 0x9d6bff
       },
       memory: {
-        baseSpeed: 0.5,        // Slowest, contemplative
-        pulseFrequency: 0.8,   // Gentle breathing rhythm
-        activityLevel: 0.4,    // Quiet, archival
-        burstChance: 0.005,    // Very rare recalls
+        baseSpeed: 0.15,        // Slowest, archival silence
+        pulseFrequency: 0.2,    // Barely perceptible breathing
+        activityLevel: 0.05,    // Archives at rest
+        burstChance: 0.00002,   // Memories only recalled when needed
         color: 0x6bff9d
       }
     };
@@ -658,7 +664,7 @@
     // ═══════════════════════════════════════════════════════════════════════
     
     function createTrafficLights() {
-      const trafficCount = isMobile ? 20 : 50;
+      const trafficCount = isMobile ? 12 : 30; // Reduced for calmer traffic
       const trafficGeometry = new THREE.BufferGeometry();
       const positions = new Float32Array(trafficCount * 3);
       const colors = new Float32Array(trafficCount * 3);
@@ -706,7 +712,7 @@
         
         velocities.push({
           progress: progress,
-          speed: 0.002 + Math.random() * 0.004,
+          speed: 0.0008 + Math.random() * 0.0012, // Slower, calmer traffic
           direction: outbound ? 1 : -1,
           pathIndex: i % roadPaths.length
         });
@@ -753,7 +759,7 @@
         
         const newPath = roadPaths[v.pathIndex];
         positions[i * 3] = newPath.start.x + (newPath.end.x - newPath.start.x) * v.progress;
-        positions[i * 3 + 1] = 0.3 + Math.sin(dt * 3 + i) * 0.1; // Gentle bobbing
+        positions[i * 3 + 1] = 0.3 + Math.sin(dt * 0.8 + i) * 0.05; // Very gentle, slow bobbing
         positions[i * 3 + 2] = newPath.start.z + (newPath.end.z - newPath.start.z) * v.progress;
       }
       
@@ -768,9 +774,9 @@
     // ═══════════════════════════════════════════════════════════════════════
     
     function addElevatorToBuilding(building) {
-      if (building.height < 15) return; // Only tall buildings
+      if (building.height < 25) return; // Only the tallest buildings
       
-      const elevatorCount = Math.floor(building.height / 20) + 1;
+      const elevatorCount = Math.floor(building.height / 40) + 1; // Fewer elevators
       
       for (let e = 0; e < elevatorCount; e++) {
         const elevatorGeo = new THREE.BoxGeometry(0.15, 0.4, 0.15);
@@ -795,9 +801,9 @@
           isElevator: true,
           floor: Math.random(),
           targetFloor: Math.random(),
-          speed: 0.005 + Math.random() * 0.01,
+          speed: 0.002 + Math.random() * 0.004, // Slower elevators
           waitTime: 0,
-          maxWait: 50 + Math.random() * 150,
+          maxWait: 200 + Math.random() * 400, // Much longer waits between trips
           buildingHeight: building.height
         };
         
@@ -812,21 +818,21 @@
         
         if (data.waitTime > 0) {
           data.waitTime--;
-          // Blink while waiting (doors opening)
-          elevator.material.opacity = Math.sin(dt * 10) > 0 ? 0.9 : 0.4;
+          // Subtle glow while waiting (no aggressive blinking)
+          elevator.material.opacity = 0.6 + Math.sin(dt * 1.5) * 0.15;
           return;
         }
         
-        elevator.material.opacity = 0.7 + city.nightIntensity * 0.3;
+        elevator.material.opacity = 0.5 + city.nightIntensity * 0.2;
         
-        // Move toward target
+        // Move toward target - slower
         const diff = data.targetFloor - data.floor;
         if (Math.abs(diff) < 0.01) {
-          // Arrived - wait then pick new target
-          data.waitTime = data.maxWait;
+          // Arrived - wait longer then pick new target
+          data.waitTime = data.maxWait * 2; // Double the wait time
           data.targetFloor = Math.random();
         } else {
-          data.floor += Math.sign(diff) * data.speed;
+          data.floor += Math.sign(diff) * data.speed * 0.5; // Move slower
         }
         
         // Position elevator
@@ -1004,8 +1010,8 @@
       stream.userData = {
         connection,
         progresses,
-        speed: 0.01 + Math.random() * 0.02,
-        active: Math.random() > 0.3 // Some connections more active than others
+        speed: 0.004 + Math.random() * 0.006, // Much slower, calmer flow
+        active: Math.random() > 0.7 // Most connections dormant in idle (only 30% active)
       };
       
       scene.add(stream);
@@ -1015,8 +1021,8 @@
     function updateDataStreams(dt) {
       city.dataStreams.forEach(stream => {
         if (!stream.userData.active) {
-          // Occasionally activate
-          if (Math.random() < 0.001) stream.userData.active = true;
+          // Very rarely activate in idle - data flows when there's work
+          if (Math.random() < 0.0002) stream.userData.active = true;
           stream.material.opacity = 0;
           return;
         }
@@ -1045,10 +1051,10 @@
         }
         
         stream.geometry.attributes.position.needsUpdate = true;
-        stream.material.opacity = 0.4 + city.nightIntensity * 0.4;
+        stream.material.opacity = 0.3 + city.nightIntensity * 0.3; // Slightly dimmer
         
-        // Occasionally deactivate
-        if (Math.random() < 0.0005) stream.userData.active = false;
+        // More frequently deactivate to keep city calm
+        if (Math.random() < 0.002) stream.userData.active = false;
       });
     }
     
@@ -1250,11 +1256,12 @@
       building.mesh.children.forEach((child, index) => {
         if (child.geometry && (child.geometry.type === 'BoxGeometry' || child.geometry.type === 'TorusGeometry')) {
           const state = {
-            isOn: Math.random() > 0.4,
-            isTV: Math.random() < 0.15, // 15% chance it's a TV
-            targetOpacity: Math.random() * 0.5 + 0.3,
-            transitionSpeed: 0.01 + Math.random() * 0.02,
-            nextToggle: 100 + Math.random() * 500, // Frames until next state change
+            isOn: Math.random() > 0.08,  // 92% windows stay lit - stable city
+            isTV: Math.random() < 0.03,  // Only 3% are TVs - much rarer
+            targetOpacity: 0.4 + Math.random() * 0.3, // Stable warm glow
+            transitionSpeed: 0.003 + Math.random() * 0.005, // Very slow transitions
+            // MUCH longer intervals: 5-15 seconds between any change (300-900 frames at 60fps)
+            nextToggle: 300 + Math.random() * 600,
             tvFlickerPhase: Math.random() * Math.PI * 2
           };
           windowStates.push({ child, state, index });
@@ -1271,23 +1278,25 @@
           // Count down to next toggle
           state.nextToggle--;
           
-          // Occasionally toggle window state
+          // Very rarely toggle window state - city is peaceful at rest
           if (state.nextToggle <= 0) {
-            // More likely to be on at night
-            const onChance = 0.3 + city.nightIntensity * 0.4 + districtRhythm.activityLevel * 0.2;
+            // Windows almost always stay on (95%+), especially at night
+            const onChance = 0.92 + city.nightIntensity * 0.06;
             state.isOn = Math.random() < onChance;
-            state.targetOpacity = state.isOn ? (0.3 + Math.random() * 0.5) : 0.05;
-            state.nextToggle = 200 + Math.random() * 800 / districtRhythm.baseSpeed;
+            state.targetOpacity = state.isOn ? (0.35 + Math.random() * 0.25) : 0.08;
+            // Very long intervals: 8-20 seconds before next possible change
+            state.nextToggle = 500 + Math.random() * 700;
           }
           
-          // TV flicker effect
+          // TV effect - VERY subtle, no rapid flicker
           if (state.isTV && state.isOn && city.nightIntensity > 0.3) {
-            const flicker = Math.sin(dt * 15 + state.tvFlickerPhase) * 0.2;
-            const colorShift = Math.sin(dt * 7 + state.tvFlickerPhase) > 0;
-            child.material.opacity = state.targetOpacity + flicker;
-            child.material.color.setHex(colorShift ? 0x8888ff : 0xaaffaa); // Blue/green TV glow
+            // Slow, gentle color shift instead of frantic flicker
+            const slowPulse = Math.sin(dt * 0.5 + state.tvFlickerPhase) * 0.05;
+            child.material.opacity = state.targetOpacity + slowPulse;
+            // Subtle blue TV glow, no rapid color changes
+            child.material.color.setHex(0x9999cc);
           } else {
-            // Smooth transition to target
+            // Very smooth transition to target
             const current = child.material.opacity;
             const diff = state.targetOpacity - current;
             child.material.opacity = current + diff * state.transitionSpeed;
@@ -1310,25 +1319,29 @@
       city.buildings.forEach(building => {
         const rhythm = DISTRICT_RHYTHMS[building.district] || DISTRICT_RHYTHMS.core;
         
-        // Base pulse
+        // Very gentle, slow pulse - like breathing at rest
         const pulse = Math.sin(dt * rhythm.pulseFrequency) * 0.5 + 0.5;
         
-        // Activity burst (random chance based on district)
-        const burst = Math.random() < rhythm.burstChance ? 0.5 : 0;
+        // Activity burst - almost never in idle state
+        // Only meaningful when there's actual cognitive activity
+        const burst = Math.random() < rhythm.burstChance ? 0.15 : 0;
         
-        // Apply to building emissive
+        // Apply to building emissive - much more subtle
         if (building.mesh.material && building.mesh.material.emissiveIntensity !== undefined) {
-          const baseIntensity = 0.3 + city.nightIntensity * 0.4;
-          const rhythmIntensity = pulse * rhythm.activityLevel * 0.3;
+          // Base glow is stable, minimal variation
+          const baseIntensity = 0.25 + city.nightIntensity * 0.2;
+          // Very subtle rhythm, barely perceptible
+          const rhythmIntensity = pulse * rhythm.activityLevel * 0.08;
           building.mesh.material.emissiveIntensity = baseIntensity + rhythmIntensity + burst;
         }
         
-        // Beacon pulse also follows district rhythm
+        // Beacon pulse - also calmed down significantly
         if (building.mesh && building.mesh.children) {
           building.mesh.children.forEach(child => {
             if (child.userData && child.userData.pulse) {
-              const beaconPulse = Math.sin(dt * rhythm.pulseFrequency * 1.5 + child.userData.pulsePhase);
-              const scale = 1 + beaconPulse * 0.3 * rhythm.activityLevel;
+              // Very slow, subtle beacon pulse
+              const beaconPulse = Math.sin(dt * rhythm.pulseFrequency * 0.5 + child.userData.pulsePhase);
+              const scale = 1 + beaconPulse * 0.1 * rhythm.activityLevel;
               child.scale.set(scale, scale, scale);
             }
           });
@@ -2902,58 +2915,605 @@
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // PROCEDURAL BUILDING SHAPES
+    // ARCHITECTURAL BUILDING STYLES - Defines building appearance by function
     // ═══════════════════════════════════════════════════════════════════════
     
-    const BUILDING_TYPES = {
-      tower: (w, h, d) => new THREE.BoxGeometry(w, h, d),
-      cylinder: (w, h, d) => new THREE.CylinderGeometry(w/2, w/2, h, 8),
-      tapered: (w, h, d) => new THREE.CylinderGeometry(w/3, w/2, h, 6),
-      spire: (w, h, d) => new THREE.ConeGeometry(w/2, h, 6),
-      dome: (w, h, d) => {
-        const geo = new THREE.SphereGeometry(w, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-        return geo;
+    const BUILDING_STYLES = {
+      office: {
+        windowDensity: 0.85,        // Many windows
+        windowSize: 0.7,            // Larger windows (glass curtain wall)
+        windowSpacing: 1.2,         // Tight grid
+        glassReflectivity: 0.7,     // Reflective glass
+        colorTint: 0x4488cc,        // Blue tint
+        hasSetbacks: true,          // Tall ones step back
+        crownStyle: 'flat',         // Flat or antenna tops
+        baseStyle: 'lobby',         // Glass lobby entrance
       },
-      hexPrism: (w, h, d) => new THREE.CylinderGeometry(w/2, w/2, h, 6),
-      octagon: (w, h, d) => new THREE.CylinderGeometry(w/2, w/2, h, 8),
+      residential: {
+        windowDensity: 0.6,
+        windowSize: 0.4,            // Smaller windows
+        windowSpacing: 1.8,         // More spacing
+        glassReflectivity: 0.3,
+        colorTint: 0xddaa77,        // Warm brown/beige
+        hasSetbacks: false,
+        crownStyle: 'cornice',      // Decorative top edge
+        baseStyle: 'brick',
+      },
+      industrial: {
+        windowDensity: 0.25,        // Few windows
+        windowSize: 0.5,
+        windowSpacing: 3.0,         // Sparse
+        glassReflectivity: 0.2,
+        colorTint: 0x556677,        // Gray/metallic
+        hasSetbacks: false,
+        crownStyle: 'utilitarian',  // Pipes, vents
+        baseStyle: 'loading',       // Loading dock
+      },
+      landmark: {
+        windowDensity: 0.5,
+        windowSize: 0.6,
+        windowSpacing: 1.5,
+        glassReflectivity: 0.5,
+        colorTint: 0xaaccff,        // Light blue/white
+        hasSetbacks: true,
+        crownStyle: 'spire',        // Decorative spire/crown
+        baseStyle: 'grand',         // Grand entrance
+      },
+      mixed: {
+        windowDensity: 0.7,
+        windowSize: 0.5,
+        windowSpacing: 1.5,
+        glassReflectivity: 0.4,
+        colorTint: 0x888888,
+        hasSetbacks: false,
+        crownStyle: 'flat',
+        baseStyle: 'retail',        // Ground floor retail
+      }
     };
     
-    function getRandomBuildingType() {
-      const types = Object.keys(BUILDING_TYPES);
-      const weights = [3, 2, 2, 1, 1, 1, 1]; // Tower most common
-      const total = weights.reduce((a, b) => a + b, 0);
+    // Building shape types
+    const BUILDING_SHAPES = {
+      tower: 'box',
+      cylinder: 'cylinder',
+      tapered: 'tapered',
+      hexPrism: 'hex',
+      octagon: 'octagon',
+      lShape: 'lShape',
+      uShape: 'uShape',
+    };
+    
+    // Get building style based on district
+    function getBuildingStyle(district, height) {
+      const styleWeights = {
+        core: { landmark: 3, office: 4, mixed: 2 },
+        trading: { office: 5, landmark: 2, mixed: 2 },
+        infrastructure: { industrial: 4, office: 2, mixed: 1 },
+        projects: { office: 3, mixed: 3, landmark: 2 },
+        memory: { residential: 3, mixed: 2, landmark: 1 },
+      };
+      
+      const weights = styleWeights[district] || { mixed: 1 };
+      const styles = Object.keys(weights);
+      const total = Object.values(weights).reduce((a, b) => a + b, 0);
       let r = Math.random() * total;
-      for (let i = 0; i < types.length; i++) {
-        r -= weights[i];
-        if (r <= 0) return types[i];
+      
+      for (const style of styles) {
+        r -= weights[style];
+        if (r <= 0) return style;
       }
-      return 'tower';
+      return 'mixed';
+    }
+    
+    function getRandomBuildingShape() {
+      const shapes = ['tower', 'tower', 'tower', 'cylinder', 'tapered', 'hexPrism', 'octagon', 'lShape'];
+      return shapes[Math.floor(Math.random() * shapes.length)];
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // BUILDING FEATURES
+    // ARCHITECTURAL DETAIL GENERATORS
     // ═══════════════════════════════════════════════════════════════════════
     
-    function addAntennaArray(mesh, height, color) {
-      const antennaCount = 2 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < antennaCount; i++) {
-        const antennaHeight = 2 + Math.random() * 4;
-        const antennaGeo = new THREE.CylinderGeometry(0.05, 0.08, antennaHeight, 4);
-        const antennaMat = new THREE.MeshBasicMaterial({ color: 0x333344 });
-        const antenna = new THREE.Mesh(antennaGeo, antennaMat);
+    // Create window grid on a face
+    function createWindowGrid(faceWidth, faceHeight, style, districtColor, isMainFace = true) {
+      const group = new THREE.Group();
+      const styleData = BUILDING_STYLES[style];
+      
+      // Calculate window grid
+      const windowSize = styleData.windowSize;
+      const spacing = styleData.windowSpacing;
+      const cols = Math.max(1, Math.floor(faceWidth / spacing));
+      const rows = Math.max(1, Math.floor(faceHeight / spacing));
+      
+      // Skip on mobile if too many windows
+      const maxWindows = isMobile ? 30 : 100;
+      if (cols * rows > maxWindows) {
+        // Use merged geometry for performance
+        return createMergedWindowGrid(faceWidth, faceHeight, style, districtColor, cols, rows);
+      }
+      
+      const windowGeo = new THREE.PlaneGeometry(windowSize * 0.8, windowSize * 1.2);
+      
+      for (let col = 0; col < cols; col++) {
+        for (let row = 0; row < rows; row++) {
+          // Skip some windows randomly for variety
+          if (Math.random() > styleData.windowDensity) continue;
+          
+          const isLit = Math.random() > 0.4;
+          const windowMat = new THREE.MeshBasicMaterial({
+            color: isLit ? 
+              new THREE.Color(styleData.colorTint).lerp(districtColor, 0.3) : 
+              new THREE.Color(0x111122),
+            transparent: true,
+            opacity: isLit ? (0.4 + Math.random() * 0.4) : 0.15,
+            side: THREE.DoubleSide,
+          });
+          
+          const window = new THREE.Mesh(windowGeo, windowMat);
+          
+          // Position in grid
+          const xPos = (col - (cols - 1) / 2) * spacing;
+          const yPos = (row - (rows - 1) / 2) * spacing;
+          window.position.set(xPos, yPos, 0.02);
+          
+          // Add subtle frame
+          if (!isMobile && Math.random() > 0.5) {
+            const frameGeo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(windowSize * 0.85, windowSize * 1.25));
+            const frameMat = new THREE.LineBasicMaterial({ 
+              color: 0x334455, 
+              transparent: true, 
+              opacity: 0.5 
+            });
+            const frame = new THREE.LineSegments(frameGeo, frameMat);
+            frame.position.copy(window.position);
+            frame.position.z += 0.01;
+            group.add(frame);
+          }
+          
+          group.add(window);
+        }
+      }
+      
+      return group;
+    }
+    
+    // Merged window grid for performance
+    function createMergedWindowGrid(faceWidth, faceHeight, style, districtColor, cols, rows) {
+      const group = new THREE.Group();
+      const styleData = BUILDING_STYLES[style];
+      const spacing = styleData.windowSpacing;
+      
+      // Create horizontal floor lines
+      const floorCount = Math.min(rows, 15);
+      const floorSpacing = faceHeight / floorCount;
+      
+      for (let i = 1; i < floorCount; i++) {
+        const lineGeo = new THREE.PlaneGeometry(faceWidth * 0.9, 0.05);
+        const lineMat = new THREE.MeshBasicMaterial({
+          color: districtColor,
+          transparent: true,
+          opacity: 0.3,
+        });
+        const line = new THREE.Mesh(lineGeo, lineMat);
+        line.position.y = -faceHeight / 2 + i * floorSpacing;
+        line.position.z = 0.02;
+        group.add(line);
+      }
+      
+      // Add vertical column lines
+      const colCount = Math.min(cols, 8);
+      const colSpacing = faceWidth / colCount;
+      
+      for (let i = 1; i < colCount; i++) {
+        const lineGeo = new THREE.PlaneGeometry(0.08, faceHeight * 0.95);
+        const lineMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(styleData.colorTint).multiplyScalar(0.5),
+          transparent: true,
+          opacity: 0.4,
+        });
+        const line = new THREE.Mesh(lineGeo, lineMat);
+        line.position.x = -faceWidth / 2 + i * colSpacing;
+        line.position.z = 0.02;
+        group.add(line);
+      }
+      
+      // Add glow overlay
+      const glowGeo = new THREE.PlaneGeometry(faceWidth * 0.95, faceHeight * 0.95);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: districtColor,
+        transparent: true,
+        opacity: 0.15,
+      });
+      const glow = new THREE.Mesh(glowGeo, glowMat);
+      glow.position.z = 0.01;
+      group.add(glow);
+      
+      return group;
+    }
+    
+    // Create building base/foundation section
+    function createBuildingBase(width, depth, style, districtColor) {
+      const group = new THREE.Group();
+      const styleData = BUILDING_STYLES[style];
+      const baseHeight = 1.5 + Math.random() * 1;
+      const baseExpand = 0.15; // How much wider the base is
+      
+      // Main base block
+      const baseGeo = new THREE.BoxGeometry(
+        width * (1 + baseExpand), 
+        baseHeight, 
+        depth * (1 + baseExpand)
+      );
+      const baseMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(styleData.colorTint).multiplyScalar(0.15),
+        roughness: 0.8,
+        metalness: 0.2,
+      });
+      const base = new THREE.Mesh(baseGeo, baseMat);
+      base.position.y = baseHeight / 2;
+      base.castShadow = !isMobile;
+      group.add(base);
+      
+      // Entrance glow (lobby/door)
+      if (styleData.baseStyle === 'lobby' || styleData.baseStyle === 'grand') {
+        const entranceWidth = width * 0.4;
+        const entranceHeight = baseHeight * 0.8;
+        const entranceGeo = new THREE.PlaneGeometry(entranceWidth, entranceHeight);
+        const entranceMat = new THREE.MeshBasicMaterial({
+          color: districtColor,
+          transparent: true,
+          opacity: 0.6,
+        });
+        const entrance = new THREE.Mesh(entranceGeo, entranceMat);
+        entrance.position.set(0, entranceHeight / 2 + 0.1, depth * (1 + baseExpand) / 2 + 0.02);
+        group.add(entrance);
+      }
+      
+      // Decorative ledge line
+      const ledgeGeo = new THREE.BoxGeometry(width * (1 + baseExpand) + 0.1, 0.15, depth * (1 + baseExpand) + 0.1);
+      const ledgeMat = new THREE.MeshBasicMaterial({
+        color: districtColor,
+        transparent: true,
+        opacity: 0.4,
+      });
+      const ledge = new THREE.Mesh(ledgeGeo, ledgeMat);
+      ledge.position.y = baseHeight;
+      group.add(ledge);
+      
+      group.userData.baseHeight = baseHeight;
+      return group;
+    }
+    
+    // Create building crown/top section
+    function createBuildingCrown(width, depth, height, style, districtColor) {
+      const group = new THREE.Group();
+      const styleData = BUILDING_STYLES[style];
+      const crownStyle = styleData.crownStyle;
+      
+      if (crownStyle === 'spire' && height > 15) {
+        // Decorative spire
+        const spireHeight = 3 + Math.random() * 4;
+        const spireGeo = new THREE.ConeGeometry(width * 0.2, spireHeight, 6);
+        const spireMat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(styleData.colorTint).multiplyScalar(0.3),
+          emissive: districtColor,
+          emissiveIntensity: 0.5,
+          metalness: 0.7,
+          roughness: 0.3,
+        });
+        const spire = new THREE.Mesh(spireGeo, spireMat);
+        spire.position.y = spireHeight / 2;
+        group.add(spire);
         
-        const angle = (i / antennaCount) * Math.PI * 2;
-        const radius = 0.5 + Math.random() * 0.5;
-        antenna.position.set(
-          Math.cos(angle) * radius,
-          height / 2 + antennaHeight / 2,
-          Math.sin(angle) * radius
+        // Spire tip light
+        const tipGeo = new THREE.SphereGeometry(0.2, 6, 6);
+        const tipMat = new THREE.MeshBasicMaterial({ color: districtColor });
+        const tip = new THREE.Mesh(tipGeo, tipMat);
+        tip.position.y = spireHeight + 0.2;
+        tip.userData.pulse = true;
+        tip.userData.pulsePhase = Math.random() * Math.PI * 2;
+        group.add(tip);
+        
+      } else if (crownStyle === 'cornice') {
+        // Decorative cornice edge
+        const corniceGeo = new THREE.BoxGeometry(width + 0.3, 0.4, depth + 0.3);
+        const corniceMat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(styleData.colorTint).multiplyScalar(0.4),
+          roughness: 0.6,
+          metalness: 0.3,
+        });
+        const cornice = new THREE.Mesh(corniceGeo, corniceMat);
+        cornice.position.y = 0.2;
+        group.add(cornice);
+        
+        // Small decorative elements
+        for (let i = 0; i < 4; i++) {
+          const ornGeo = new THREE.BoxGeometry(0.3, 0.6, 0.3);
+          const ornMat = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(styleData.colorTint).multiplyScalar(0.35),
+            emissive: districtColor,
+            emissiveIntensity: 0.2,
+          });
+          const orn = new THREE.Mesh(ornGeo, ornMat);
+          const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
+          orn.position.set(
+            Math.cos(angle) * (width / 2),
+            0.5,
+            Math.sin(angle) * (depth / 2)
+          );
+          group.add(orn);
+        }
+        
+      } else if (crownStyle === 'utilitarian') {
+        // Industrial: pipes, vents
+        const ventCount = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < ventCount; i++) {
+          const ventGeo = new THREE.CylinderGeometry(0.3, 0.3, 1 + Math.random(), 6);
+          const ventMat = new THREE.MeshStandardMaterial({
+            color: 0x445566,
+            roughness: 0.9,
+            metalness: 0.4,
+          });
+          const vent = new THREE.Mesh(ventGeo, ventMat);
+          vent.position.set(
+            (Math.random() - 0.5) * width * 0.7,
+            0.5 + Math.random() * 0.3,
+            (Math.random() - 0.5) * depth * 0.7
+          );
+          group.add(vent);
+        }
+      }
+      
+      return group;
+    }
+    
+    // Create setback (narrower upper section for tall buildings)
+    function createSetback(width, depth, setbackHeight, style, districtColor) {
+      const group = new THREE.Group();
+      const styleData = BUILDING_STYLES[style];
+      const reduction = 0.7 + Math.random() * 0.15; // 70-85% of original size
+      
+      const setbackWidth = width * reduction;
+      const setbackDepth = depth * reduction;
+      
+      // Main setback body
+      const bodyGeo = new THREE.BoxGeometry(setbackWidth, setbackHeight, setbackDepth);
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(styleData.colorTint).multiplyScalar(0.2),
+        emissive: new THREE.Color(styleData.colorTint).multiplyScalar(0.05),
+        emissiveIntensity: 0.3,
+        roughness: 0.5,
+        metalness: 0.5,
+      });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.castShadow = !isMobile;
+      body.receiveShadow = !isMobile;
+      group.add(body);
+      
+      // Windows on setback
+      if (!isMobile) {
+        const faces = [
+          { rot: 0, pos: [0, 0, setbackDepth / 2 + 0.01], w: setbackWidth, h: setbackHeight },
+          { rot: Math.PI, pos: [0, 0, -setbackDepth / 2 - 0.01], w: setbackWidth, h: setbackHeight },
+          { rot: Math.PI / 2, pos: [setbackWidth / 2 + 0.01, 0, 0], w: setbackDepth, h: setbackHeight },
+          { rot: -Math.PI / 2, pos: [-setbackWidth / 2 - 0.01, 0, 0], w: setbackDepth, h: setbackHeight },
+        ];
+        
+        faces.forEach(face => {
+          const windows = createWindowGrid(face.w * 0.9, face.h * 0.9, style, districtColor, false);
+          windows.rotation.y = face.rot;
+          windows.position.set(...face.pos);
+          group.add(windows);
+        });
+      }
+      
+      // Ledge at setback base
+      const ledgeGeo = new THREE.BoxGeometry(width + 0.1, 0.2, depth + 0.1);
+      const ledgeMat = new THREE.MeshBasicMaterial({
+        color: districtColor,
+        transparent: true,
+        opacity: 0.35,
+      });
+      const ledge = new THREE.Mesh(ledgeGeo, ledgeMat);
+      ledge.position.y = -setbackHeight / 2;
+      group.add(ledge);
+      
+      group.userData.setbackWidth = setbackWidth;
+      group.userData.setbackDepth = setbackDepth;
+      
+      return group;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // ROOFTOP FEATURES
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function addACUnits(group, width, depth) {
+      const unitCount = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < unitCount; i++) {
+        const unitGeo = new THREE.BoxGeometry(0.8, 0.5, 0.6);
+        const unitMat = new THREE.MeshStandardMaterial({
+          color: 0x556666,
+          roughness: 0.8,
+          metalness: 0.3,
+        });
+        const unit = new THREE.Mesh(unitGeo, unitMat);
+        unit.position.set(
+          (Math.random() - 0.5) * width * 0.6,
+          0.25,
+          (Math.random() - 0.5) * depth * 0.6
         );
-        mesh.add(antenna);
+        group.add(unit);
         
-        // Blinking light on top
+        // Fan on top
+        const fanGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.1, 8);
+        const fanMat = new THREE.MeshStandardMaterial({ color: 0x333344 });
+        const fan = new THREE.Mesh(fanGeo, fanMat);
+        fan.position.y = 0.3;
+        unit.add(fan);
+      }
+    }
+    
+    function addWaterTower(group, width, depth, districtColor) {
+      const towerGroup = new THREE.Group();
+      
+      // Tank
+      const tankGeo = new THREE.CylinderGeometry(0.8, 0.8, 1.5, 12);
+      const tankMat = new THREE.MeshStandardMaterial({
+        color: 0x445566,
+        roughness: 0.7,
+        metalness: 0.4,
+      });
+      const tank = new THREE.Mesh(tankGeo, tankMat);
+      tank.position.y = 1.5;
+      towerGroup.add(tank);
+      
+      // Cone top
+      const topGeo = new THREE.ConeGeometry(0.9, 0.6, 12);
+      const topMat = new THREE.MeshStandardMaterial({ color: 0x334455 });
+      const top = new THREE.Mesh(topGeo, topMat);
+      top.position.y = 2.55;
+      towerGroup.add(top);
+      
+      // Legs
+      for (let i = 0; i < 4; i++) {
+        const legGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 4);
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x333344 });
+        const leg = new THREE.Mesh(legGeo, legMat);
+        const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
+        leg.position.set(
+          Math.cos(angle) * 0.5,
+          0.4,
+          Math.sin(angle) * 0.5
+        );
+        towerGroup.add(leg);
+      }
+      
+      towerGroup.position.set(
+        (Math.random() - 0.5) * width * 0.5,
+        0,
+        (Math.random() - 0.5) * depth * 0.5
+      );
+      group.add(towerGroup);
+    }
+    
+    function addHelipad(group, width, depth, districtColor) {
+      // Pad surface
+      const padSize = Math.min(width, depth) * 0.8;
+      const padGeo = new THREE.CylinderGeometry(padSize / 2, padSize / 2, 0.1, 16);
+      const padMat = new THREE.MeshStandardMaterial({
+        color: 0x222233,
+        roughness: 0.9,
+      });
+      const pad = new THREE.Mesh(padGeo, padMat);
+      pad.position.y = 0.05;
+      group.add(pad);
+      
+      // H marking
+      const hMat = new THREE.MeshBasicMaterial({
+        color: districtColor,
+        transparent: true,
+        opacity: 0.8,
+      });
+      
+      // Vertical bars of H
+      const barGeo = new THREE.PlaneGeometry(0.3, padSize * 0.5);
+      const bar1 = new THREE.Mesh(barGeo, hMat);
+      bar1.rotation.x = -Math.PI / 2;
+      bar1.position.set(-padSize * 0.15, 0.12, 0);
+      group.add(bar1);
+      
+      const bar2 = new THREE.Mesh(barGeo, hMat);
+      bar2.rotation.x = -Math.PI / 2;
+      bar2.position.set(padSize * 0.15, 0.12, 0);
+      group.add(bar2);
+      
+      // Horizontal bar of H
+      const hBarGeo = new THREE.PlaneGeometry(padSize * 0.3, 0.25);
+      const hBar = new THREE.Mesh(hBarGeo, hMat);
+      hBar.rotation.x = -Math.PI / 2;
+      hBar.position.y = 0.12;
+      group.add(hBar);
+      
+      // Edge lights
+      const lightCount = 8;
+      for (let i = 0; i < lightCount; i++) {
+        const angle = (i / lightCount) * Math.PI * 2;
         const lightGeo = new THREE.SphereGeometry(0.1, 4, 4);
-        const lightMat = new THREE.MeshBasicMaterial({ color: color });
+        const lightMat = new THREE.MeshBasicMaterial({
+          color: districtColor,
+          transparent: true,
+          opacity: 0.9,
+        });
+        const light = new THREE.Mesh(lightGeo, lightMat);
+        light.position.set(
+          Math.cos(angle) * (padSize / 2 - 0.15),
+          0.15,
+          Math.sin(angle) * (padSize / 2 - 0.15)
+        );
+        light.userData.pulse = true;
+        light.userData.pulsePhase = i * Math.PI / 4;
+        group.add(light);
+      }
+    }
+    
+    function addRooftopGarden(group, width, depth) {
+      const gardenGeo = new THREE.BoxGeometry(width * 0.6, 0.3, depth * 0.6);
+      const gardenMat = new THREE.MeshBasicMaterial({
+        color: 0x2d5a2d,
+        transparent: true,
+        opacity: 0.9,
+      });
+      const garden = new THREE.Mesh(gardenGeo, gardenMat);
+      garden.position.set(
+        (Math.random() - 0.5) * width * 0.3,
+        0.15,
+        (Math.random() - 0.5) * depth * 0.3
+      );
+      group.add(garden);
+      
+      // Foliage particles
+      const particleCount = isMobile ? 8 : 15;
+      const particleGeo = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      
+      for (let i = 0; i < particleCount; i++) {
+        positions[i * 3] = garden.position.x + (Math.random() - 0.5) * width * 0.5;
+        positions[i * 3 + 1] = 0.4 + Math.random() * 0.4;
+        positions[i * 3 + 2] = garden.position.z + (Math.random() - 0.5) * depth * 0.5;
+      }
+      
+      particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const particleMat = new THREE.PointsMaterial({
+        color: 0x6bff9d,
+        size: 0.25,
+        transparent: true,
+        opacity: 0.7,
+      });
+      const particles = new THREE.Points(particleGeo, particleMat);
+      group.add(particles);
+    }
+    
+    function addAntennaArray(group, districtColor) {
+      const antennaCount = 2 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < antennaCount; i++) {
+        const antennaHeight = 1.5 + Math.random() * 2.5;
+        const antennaGeo = new THREE.CylinderGeometry(0.04, 0.06, antennaHeight, 4);
+        const antennaMat = new THREE.MeshStandardMaterial({ 
+          color: 0x333344,
+          metalness: 0.6,
+          roughness: 0.4,
+        });
+        const antenna = new THREE.Mesh(antennaGeo, antennaMat);
+        antenna.position.set(
+          (Math.random() - 0.5) * 1.5,
+          antennaHeight / 2,
+          (Math.random() - 0.5) * 1.5
+        );
+        group.add(antenna);
+        
+        // Blinking light
+        const lightGeo = new THREE.SphereGeometry(0.08, 4, 4);
+        const lightMat = new THREE.MeshBasicMaterial({ color: districtColor });
         const light = new THREE.Mesh(lightGeo, lightMat);
         light.position.y = antennaHeight / 2 + 0.1;
         light.userData.blink = true;
@@ -2962,44 +3522,14 @@
       }
     }
     
-    function addRooftopGarden(mesh, width, depth, height) {
-      const gardenGeo = new THREE.BoxGeometry(width * 0.7, 0.5, depth * 0.7);
-      const gardenMat = new THREE.MeshBasicMaterial({
-        color: 0x2d5a2d,
-        transparent: true,
-        opacity: 0.9,
-      });
-      const garden = new THREE.Mesh(gardenGeo, gardenMat);
-      garden.position.y = height / 2 + 0.25;
-      mesh.add(garden);
-      
-      // Glowing foliage particles
-      const particleCount = 20;
-      const particleGeo = new THREE.BufferGeometry();
-      const positions = new Float32Array(particleCount * 3);
-      
-      for (let i = 0; i < particleCount; i++) {
-        positions[i * 3] = (Math.random() - 0.5) * width * 0.6;
-        positions[i * 3 + 1] = height / 2 + 0.5 + Math.random() * 0.8;
-        positions[i * 3 + 2] = (Math.random() - 0.5) * depth * 0.6;
-      }
-      
-      particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      const particleMat = new THREE.PointsMaterial({
-        color: 0x6bff9d,
-        size: 0.3,
-        transparent: true,
-        opacity: 0.7,
-      });
-      const particles = new THREE.Points(particleGeo, particleMat);
-      mesh.add(particles);
-    }
+    // ═══════════════════════════════════════════════════════════════════════
+    // HOLOGRAPHIC ADVERTISEMENTS
+    // ═══════════════════════════════════════════════════════════════════════
     
     function addHolographicAd(mesh, width, height, districtColor) {
-      const adHeight = 2 + Math.random() * 2;
-      const adWidth = width * 0.8;
+      const adHeight = 1.5 + Math.random() * 1.5;
+      const adWidth = width * 0.7;
       
-      // Hologram base
       const holoGeo = new THREE.PlaneGeometry(adWidth, adHeight);
       const holoMat = new THREE.MeshBasicMaterial({
         color: districtColor,
@@ -3009,10 +3539,9 @@
       });
       const holo = new THREE.Mesh(holoGeo, holoMat);
       
-      // Position on building side
       const side = Math.floor(Math.random() * 4);
       const offset = width / 2 + 0.1;
-      const yPos = height * 0.3 + Math.random() * height * 0.4;
+      const yPos = height * 0.3 + Math.random() * height * 0.3;
       
       switch(side) {
         case 0: holo.position.set(offset, yPos, 0); holo.rotation.y = Math.PI / 2; break;
@@ -3025,13 +3554,13 @@
       holo.userData.flickerPhase = Math.random() * Math.PI * 2;
       mesh.add(holo);
       
-      // Scanlines effect (horizontal bars)
+      // Scanlines
       for (let i = 0; i < 3; i++) {
-        const lineGeo = new THREE.PlaneGeometry(adWidth, 0.05);
+        const lineGeo = new THREE.PlaneGeometry(adWidth, 0.04);
         const lineMat = new THREE.MeshBasicMaterial({
           color: 0xffffff,
           transparent: true,
-          opacity: 0.3,
+          opacity: 0.25,
           side: THREE.DoubleSide,
         });
         const line = new THREE.Mesh(lineGeo, lineMat);
@@ -3042,7 +3571,7 @@
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // BUILDING GENERATION
+    // MAIN BUILDING GENERATION
     // ═══════════════════════════════════════════════════════════════════════
     
     function createBuilding(config) {
@@ -3053,92 +3582,198 @@
         height = 5 + Math.random() * 20,
         district = 'core',
         label = '',
-        type = getRandomBuildingType(),
+        type = getRandomBuildingShape(),
       } = config;
       
       const districtData = DISTRICTS[district] || DISTRICTS.core;
+      const style = getBuildingStyle(district, height);
+      const styleData = BUILDING_STYLES[style];
       
-      // Create geometry based on type
-      const geometry = BUILDING_TYPES[type](width, height, depth);
+      // Create main building group
+      const buildingGroup = new THREE.Group();
+      buildingGroup.position.set(x, 0, z);
       
-      const material = new THREE.MeshStandardMaterial({
-        color: districtData.color.clone().multiplyScalar(0.25),
+      // === BASE SECTION ===
+      const base = createBuildingBase(width, depth, style, districtData.color);
+      buildingGroup.add(base);
+      const baseHeight = base.userData.baseHeight;
+      
+      // === MAIN BODY ===
+      // Calculate if we need setbacks (for tall buildings)
+      const needsSetback = styleData.hasSetbacks && height > 20;
+      const setbackHeight = needsSetback ? height * 0.3 : 0;
+      const mainBodyHeight = height - baseHeight - setbackHeight;
+      
+      // Main body material
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(styleData.colorTint).multiplyScalar(0.18),
         emissive: districtData.emissive,
-        emissiveIntensity: 0.5,
-        roughness: 0.6,
-        metalness: 0.4,
+        emissiveIntensity: 0.4,
+        roughness: 0.55 - styleData.glassReflectivity * 0.3,
+        metalness: 0.3 + styleData.glassReflectivity * 0.4,
       });
       
-      const mesh = new THREE.Mesh(geometry, material);
-      
-      // Position adjustment for different types
-      if (type === 'dome') {
-        mesh.position.set(x, width, z);
+      let mainBody;
+      if (type === 'cylinder' || type === 'octagon' || type === 'hex') {
+        const segments = type === 'hex' ? 6 : (type === 'octagon' ? 8 : 12);
+        const bodyGeo = new THREE.CylinderGeometry(width/2, width/2, mainBodyHeight, segments);
+        mainBody = new THREE.Mesh(bodyGeo, bodyMat);
+      } else if (type === 'tapered') {
+        const bodyGeo = new THREE.CylinderGeometry(width * 0.4, width/2, mainBodyHeight, 8);
+        mainBody = new THREE.Mesh(bodyGeo, bodyMat);
+      } else if (type === 'lShape') {
+        // L-shaped building using merged boxes
+        const group = new THREE.Group();
+        const box1Geo = new THREE.BoxGeometry(width, mainBodyHeight, depth * 0.6);
+        const box1 = new THREE.Mesh(box1Geo, bodyMat);
+        box1.position.z = depth * 0.2;
+        group.add(box1);
+        
+        const box2Geo = new THREE.BoxGeometry(width * 0.6, mainBodyHeight, depth);
+        const box2 = new THREE.Mesh(box2Geo, bodyMat.clone());
+        box2.position.x = -width * 0.2;
+        group.add(box2);
+        
+        mainBody = group;
       } else {
-        mesh.position.set(x, height / 2, z);
+        // Default box tower
+        const bodyGeo = new THREE.BoxGeometry(width, mainBodyHeight, depth);
+        mainBody = new THREE.Mesh(bodyGeo, bodyMat);
       }
       
-      mesh.castShadow = !isMobile;
-      mesh.receiveShadow = !isMobile;
+      mainBody.position.y = baseHeight + mainBodyHeight / 2;
+      if (mainBody.castShadow !== undefined) {
+        mainBody.castShadow = !isMobile;
+        mainBody.receiveShadow = !isMobile;
+      }
+      buildingGroup.add(mainBody);
       
-      // Window glow strips (not for domes/spires)
-      if (type !== 'dome' && type !== 'spire') {
-        const windowCount = Math.floor(height / 4);
-        for (let i = 0; i < windowCount; i++) {
-          const isGlowing = Math.random() > 0.3;
-          if (!isGlowing) continue;
+      // === WINDOWS ON MAIN BODY ===
+      if (type === 'tower' || type === 'lShape') {
+        // Add window grids to box faces
+        const faces = [
+          { rot: 0, pos: [0, baseHeight + mainBodyHeight/2, depth/2 + 0.02], w: width, h: mainBodyHeight },
+          { rot: Math.PI, pos: [0, baseHeight + mainBodyHeight/2, -depth/2 - 0.02], w: width, h: mainBodyHeight },
+          { rot: Math.PI/2, pos: [width/2 + 0.02, baseHeight + mainBodyHeight/2, 0], w: depth, h: mainBodyHeight },
+          { rot: -Math.PI/2, pos: [-width/2 - 0.02, baseHeight + mainBodyHeight/2, 0], w: depth, h: mainBodyHeight },
+        ];
+        
+        faces.forEach((face, idx) => {
+          const windows = createWindowGrid(face.w * 0.92, face.h * 0.92, style, districtData.color, idx < 2);
+          windows.rotation.y = face.rot;
+          windows.position.set(...face.pos);
+          buildingGroup.add(windows);
+        });
+      } else if (type !== 'dome' && type !== 'spire') {
+        // Cylindrical buildings: add ring windows
+        const floorCount = Math.floor(mainBodyHeight / styleData.windowSpacing);
+        for (let i = 1; i < floorCount; i++) {
+          if (Math.random() > styleData.windowDensity) continue;
           
-          let windowGeo;
-          if (type === 'cylinder' || type === 'tapered' || type === 'hexPrism' || type === 'octagon') {
-            windowGeo = new THREE.TorusGeometry(width / 2 + 0.05, 0.08, 4, type === 'hexPrism' ? 6 : 8);
-          } else {
-            windowGeo = new THREE.BoxGeometry(width * 0.85, 0.2, depth + 0.1);
-          }
-          
-          const windowMat = new THREE.MeshBasicMaterial({
+          const ringRadius = type === 'tapered' ? 
+            width/2 * (0.4 + 0.6 * (1 - i/floorCount)) + 0.03 :
+            width/2 + 0.03;
+          const segments = type === 'hex' ? 6 : (type === 'octagon' ? 8 : 16);
+          const ringGeo = new THREE.TorusGeometry(ringRadius, 0.06, 4, segments);
+          const ringMat = new THREE.MeshBasicMaterial({
             color: districtData.color,
             transparent: true,
-            opacity: 0.5 + Math.random() * 0.5,
+            opacity: 0.4 + Math.random() * 0.3,
           });
-          const windowMesh = new THREE.Mesh(windowGeo, windowMat);
-          
-          if (type === 'cylinder' || type === 'tapered' || type === 'hexPrism' || type === 'octagon') {
-            windowMesh.rotation.x = Math.PI / 2;
-          }
-          
-          windowMesh.position.y = -height / 2 + 2 + i * 4;
-          mesh.add(windowMesh);
+          const ring = new THREE.Mesh(ringGeo, ringMat);
+          ring.rotation.x = Math.PI / 2;
+          ring.position.y = baseHeight + i * styleData.windowSpacing;
+          buildingGroup.add(ring);
         }
       }
       
-      // Random features
-      const featureRoll = Math.random();
-      if (height > 12 && featureRoll < 0.25) {
-        addAntennaArray(mesh, height, districtData.color);
-      } else if (height > 8 && featureRoll < 0.45) {
-        addRooftopGarden(mesh, width, depth, height);
-      } else if (height > 10 && featureRoll < 0.65) {
-        addHolographicAd(mesh, width, height, districtData.color);
+      // === FLOOR LEDGES (horizontal lines) ===
+      if (!isMobile && height > 10) {
+        const ledgeCount = Math.floor(mainBodyHeight / 5);
+        for (let i = 1; i < ledgeCount; i++) {
+          const ledgeY = baseHeight + i * 5;
+          if (type === 'tower' || type === 'lShape') {
+            const ledgeGeo = new THREE.BoxGeometry(width + 0.08, 0.1, depth + 0.08);
+            const ledgeMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color(styleData.colorTint).multiplyScalar(0.3),
+              transparent: true,
+              opacity: 0.5,
+            });
+            const ledge = new THREE.Mesh(ledgeGeo, ledgeMat);
+            ledge.position.y = ledgeY;
+            buildingGroup.add(ledge);
+          }
+        }
       }
       
-      // Top beacon for tall buildings
-      if (height > 15 && type !== 'spire') {
-        const beaconGeo = new THREE.SphereGeometry(0.25, 6, 6);
+      // === SETBACK SECTION (for tall buildings) ===
+      let topY = baseHeight + mainBodyHeight;
+      let topWidth = width;
+      let topDepth = depth;
+      
+      if (needsSetback) {
+        const setback = createSetback(width, depth, setbackHeight, style, districtData.color);
+        setback.position.y = topY + setbackHeight / 2;
+        buildingGroup.add(setback);
+        
+        topY += setbackHeight;
+        topWidth = setback.userData.setbackWidth;
+        topDepth = setback.userData.setbackDepth;
+      }
+      
+      // === CROWN/TOP SECTION ===
+      const crown = createBuildingCrown(topWidth, topDepth, height, style, districtData.color);
+      crown.position.y = topY;
+      buildingGroup.add(crown);
+      
+      // === ROOFTOP FEATURES ===
+      const rooftopGroup = new THREE.Group();
+      rooftopGroup.position.y = topY;
+      
+      const rooftopRoll = Math.random();
+      if (height > 25 && rooftopRoll < 0.15) {
+        // Helipad for very tall buildings
+        addHelipad(rooftopGroup, topWidth, topDepth, districtData.color);
+      } else if (height > 15 && rooftopRoll < 0.35) {
+        // Water tower
+        addWaterTower(rooftopGroup, topWidth, topDepth, districtData.color);
+      } else if (height > 10 && rooftopRoll < 0.55) {
+        // AC units
+        addACUnits(rooftopGroup, topWidth, topDepth);
+      } else if (height > 8 && rooftopRoll < 0.7) {
+        // Rooftop garden
+        addRooftopGarden(rooftopGroup, topWidth, topDepth);
+      } else if (height > 12) {
+        // Antennas
+        addAntennaArray(rooftopGroup, districtData.color);
+      }
+      
+      buildingGroup.add(rooftopGroup);
+      
+      // === TOP BEACON ===
+      if (height > 18 && styleData.crownStyle !== 'spire') {
+        const beaconGeo = new THREE.SphereGeometry(0.2, 6, 6);
         const beaconMat = new THREE.MeshBasicMaterial({ color: districtData.color });
         const beacon = new THREE.Mesh(beaconGeo, beaconMat);
-        beacon.position.y = type === 'dome' ? width : height / 2 + 0.4;
+        beacon.position.y = topY + 1;
         beacon.userData.pulse = true;
         beacon.userData.pulsePhase = Math.random() * Math.PI * 2;
-        mesh.add(beacon);
+        buildingGroup.add(beacon);
       }
       
-      scene.add(mesh);
+      // === HOLOGRAPHIC AD (occasional) ===
+      if (height > 10 && Math.random() < 0.25) {
+        addHolographicAd(buildingGroup, width, height, districtData.color);
+      }
+      
+      scene.add(buildingGroup);
       
       const building = {
-        mesh,
+        mesh: buildingGroup,
         district,
         label,
         type,
+        style,
         x, z,
         width, depth, height,
         createdAt: Date.now(),
