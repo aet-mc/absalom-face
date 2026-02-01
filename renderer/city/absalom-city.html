@@ -3688,6 +3688,34 @@
       // Update data packets traveling on connections
       updateDataPackets(dt);
       
+      // ═══════════════════════════════════════════════════════════════════════
+      // AMBIENT LIFE UPDATES - The city never sleeps (NYC vibes)
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      // Traffic lights moving along roads
+      updateTrafficLights(dt);
+      
+      // Elevators in tall buildings
+      updateElevators(dt);
+      
+      // Fireflies (night) and dust motes (day)
+      updateFirefliesAndDust(dt);
+      
+      // Data streams between connected buildings
+      updateDataStreams(dt);
+      
+      // Aircraft and satellites
+      updateAircraft(dt);
+      
+      // Shooting stars (occasional, night only)
+      updateShootingStars();
+      
+      // Window activity (on/off, TV flicker)
+      updateWindowActivity(dt);
+      
+      // District-specific building pulses
+      updateDistrictPulses(dt);
+      
       // City growth
       growCity();
       
@@ -4368,6 +4396,33 @@
       Object.keys(DISTRICTS).forEach(key => {
         districtGlowIntensities[key] = activityState.districtActivity[key].targetIntensity;
       });
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // UPDATE HUD INDICATOR
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      const indicatorEl = document.getElementById('cognitiveIndicator');
+      const modeEl = document.getElementById('cognitiveMode');
+      const districtEl = document.getElementById('cognitiveDistrict');
+      const dotEl = document.getElementById('activityDot');
+      
+      if (indicatorEl && modeEl && districtEl && dotEl) {
+        // Update indicator class
+        indicatorEl.className = 'cognitive-indicator ' + mode;
+        
+        // Update mode text and styling
+        modeEl.className = 'cognitive-mode ' + mode;
+        modeEl.innerHTML = `<span class="activity-dot ${mode} ${mode !== 'idle' ? 'active' : ''}" id="activityDot"></span>${mode}`;
+        
+        // Update district display
+        if (detectedDistrict && DISTRICTS[detectedDistrict]) {
+          districtEl.textContent = DISTRICTS[detectedDistrict].name;
+          districtEl.style.color = '#' + DISTRICTS[detectedDistrict].color.getHexString();
+        } else {
+          districtEl.textContent = '—';
+          districtEl.style.color = 'rgba(255,255,255,0.5)';
+        }
+      }
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -4383,6 +4438,11 @@
     createDistrictLabels();
     createDrones();
     createParticles();
+    
+    // Ambient life systems
+    createTrafficLights();
+    createFirefliesAndDust();
+    createAircraft();
     
     // Create core spire first (always present)
     createCoreSpire();
