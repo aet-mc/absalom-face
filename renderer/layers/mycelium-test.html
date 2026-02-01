@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mycelium Layer Test - Absalom Face v3.0</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: #050d0a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      color: #2dd4a8;
+      overflow: hidden;
+    }
+    
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #canvas-container {
+      flex: 1;
+      position: relative;
+    }
+    
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* Water line indicator */
+    .water-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(45, 212, 168, 0.3) 20%, 
+        rgba(45, 212, 168, 0.5) 50%, 
+        rgba(45, 212, 168, 0.3) 80%, 
+        transparent 100%
+      );
+      pointer-events: none;
+      box-shadow: 0 0 20px rgba(45, 212, 168, 0.2);
+    }
+    
+    .controls {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(10, 31, 26, 0.9);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid rgba(45, 212, 168, 0.3);
+      backdrop-filter: blur(10px);
+      z-index: 100;
+    }
+    
+    .controls h3 {
+      font-size: 12px;
+      margin-bottom: 10px;
+      opacity: 0.7;
+      font-weight: normal;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .controls button {
+      background: rgba(45, 212, 168, 0.2);
+      border: 1px solid rgba(45, 212, 168, 0.4);
+      color: #2dd4a8;
+      padding: 8px 16px;
+      margin: 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+    
+    .controls button:hover {
+      background: rgba(45, 212, 168, 0.4);
+      border-color: #2dd4a8;
+    }
+    
+    .controls button:active {
+      transform: scale(0.95);
+    }
+    
+    .legend {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(10, 31, 26, 0.9);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid rgba(45, 212, 168, 0.3);
+      backdrop-filter: blur(10px);
+      z-index: 100;
+    }
+    
+    .legend h3 {
+      font-size: 12px;
+      margin-bottom: 10px;
+      opacity: 0.7;
+      font-weight: normal;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0;
+      font-size: 11px;
+    }
+    
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      box-shadow: 0 0 8px currentColor;
+    }
+    
+    .stats {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      font-size: 11px;
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="canvas-container">
+      <canvas id="mycelium"></canvas>
+      <div class="water-line" id="water-line"></div>
+    </div>
+  </div>
+  
+  <div class="stats" id="stats">
+    Nodes: 0 | Edges: 0 | FPS: 0
+  </div>
+  
+  <div class="legend">
+    <h3>Node Types</h3>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: #2dd4a8; color: #2dd4a8;"></div>
+      <span>Topics</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: #fbbf24; color: #fbbf24;"></div>
+      <span>People</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: #60a5fa; color: #60a5fa;"></div>
+      <span>Tickers</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: #a78bfa; color: #a78bfa;"></div>
+      <span>Tools</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: #94a3b8; color: #94a3b8;"></div>
+      <span>Headers</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: #f472b6; color: #f472b6;"></div>
+      <span>Decisions</span>
+    </div>
+  </div>
+  
+  <div class="controls">
+    <h3>Activation Test</h3>
+    <button onclick="activateRandom()">Activate Random</button>
+    <button onclick="activatePath()">Activate Path</button>
+    <button onclick="activateAll()">Activate All</button>
+    <button onclick="resetActivation()">Reset</button>
+    <br>
+    <button onclick="addNode()">Add Node</button>
+    <button onclick="removeNode()">Remove Node</button>
+    <button onclick="regenerateGraph()">New Graph</button>
+  </div>
+  
+  <script src="mycelium.js"></script>
+  <script>
+    // Initialize
+    const canvas = document.getElementById('mycelium');
+    const waterLineEl = document.getElementById('water-line');
+    const statsEl = document.getElementById('stats');
+    
+    // Set canvas size
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      mycelium.resize(canvas.width, canvas.height);
+      
+      // Position water line
+      const waterY = canvas.height * 0.3;
+      mycelium.setWaterLine(waterY);
+      waterLineEl.style.top = waterY + 'px';
+    }
+    
+    // Create mycelium layer
+    const mycelium = new MyceliumLayer(canvas);
+    
+    // Generate sample graph data
+    function generateSampleGraph() {
+      const types = ['topics', 'people', 'tickers', 'tools', 'headers', 'decisions'];
+      const names = {
+        topics: ['trading', 'space', 'quantum computing', 'AI', 'consciousness', 'music', 'philosophy', 'markets'],
+        people: ['Anton', 'Elon', 'Sam Altman', 'Feynman', 'Einstein'],
+        tickers: ['NVDA', 'TSLA', 'SPY', 'BTC', 'ETH', 'AAPL', 'MSFT'],
+        tools: ['git', 'docker', 'python', 'nodejs', 'ffmpeg', 'vim'],
+        headers: ['Daily Log', 'Project Status', 'Notes', 'Ideas', 'Memory'],
+        decisions: ['use Claude', 'build face', 'launch scanner', 'explore quantum']
+      };
+      
+      const nodes = [];
+      const edges = [];
+      
+      // Create nodes
+      let nodeId = 0;
+      for (const type of types) {
+        const typeNames = names[type];
+        const count = Math.floor(Math.random() * 3) + 2;
+        
+        for (let i = 0; i < Math.min(count, typeNames.length); i++) {
+          const age = Math.random() * 30 * 24 * 60 * 60 * 1000; // 0-30 days old
+          nodes.push({
+            id: `${type}:${typeNames[i].toLowerCase().replace(/\s+/g, '-')}`,
+            label: typeNames[i],
+            type: type,
+            weight: Math.floor(Math.random() * 10) + 1,
+            firstSeen: Date.now() - age,
+            lastSeen: Date.now() - Math.random() * age * 0.5
+          });
+          nodeId++;
+        }
+      }
+      
+      // Create edges (connect related nodes)
+      for (let i = 0; i < nodes.length; i++) {
+        // Connect to 2-4 random other nodes
+        const connections = Math.floor(Math.random() * 3) + 2;
+        const connected = new Set();
+        
+        for (let c = 0; c < connections; c++) {
+          let j = Math.floor(Math.random() * nodes.length);
+          if (j !== i && !connected.has(j)) {
+            connected.add(j);
+            edges.push({
+              source: nodes[i].id,
+              target: nodes[j].id,
+              weight: Math.floor(Math.random() * 5) + 1
+            });
+          }
+        }
+      }
+      
+      return { nodes, edges };
+    }
+    
+    // Initial graph
+    let graph = generateSampleGraph();
+    mycelium.setGraph(graph);
+    
+    // Resize handling
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    
+    // Animation loop
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let lastFpsUpdate = 0;
+    let fps = 0;
+    
+    function animate(time) {
+      const dt = Math.min((time - lastTime) / 1000, 0.1); // Cap dt to 100ms
+      lastTime = time;
+      
+      // FPS counter
+      frameCount++;
+      if (time - lastFpsUpdate > 1000) {
+        fps = Math.round(frameCount * 1000 / (time - lastFpsUpdate));
+        lastFpsUpdate = time;
+        frameCount = 0;
+        statsEl.textContent = `Nodes: ${graph.nodes.length} | Edges: ${graph.edges.length} | FPS: ${fps}`;
+      }
+      
+      // Update physics and animations
+      mycelium.update(dt);
+      
+      // Clear and render
+      const ctx = canvas.getContext('2d');
+      
+      // Draw deep ocean background
+      const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      bgGradient.addColorStop(0, '#0a1f1a');
+      bgGradient.addColorStop(0.3, '#071512');
+      bgGradient.addColorStop(1, '#030908');
+      ctx.fillStyle = bgGradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Render mycelium
+      mycelium.render(ctx);
+      
+      requestAnimationFrame(animate);
+    }
+    
+    requestAnimationFrame(animate);
+    
+    // Control functions
+    function activateRandom() {
+      if (graph.nodes.length === 0) return;
+      const count = Math.floor(Math.random() * 3) + 1;
+      const nodeIds = [];
+      for (let i = 0; i < count; i++) {
+        const idx = Math.floor(Math.random() * graph.nodes.length);
+        nodeIds.push(graph.nodes[idx].id);
+      }
+      mycelium.activate(nodeIds, 0.8 + Math.random() * 0.2);
+    }
+    
+    function activatePath() {
+      if (graph.nodes.length < 3) return;
+      // Pick a random path of 3-5 nodes
+      const pathLen = Math.floor(Math.random() * 3) + 3;
+      const path = [];
+      const used = new Set();
+      
+      while (path.length < pathLen && path.length < graph.nodes.length) {
+        const idx = Math.floor(Math.random() * graph.nodes.length);
+        if (!used.has(idx)) {
+          used.add(idx);
+          path.push(graph.nodes[idx].id);
+        }
+      }
+      
+      mycelium.activatePath(path, 1.0);
+    }
+    
+    function activateAll() {
+      const nodeIds = graph.nodes.map(n => n.id);
+      mycelium.activate(nodeIds, 0.7);
+    }
+    
+    function resetActivation() {
+      for (const node of mycelium.nodes) {
+        node.targetActivation = 0;
+        node.activation = 0;
+      }
+      for (const edge of mycelium.edges) {
+        edge.targetActivation = 0;
+        edge.activation = 0;
+      }
+    }
+    
+    function addNode() {
+      const types = ['topics', 'people', 'tickers', 'tools', 'headers', 'decisions'];
+      const type = types[Math.floor(Math.random() * types.length)];
+      const id = `${type}:new-${Date.now()}`;
+      
+      const newNode = {
+        id,
+        label: `New ${type}`,
+        type,
+        weight: Math.floor(Math.random() * 5) + 1,
+        firstSeen: Date.now(),
+        lastSeen: Date.now()
+      };
+      
+      graph.nodes.push(newNode);
+      
+      // Connect to 2 random existing nodes
+      if (graph.nodes.length > 1) {
+        for (let i = 0; i < 2; i++) {
+          const idx = Math.floor(Math.random() * (graph.nodes.length - 1));
+          graph.edges.push({
+            source: id,
+            target: graph.nodes[idx].id,
+            weight: 1
+          });
+        }
+      }
+      
+      mycelium.setGraph(graph);
+      
+      // Activate the new node
+      setTimeout(() => mycelium.activate([id], 1.0), 100);
+    }
+    
+    function removeNode() {
+      if (graph.nodes.length <= 3) return;
+      
+      const idx = Math.floor(Math.random() * graph.nodes.length);
+      const removedId = graph.nodes[idx].id;
+      
+      graph.nodes.splice(idx, 1);
+      graph.edges = graph.edges.filter(e => e.source !== removedId && e.target !== removedId);
+      
+      mycelium.setGraph(graph);
+    }
+    
+    function regenerateGraph() {
+      graph = generateSampleGraph();
+      mycelium.setGraph(graph);
+    }
+    
+    // Auto-activate periodically for demo
+    setInterval(() => {
+      if (Math.random() < 0.3) {
+        activateRandom();
+      }
+    }, 2000);
+  </script>
+</body>
+</html>

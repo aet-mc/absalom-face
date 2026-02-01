@@ -80,6 +80,9 @@
     </div>
   </div>
 
+  <!-- Include GraphClient for WebSocket protocol -->
+  <script src="renderer/graph-client.js"></script>
+  
   <script>
     const canvas = document.getElementById('main-canvas');
     const ctx = canvas.getContext('2d');
@@ -103,7 +106,15 @@
       goldLight: '#d4af37',
       goldDim: '#8a7020',
       teal: '#0d6b6e',
-      text: '#a8c5b8'
+      text: '#a8c5b8',
+      // Mycelium colors (from spec)
+      depthBg: '#0a1f1a',
+      nodeInactive: '#1a3a30',
+      nodeActive: '#2dd4a8',
+      nodeHot: '#fbbf24',
+      connectionDim: 'rgba(26, 58, 48, 0.4)',
+      connectionLit: 'rgba(45, 212, 168, 0.53)',
+      waterCaustic: 'rgba(94, 234, 212, 0.4)'
     };
     
     // State
@@ -125,12 +136,35 @@
       energyFlow: 0, // -1 inward (thinking), +1 outward (responding)
       targetEnergyFlow: 0,
       auraIntensity: 0,
-      lastActivity: Date.now()
+      lastActivity: Date.now(),
+      // Water line state
+      waterLineY: 0.65, // Relative position (0.65 = 65% down the screen)
+      tideLevel: 0.3,
+      targetTideLevel: 0.3
     };
+    
+    // ============================================
+    // Knowledge Graph State (for mycelium layer)
+    // ============================================
+    let graphData = {
+      nodes: [],
+      edges: [],
+      layout: null // Will hold computed positions
+    };
+    
+    let graphActivations = new Map(); // nodeId -> { intensity, time }
+    
+    // Layout computed nodes for rendering
+    let layoutNodes = []; // { id, x, y, type, label, displayWeight, ... }
+    let layoutEdges = []; // { source, target, weight, ... }
     
     // Ambient particles
     const ambientParticles = [];
     const AMBIENT_COUNT = 80;
+    
+    // Depth particles (below water line)
+    const depthParticles = [];
+    const DEPTH_PARTICLE_COUNT = 40;
     
     function initAmbientParticles() {
       ambientParticles.length = 0;
@@ -142,6 +176,22 @@
           vy: (Math.random() - 0.5) * 0.3,
           size: 1 + Math.random() * 2,
           alpha: 0.1 + Math.random() * 0.3,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+    }
+    
+    function initDepthParticles() {
+      depthParticles.length = 0;
+      const waterLine = canvas.height * state.waterLineY;
+      for (let i = 0; i < DEPTH_PARTICLE_COUNT; i++) {
+        depthParticles.push({
+          x: Math.random() * canvas.width,
+          y: waterLine + Math.random() * (canvas.height - waterLine),
+          vx: (Math.random() - 0.5) * 0.1,
+          vy: (Math.random() - 0.5) * 0.1,
+          size: 0.5 + Math.random() * 1.5,
+          alpha: 0.05 + Math.random() * 0.15,
           phase: Math.random() * Math.PI * 2
         });
       }
@@ -196,6 +246,184 @@
       });
     }
     
+    // ============================================
+    // Graph Layout - Force-directed positioning
+    // ============================================
+    
+    function layoutGraph(graph) {
+      if (!graph.nodes || graph.nodes.length === 0) {
+        layoutNodes = [];
+        layoutEdges = [];
+        return;
+      }
+      
+      const waterLine = canvas.height * state.waterLineY;
+      const depthHeight = canvas.height - waterLine;
+      const centerX = canvas.width / 2;
+      const centerY = waterLine + depthHeight * 0.5;
+      
+      // Initial positions - radial layout based on node type
+      const typeAngles = {
+        topics: 0,
+        people: Math.PI * 0.4,
+        projects: Math.PI * 0.8,
+        decisions: Math.PI * 1.2,
+        tools: Math.PI * 1.6
+      };
+      
+      layoutNodes = graph.nodes.map((node, idx) => {
+        const typeAngle = typeAngles[node.type] || (idx / graph.nodes.length) * Math.PI * 2;
+        const jitter = (Math.random() - 0.5) * 0.5;
+        const baseRadius = 100 + Math.random() * 150;
+        
+        // Older nodes go deeper (lower Y)
+        const age = Date.now() - (node.lastSeen || Date.now());
+        const depthFactor = Math.min(1, age / (30 * 24 * 60 * 60 * 1000)); // 30 days max
+        
+        return {
+          ...node,
+          x: centerX + Math.cos(typeAngle + jitter) * baseRadius,
+          y: centerY + depthFactor * depthHeight * 0.3 + Math.sin(typeAngle + jitter) * 50,
+          vx: 0,
+          vy: 0,
+          targetX: null,
+          targetY: null
+        };
+      });
+      
+      layoutEdges = graph.edges.map(edge => ({ ...edge }));
+      
+      // Run simple force simulation
+      for (let i = 0; i < 50; i++) {
+        forceSimulationStep();
+      }
+    }
+    
+    function forceSimulationStep() {
+      const waterLine = canvas.height * state.waterLineY;
+      const centerX = canvas.width / 2;
+      
+      // Repulsion between nodes
+      for (let i = 0; i < layoutNodes.length; i++) {
+        for (let j = i + 1; j < layoutNodes.length; j++) {
+          const a = layoutNodes[i];
+          const b = layoutNodes[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          if (dist < 100) {
+            const force = (100 - dist) * 0.05;
+            const fx = (dx / dist) * force;
+            const fy = (dy / dist) * force;
+            a.vx -= fx;
+            a.vy -= fy;
+            b.vx += fx;
+            b.vy += fy;
+          }
+        }
+      }
+      
+      // Attraction along edges
+      for (const edge of layoutEdges) {
+        const a = layoutNodes.find(n => n.id === edge.source);
+        const b = layoutNodes.find(n => n.id === edge.target);
+        if (!a || !b) continue;
+        
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        
+        if (dist > 50) {
+          const force = (dist - 50) * 0.01;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          a.vx += fx;
+          a.vy += fy;
+          b.vx -= fx;
+          b.vy -= fy;
+        }
+      }
+      
+      // Apply velocities and constraints
+      for (const node of layoutNodes) {
+        node.x += node.vx;
+        node.y += node.vy;
+        node.vx *= 0.8;
+        node.vy *= 0.8;
+        
+        // Keep below water line
+        node.y = Math.max(waterLine + 30, node.y);
+        node.y = Math.min(canvas.height - 30, node.y);
+        
+        // Keep within screen bounds
+        node.x = Math.max(50, Math.min(canvas.width - 50, node.x));
+        
+        // Gentle center pull
+        node.vx += (centerX - node.x) * 0.001;
+      }
+    }
+    
+    // ============================================
+    // Graph Activation Logic
+    // ============================================
+    
+    function activateRandomNodes(count, intensity = 1) {
+      if (layoutNodes.length === 0) return;
+      
+      const now = Date.now();
+      for (let i = 0; i < count; i++) {
+        const node = layoutNodes[Math.floor(Math.random() * layoutNodes.length)];
+        graphActivations.set(node.id, { intensity, time: now });
+      }
+    }
+    
+    function activateOutwardPath(intensity = 1) {
+      if (layoutNodes.length === 0) return;
+      
+      const now = Date.now();
+      const waterLine = canvas.height * state.waterLineY;
+      const centerX = canvas.width / 2;
+      const centerY = waterLine + (canvas.height - waterLine) * 0.5;
+      
+      // Find nodes closest to center, activate outward
+      const sortedByDist = [...layoutNodes].sort((a, b) => {
+        const distA = Math.hypot(a.x - centerX, a.y - centerY);
+        const distB = Math.hypot(b.x - centerX, b.y - centerY);
+        return distA - distB;
+      });
+      
+      // Activate with staggered timing
+      sortedByDist.forEach((node, idx) => {
+        const delayedIntensity = intensity * Math.max(0.3, 1 - idx * 0.1);
+        graphActivations.set(node.id, { 
+          intensity: delayedIntensity, 
+          time: now + idx * 50 
+        });
+      });
+    }
+    
+    function getNodeActivation(nodeId) {
+      const activation = graphActivations.get(nodeId);
+      if (!activation) return 0;
+      
+      const age = Date.now() - activation.time;
+      if (age < 0) return 0; // Future activation (staggered)
+      
+      // Decay over 2 seconds
+      return activation.intensity * Math.exp(-age / 2000);
+    }
+    
+    function pruneActivations() {
+      const now = Date.now();
+      for (const [nodeId, activation] of graphActivations) {
+        const age = now - activation.time;
+        if (age > 5000) {
+          graphActivations.delete(nodeId);
+        }
+      }
+    }
+    
     // Mouse tracking
     document.addEventListener('mousemove', (e) => {
       state.targetMouseX = e.clientX;
@@ -232,10 +460,12 @@
         case 'thinking':
           state.targetEnergyFlow = -1; // inward
           cascadeNeuralFire(8, 'inward');
+          activateRandomNodes(5, 1);
           break;
         case 'responding':
           state.targetEnergyFlow = 1; // outward
           cascadeNeuralFire(6, 'outward');
+          activateOutwardPath(1);
           break;
         case 'listening':
           state.targetEnergyFlow = 0.3;
@@ -280,9 +510,14 @@
     setInterval(() => {
       if (state.mode === 'thinking') {
         cascadeNeuralFire(3, 'inward');
+        activateRandomNodes(2, 0.7);
       } else if (state.mode === 'responding') {
         cascadeNeuralFire(2, 'outward');
+        if (Math.random() > 0.5) activateOutwardPath(0.5);
       }
+      
+      // Clean up old activations
+      pruneActivations();
     }, 400);
     
     // Saccade timer
@@ -291,14 +526,22 @@
       state.saccade.y = (Math.random() - 0.5) * 2;
     }, 100);
     
+    // ============================================
+    // Main Render Loop
+    // ============================================
+    
     function draw() {
       const W = canvas.width;
       const H = canvas.height;
       const centerX = W / 2;
       const centerY = H / 2 - 30;
+      const waterLine = H * state.waterLineY;
       
       state.time += 0.016;
       state.heartbeat += state.heartbeatSpeed;
+      
+      // Smooth tide level changes
+      state.tideLevel += (state.targetTideLevel - state.tideLevel) * 0.01;
       
       // Adjust heartbeat speed based on mode
       const targetSpeed = {
@@ -332,8 +575,15 @@
       // Clear with deep gradient
       drawBackground(centerX, centerY, heartbeatPulse);
       
+      // ===== DEPTH LAYER (below water line) =====
+      drawMyceliumLayer(waterLine);
+      
+      // ===== WATER LINE with caustics =====
+      drawWaterLine(waterLine);
+      
+      // ===== SURFACE LAYER (above water line) =====
       // Ambient particles
-      drawAmbientParticles(centerX, centerY);
+      drawAmbientParticles(centerX, centerY, waterLine);
       
       // Aura glow
       drawAura(centerX, centerY, heartbeatPulse);
@@ -356,18 +606,220 @@
     function drawBackground(cx, cy, pulse) {
       // Deep breathing gradient
       const breathe = Math.sin(state.time * 0.5) * 0.02;
-      const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, canvas.height * 0.8);
-      bgGrad.addColorStop(0, `rgba(15, 35, 28, ${0.8 + breathe})`);
+      const waterLine = canvas.height * state.waterLineY;
+      
+      // Upper gradient (tidal pool / surface)
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, waterLine);
+      bgGrad.addColorStop(0, colors.bg);
       bgGrad.addColorStop(0.5, colors.bgGradient);
-      bgGrad.addColorStop(1, colors.bg);
+      bgGrad.addColorStop(1, '#0a1f1a');
       ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, canvas.width, waterLine);
+      
+      // Lower gradient (mycelium depths)
+      const depthGrad = ctx.createLinearGradient(0, waterLine, 0, canvas.height);
+      depthGrad.addColorStop(0, colors.depthBg);
+      depthGrad.addColorStop(1, '#050a08');
+      ctx.fillStyle = depthGrad;
+      ctx.fillRect(0, waterLine, canvas.width, canvas.height - waterLine);
     }
     
-    function drawAmbientParticles(cx, cy) {
+    // ============================================
+    // Mycelium Layer (Knowledge Graph Visualization)
+    // ============================================
+    
+    function drawMyceliumLayer(waterLine) {
+      if (layoutNodes.length === 0) return;
+      
+      const breathe = Math.sin(state.time * 0.3) * 3;
+      
+      // Draw edges first (below nodes)
+      ctx.lineWidth = 1;
+      for (const edge of layoutEdges) {
+        const sourceNode = layoutNodes.find(n => n.id === edge.source);
+        const targetNode = layoutNodes.find(n => n.id === edge.target);
+        if (!sourceNode || !targetNode) continue;
+        
+        const sourceActivation = getNodeActivation(edge.source);
+        const targetActivation = getNodeActivation(edge.target);
+        const edgeActivation = Math.max(sourceActivation, targetActivation);
+        
+        // Base alpha + activation boost
+        const alpha = 0.1 + edgeActivation * 0.5;
+        const width = 1 + edgeActivation * 2;
+        
+        ctx.beginPath();
+        ctx.moveTo(sourceNode.x, sourceNode.y + breathe);
+        
+        // Bezier curve for organic feel
+        const midX = (sourceNode.x + targetNode.x) / 2;
+        const midY = (sourceNode.y + targetNode.y) / 2 + breathe;
+        const ctrl1X = sourceNode.x + (midX - sourceNode.x) * 0.5 + (Math.random() - 0.5) * 10;
+        const ctrl1Y = sourceNode.y + (midY - sourceNode.y) * 0.5 + breathe;
+        
+        ctx.quadraticCurveTo(ctrl1X, ctrl1Y, targetNode.x, targetNode.y + breathe);
+        
+        if (edgeActivation > 0.3) {
+          ctx.strokeStyle = `rgba(45, 212, 168, ${alpha})`;
+          ctx.lineWidth = width;
+        } else {
+          ctx.strokeStyle = `rgba(26, 58, 48, ${alpha})`;
+          ctx.lineWidth = 1;
+        }
+        ctx.stroke();
+      }
+      
+      // Draw nodes
+      for (const node of layoutNodes) {
+        const activation = getNodeActivation(node.id);
+        const nodeY = node.y + breathe;
+        
+        // Node size based on weight and activation
+        const baseSize = 4 + (node.displayWeight || 1) * 2;
+        const size = baseSize + activation * 4;
+        
+        // Glow when activated
+        if (activation > 0.1) {
+          ctx.beginPath();
+          ctx.arc(node.x, nodeY, size + 15, 0, Math.PI * 2);
+          const glowColor = node.type === 'people' ? colors.goldLight : colors.nodeActive;
+          ctx.fillStyle = glowColor.replace(')', `, ${activation * 0.4})`).replace('rgb', 'rgba');
+          ctx.fill();
+        }
+        
+        // Core node
+        ctx.beginPath();
+        ctx.arc(node.x, nodeY, size, 0, Math.PI * 2);
+        
+        // Color by type
+        let nodeColor;
+        if (activation > 0.5) {
+          nodeColor = node.type === 'people' ? colors.nodeHot : colors.nodeActive;
+        } else if (activation > 0.1) {
+          nodeColor = colors.emeraldLight;
+        } else {
+          nodeColor = colors.nodeInactive;
+        }
+        ctx.fillStyle = nodeColor;
+        ctx.fill();
+        
+        // Idle state: gentle pulse for all nodes
+        if (state.mode === 'idle' && activation < 0.1) {
+          const idlePulse = (Math.sin(state.time * 0.8 + node.x * 0.01) * 0.5 + 0.5) * 0.3;
+          ctx.beginPath();
+          ctx.arc(node.x, nodeY, size + 5, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(26, 107, 74, ${idlePulse * 0.2})`;
+          ctx.fill();
+        }
+      }
+      
+      // Draw depth particles
+      drawDepthParticles(waterLine, breathe);
+    }
+    
+    function drawDepthParticles(waterLine, breathe) {
+      for (const p of depthParticles) {
+        // Slow drift
+        p.x += p.vx + Math.sin(state.time * 0.5 + p.phase) * 0.05;
+        p.y += p.vy + Math.cos(state.time * 0.3 + p.phase) * 0.03;
+        
+        // Wrap around
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < waterLine + 10) p.y = canvas.height - 10;
+        if (p.y > canvas.height - 10) p.y = waterLine + 10;
+        
+        // Pulsing glow
+        const pulseAlpha = p.alpha * (0.5 + 0.5 * Math.sin(state.time + p.phase));
+        
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + breathe, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(45, 212, 168, ${pulseAlpha})`;
+        ctx.fill();
+      }
+    }
+    
+    // ============================================
+    // Water Line with Caustic Effect
+    // ============================================
+    
+    function drawWaterLine(waterLine) {
+      const W = canvas.width;
+      
+      // Main water line - undulating
+      ctx.beginPath();
+      ctx.moveTo(0, waterLine);
+      
+      for (let x = 0; x <= W; x += 10) {
+        const wave1 = Math.sin(x * 0.02 + state.time * 0.8) * 3;
+        const wave2 = Math.sin(x * 0.01 + state.time * 0.5) * 5;
+        const y = waterLine + wave1 + wave2;
+        ctx.lineTo(x, y);
+      }
+      
+      ctx.strokeStyle = `rgba(94, 234, 212, 0.3)`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Caustic shimmer effect
+      drawCaustics(waterLine);
+      
+      // Gradient fade at water line
+      const fadeGrad = ctx.createLinearGradient(0, waterLine - 30, 0, waterLine + 30);
+      fadeGrad.addColorStop(0, 'rgba(10, 31, 26, 0)');
+      fadeGrad.addColorStop(0.4, 'rgba(10, 31, 26, 0.3)');
+      fadeGrad.addColorStop(0.5, 'rgba(94, 234, 212, 0.1)');
+      fadeGrad.addColorStop(0.6, 'rgba(10, 31, 26, 0.3)');
+      fadeGrad.addColorStop(1, 'rgba(10, 31, 26, 0)');
+      ctx.fillStyle = fadeGrad;
+      ctx.fillRect(0, waterLine - 30, W, 60);
+    }
+    
+    function drawCaustics(waterLine) {
+      const W = canvas.width;
+      const causticCount = 8;
+      
+      for (let i = 0; i < causticCount; i++) {
+        const baseX = (i / causticCount) * W + (state.time * 20) % (W / causticCount);
+        const x = baseX % W;
+        const waveOffset = Math.sin(state.time * 1.2 + i) * 15;
+        
+        // Caustic light ray
+        ctx.beginPath();
+        ctx.moveTo(x + waveOffset, waterLine - 10);
+        ctx.lineTo(x + waveOffset + 5, waterLine + 40);
+        ctx.lineTo(x + waveOffset + 15, waterLine + 40);
+        ctx.lineTo(x + waveOffset + 10, waterLine - 10);
+        ctx.closePath();
+        
+        const causticAlpha = (Math.sin(state.time * 2 + i * 0.7) * 0.5 + 0.5) * 0.15;
+        ctx.fillStyle = `rgba(94, 234, 212, ${causticAlpha})`;
+        ctx.fill();
+      }
+      
+      // Dancing light spots
+      for (let i = 0; i < 12; i++) {
+        const x = (Math.sin(state.time * 0.5 + i * 2) * 0.5 + 0.5) * W;
+        const y = waterLine + Math.sin(state.time * 0.8 + i) * 20;
+        const size = 2 + Math.sin(state.time * 1.5 + i * 0.3) * 2;
+        const alpha = (Math.sin(state.time * 1.2 + i * 0.5) * 0.5 + 0.5) * 0.3;
+        
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(94, 234, 212, ${alpha})`;
+        ctx.fill();
+      }
+    }
+    
+    function drawAmbientParticles(cx, cy, waterLine) {
       const flowStrength = state.energyFlow * 0.5;
       
       ambientParticles.forEach(p => {
+        // Keep above water line
+        if (p.y > waterLine - 20) {
+          p.y = 20 + Math.random() * (waterLine - 60);
+        }
+        
         // Calculate direction to/from center
         const dx = cx - p.x;
         const dy = cy - p.y;
@@ -387,11 +839,10 @@
         p.x += p.vx;
         p.y += p.vy;
         
-        // Wrap around edges
+        // Wrap around edges (but stay above water)
         if (p.x < 0) p.x = canvas.width;
         if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height;
-        if (p.y > canvas.height) p.y = 0;
+        if (p.y < 0) p.y = waterLine - 40;
         
         // Pulsing alpha
         const pulseAlpha = p.alpha * (0.5 + 0.5 * Math.sin(state.time * 2 + p.phase));
@@ -712,17 +1163,25 @@
     
     // Initialize
     initAmbientParticles();
+    initDepthParticles();
     initNeurons();
     draw();
     
     window.addEventListener('resize', () => {
       initAmbientParticles();
+      initDepthParticles();
       neurons.length = 0;
-      setTimeout(initNeurons, 100);
+      setTimeout(() => {
+        initNeurons();
+        // Re-layout graph if we have data
+        if (graphData.nodes.length > 0) {
+          layoutGraph(graphData);
+        }
+      }, 100);
     });
     
     // ============================================
-    // WebSocket Connection for Live State Sync
+    // WebSocket Connection via GraphClient
     // ============================================
     
     let WS_URL = new URLSearchParams(window.location.search).get('ws') || 
@@ -742,58 +1201,144 @@
       return null;
     }
     
+    // GraphClient instance
+    let graphClient = null;
+    
     (async () => {
       if (!WS_URL) {
         WS_URL = await fetchWsUrl();
       }
       if (WS_URL) {
         localStorage.setItem('absalom_ws', WS_URL);
-        connectWebSocket();
+        initGraphClient(WS_URL);
       }
     })();
     
-    let ws = null;
-    let wsRetryTimeout = null;
-    let wsConnected = false;
-    
-    function connectWebSocket() {
-      if (!WS_URL) {
-        setTimeout(async () => {
-          WS_URL = await fetchWsUrl();
-          if (WS_URL) connectWebSocket();
-        }, 5000);
+    function initGraphClient(wsUrl) {
+      // Check if GraphClient is available (from renderer/graph-client.js)
+      if (typeof GraphClient === 'undefined') {
+        console.warn('GraphClient not loaded, falling back to basic WebSocket');
+        connectBasicWebSocket(wsUrl);
         return;
       }
       
-      ws = new WebSocket(WS_URL);
+      graphClient = new GraphClient(wsUrl, {
+        reconnectDelay: 1000,
+        maxReconnectDelay: 30000,
+        autoConnect: true
+      });
+      
+      // Connection events
+      graphClient.on('connect', () => {
+        document.querySelector('.status-dot').style.background = '#1a6b4a';
+        updateConnectionIndicator(true);
+      });
+      
+      graphClient.on('disconnect', () => {
+        document.querySelector('.status-dot').style.background = '#4a2020';
+        updateConnectionIndicator(false);
+      });
+      
+      // Graph events
+      graphClient.on('graph', (graph) => {
+        console.log('[Absalom] Received graph:', graph.nodes?.length, 'nodes,', graph.edges?.length, 'edges');
+        graphData = graph;
+        layoutGraph(graph);
+      });
+      
+      // State events
+      graphClient.on('state', (newState, oldState) => {
+        console.log('[Absalom] State change:', oldState, '->', newState);
+        state.mode = newState;
+        updateStatus();
+        updateModeEffects();
+        state.lastActivity = Date.now();
+      });
+      
+      // Activation events
+      graphClient.on('activate', (nodeIds, intensity) => {
+        console.log('[Absalom] Activate nodes:', nodeIds.length, 'intensity:', intensity);
+        const now = Date.now();
+        for (const nodeId of nodeIds) {
+          graphActivations.set(nodeId, { intensity, time: now });
+        }
+      });
+      
+      graphClient.on('activate:path', (path, intensity) => {
+        console.log('[Absalom] Activate path:', path.length, 'nodes');
+        const now = Date.now();
+        path.forEach((nodeId, idx) => {
+          graphActivations.set(nodeId, { 
+            intensity: intensity * Math.max(0.3, 1 - idx * 0.1), 
+            time: now + idx * 100 
+          });
+        });
+      });
+      
+      // Tide events
+      graphClient.on('tide', (level, oldLevel) => {
+        console.log('[Absalom] Tide level:', level);
+        state.targetTideLevel = level;
+      });
+      
+      // Context events (for future surface layer creatures)
+      graphClient.on('context:add', (concept, creatureType) => {
+        console.log('[Absalom] Context add:', concept, creatureType);
+        // TODO: Add creature to surface layer when mycelium layer is ready
+      });
+      
+      graphClient.on('context:clear', () => {
+        console.log('[Absalom] Context cleared (session end)');
+        // TODO: Clear surface layer creatures
+      });
+      
+      // Sub-agent events
+      graphClient.on('agent:spawn', (agent) => {
+        console.log('[Absalom] Agent spawned:', agent.label);
+        // TODO: Visualize sub-agent tendril
+      });
+      
+      graphClient.on('agent:complete', (sessionKey, findings) => {
+        console.log('[Absalom] Agent complete:', sessionKey, findings);
+        // TODO: Animate findings integration
+      });
+    }
+    
+    // Fallback for basic WebSocket (no GraphClient)
+    function connectBasicWebSocket(wsUrl) {
+      const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
-        wsConnected = true;
         document.querySelector('.status-dot').style.background = '#1a6b4a';
+        updateConnectionIndicator(true);
       };
       
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'state' && data.mode) {
-            state.mode = data.mode;
+          if (data.type === 'state' && (data.mode || data.state)) {
+            state.mode = data.mode || data.state;
             updateStatus();
             updateModeEffects();
             state.lastActivity = Date.now();
+          }
+          if (data.type === 'graph:full' && data.graph) {
+            graphData = data.graph;
+            layoutGraph(data.graph);
           }
         } catch (e) {}
       };
       
       ws.onclose = () => {
-        wsConnected = false;
         document.querySelector('.status-dot').style.background = '#4a2020';
-        clearTimeout(wsRetryTimeout);
-        wsRetryTimeout = setTimeout(connectWebSocket, 5000);
+        updateConnectionIndicator(false);
+        setTimeout(() => connectBasicWebSocket(wsUrl), 5000);
       };
       
       ws.onerror = () => {};
     }
     
+    // Query param override
     const queryWs = new URLSearchParams(window.location.search).get('ws');
     if (queryWs) {
       localStorage.setItem('absalom_ws', queryWs);
@@ -805,16 +1350,93 @@
     connIndicator.id = 'conn-indicator';
     document.body.appendChild(connIndicator);
     
+    function updateConnectionIndicator(connected) {
+      const ind = document.getElementById('conn-indicator');
+      if (connected) {
+        ind.textContent = '● live';
+        ind.style.color = '#1a6b4a';
+      } else {
+        ind.textContent = '○ reconnecting...';
+        ind.style.color = '#4a2020';
+      }
+    }
+    
+    // Initial indicator state
     setInterval(() => {
       const ind = document.getElementById('conn-indicator');
-      if (WS_URL) {
-        ind.textContent = wsConnected ? '● live' : '○ reconnecting...';
-        ind.style.color = wsConnected ? '#1a6b4a' : '#4a2020';
-      } else {
+      if (!graphClient && !WS_URL) {
         ind.textContent = '○ demo mode';
         ind.style.color = '#333';
       }
-    }, 1000);
+    }, 2000);
+    
+    // ============================================
+    // Public API for Mycelium Layer Integration
+    // ============================================
+    
+    /**
+     * Set the graph data and trigger layout
+     * Called by mycelium layer when it's ready
+     */
+    window.absalomSetGraph = function(graph) {
+      graphData = graph;
+      layoutGraph(graph);
+    };
+    
+    /**
+     * Get the current laid-out graph for rendering
+     * Mycelium layer can use this for custom rendering
+     */
+    window.absalomGetLayout = function() {
+      return {
+        nodes: layoutNodes,
+        edges: layoutEdges,
+        waterLine: canvas.height * state.waterLineY,
+        activations: graphActivations
+      };
+    };
+    
+    /**
+     * Activate specific nodes in the graph
+     */
+    window.absalomActivate = function(nodeIds, intensity = 1) {
+      const now = Date.now();
+      for (const nodeId of nodeIds) {
+        graphActivations.set(nodeId, { intensity, time: now });
+      }
+    };
+    
+    /**
+     * Get the GraphClient instance for direct protocol access
+     */
+    window.absalomGetClient = function() {
+      return graphClient;
+    };
+    
+    /**
+     * Hook for mycelium layer to inject custom depth rendering
+     * Set this function to override the default mycelium rendering
+     */
+    window.absalomMyceliumRenderer = null;
+    
+    // Modify drawMyceliumLayer to check for custom renderer
+    const originalDrawMyceliumLayer = drawMyceliumLayer;
+    drawMyceliumLayer = function(waterLine) {
+      if (typeof window.absalomMyceliumRenderer === 'function') {
+        // Custom mycelium layer rendering
+        window.absalomMyceliumRenderer(ctx, {
+          waterLine,
+          nodes: layoutNodes,
+          edges: layoutEdges,
+          activations: graphActivations,
+          state: state,
+          colors: colors
+        });
+      } else {
+        // Default rendering
+        originalDrawMyceliumLayer(waterLine);
+      }
+    };
   </script>
 </body>
 </html>

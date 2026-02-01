@@ -1,0 +1,24 @@
+{
+  "name": "knowledge-engine",
+  "version": "1.0.0",
+  "description": "Knowledge graph engine for Absalom Face v3.0 - extracts entities, builds graphs, applies temporal decay",
+  "main": "index.js",
+  "scripts": {
+    "test": "node extractor.js && node graph.js && node decay.js",
+    "test:extractor": "node extractor.js",
+    "test:graph": "node graph.js",
+    "test:decay": "node decay.js"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "compromise": "^14.14.5",
+    "ws": "^8.19.0"
+  },
+  "keywords": [
+    "nlp",
+    "knowledge-graph",
+    "entity-extraction"
+  ],
+  "author": "Absalom",
+  "license": "MIT"
+}
