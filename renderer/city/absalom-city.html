@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Absalom — City of Mind</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { 
+      width: 100%; height: 100%; 
+      overflow: hidden; 
+      background: #0a0a12;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif;
+    }
+    #canvas { display: block; }
+    
+    .hud {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+      color: rgba(255,255,255,0.7);
+      font-size: 12px;
+      pointer-events: none;
+    }
+    .city-stats {
+      background: rgba(10, 10, 20, 0.8);
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      backdrop-filter: blur(10px);
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 4px;
+    }
+    .stat-label { color: rgba(100, 200, 255, 0.6); }
+    .stat-value { color: rgba(100, 200, 255, 1); font-weight: 500; }
+    #fps { opacity: 0.5; font-size: 10px; margin-top: 8px; }
+    
+    .time-indicator {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+      color: rgba(255,255,255,0.5);
+      font-size: 11px;
+      text-align: right;
+    }
+    
+    .controls-hint {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      color: rgba(255,255,255,0.3);
+      font-size: 11px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  
+  <div class="hud">
+    <div class="city-stats">
+      <div class="stat-row">
+        <span class="stat-label">structures</span>
+        <span class="stat-value" id="buildingCount">1</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">districts</span>
+        <span class="stat-value" id="districtCount">1</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">connections</span>
+        <span class="stat-value" id="connectionCount">0</span>
+      </div>
+      <div id="fps"></div>
+    </div>
+  </div>
+  
+  <div class="time-indicator">
+    <div id="timeDisplay">--:--</div>
+    <div id="cyclePhase">dawn</div>
+  </div>
+  
+  <div class="controls-hint">
+    drag to orbit · scroll to zoom · shift+drag to pan
+  </div>
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  
+  <script>
+    // ═══════════════════════════════════════════════════════════════════════
+    // ABSALOM CITY — A Mind Made Manifest
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const canvas = document.getElementById('canvas');
+    const buildingCountEl = document.getElementById('buildingCount');
+    const districtCountEl = document.getElementById('districtCount');
+    const connectionCountEl = document.getElementById('connectionCount');
+    const fpsEl = document.getElementById('fps');
+    const timeDisplayEl = document.getElementById('timeDisplay');
+    const cyclePhaseEl = document.getElementById('cyclePhase');
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // SCENE SETUP
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0a0a15, 0.008);
+    
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(30, 40, 50);
+    camera.lookAt(0, 0, 0);
+    
+    const renderer = new THREE.WebGLRenderer({ 
+      canvas, 
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    
+    // Orbit controls (Google Maps style)
+    const controls = new THREE.OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2.1; // Don't go below ground
+    controls.minDistance = 10;
+    controls.maxDistance = 150;
+    controls.target.set(0, 5, 0);
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // DISTRICT DEFINITIONS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const DISTRICTS = {
+      core: { 
+        name: 'Core', 
+        color: new THREE.Color(0x00ffff), // Cyan
+        emissive: new THREE.Color(0x003344),
+        position: new THREE.Vector3(0, 0, 0),
+        keywords: ['self', 'identity', 'soul', 'absalom']
+      },
+      trading: { 
+        name: 'Trading', 
+        color: new THREE.Color(0xffd700), // Gold
+        emissive: new THREE.Color(0x332200),
+        position: new THREE.Vector3(25, 0, 10),
+        keywords: ['stock', 'trading', 'market', 'options', 'scanner', 'asymmetry']
+      },
+      infrastructure: { 
+        name: 'Infrastructure', 
+        color: new THREE.Color(0xff6b9d), // Pink
+        emissive: new THREE.Color(0x331122),
+        position: new THREE.Vector3(-20, 0, 15),
+        keywords: ['server', 'deploy', 'docker', 'tailscale', 'coolify', 'pm2']
+      },
+      projects: { 
+        name: 'Projects', 
+        color: new THREE.Color(0x9d6bff), // Purple
+        emissive: new THREE.Color(0x220033),
+        position: new THREE.Vector3(10, 0, -25),
+        keywords: ['project', 'build', 'create', 'app', 'visualization']
+      },
+      memory: { 
+        name: 'Memory', 
+        color: new THREE.Color(0x6bff9d), // Green
+        emissive: new THREE.Color(0x113322),
+        position: new THREE.Vector3(-15, 0, -20),
+        keywords: ['memory', 'remember', 'decision', 'learned', 'preference']
+      },
+    };
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // CITY STATE
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const city = {
+      buildings: [],
+      connections: [],
+      districts: new Map(),
+      time: 0,
+      realTime: new Date(),
+      sunPosition: new THREE.Vector3(),
+    };
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // GROUND PLANE
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createGround() {
+      // Main ground
+      const groundGeo = new THREE.PlaneGeometry(200, 200, 50, 50);
+      const groundMat = new THREE.MeshStandardMaterial({
+        color: 0x0a0a15,
+        roughness: 0.9,
+        metalness: 0.1,
+      });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      
+      // Grid overlay
+      const gridHelper = new THREE.GridHelper(200, 100, 0x1a1a2e, 0x1a1a2e);
+      gridHelper.position.y = 0.01;
+      scene.add(gridHelper);
+      
+      // Glowing grid lines (major)
+      const majorGrid = new THREE.GridHelper(200, 20, 0x00334455, 0x00223344);
+      majorGrid.position.y = 0.02;
+      scene.add(majorGrid);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // LIGHTING (Real-time day/night)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    let sunLight, moonLight, ambientLight;
+    
+    function createLighting() {
+      // Sun
+      sunLight = new THREE.DirectionalLight(0xffeedd, 1);
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.width = 2048;
+      sunLight.shadow.mapSize.height = 2048;
+      sunLight.shadow.camera.near = 0.5;
+      sunLight.shadow.camera.far = 200;
+      sunLight.shadow.camera.left = -50;
+      sunLight.shadow.camera.right = 50;
+      sunLight.shadow.camera.top = 50;
+      sunLight.shadow.camera.bottom = -50;
+      scene.add(sunLight);
+      
+      // Moon (subtle blue)
+      moonLight = new THREE.DirectionalLight(0x4466aa, 0.3);
+      scene.add(moonLight);
+      
+      // Ambient
+      ambientLight = new THREE.AmbientLight(0x111122, 0.5);
+      scene.add(ambientLight);
+      
+      // Hemisphere light for sky color
+      const hemiLight = new THREE.HemisphereLight(0x0a0a20, 0x000000, 0.3);
+      scene.add(hemiLight);
+    }
+    
+    function updateLighting() {
+      const now = new Date();
+      const hours = now.getHours() + now.getMinutes() / 60;
+      
+      // Update time display
+      timeDisplayEl.textContent = now.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+      
+      // Calculate sun position (0-24 hours mapped to full circle)
+      const sunAngle = ((hours - 6) / 24) * Math.PI * 2; // 6am = sunrise
+      const sunHeight = Math.sin(sunAngle);
+      const sunX = Math.cos(sunAngle) * 50;
+      const sunY = Math.max(sunHeight * 50, -20);
+      const sunZ = 30;
+      
+      sunLight.position.set(sunX, sunY, sunZ);
+      moonLight.position.set(-sunX, -sunY + 30, -sunZ);
+      
+      // Day/night intensity
+      const dayIntensity = Math.max(0, sunHeight);
+      const nightIntensity = Math.max(0, -sunHeight);
+      
+      sunLight.intensity = dayIntensity * 1.2;
+      moonLight.intensity = nightIntensity * 0.4;
+      ambientLight.intensity = 0.2 + dayIntensity * 0.3;
+      
+      // Sky color
+      const skyHue = dayIntensity > 0.1 ? 0.6 : 0.7;
+      const skySat = dayIntensity > 0.1 ? 0.3 : 0.5;
+      const skyLight = 0.02 + dayIntensity * 0.08;
+      scene.background = new THREE.Color().setHSL(skyHue, skySat, skyLight);
+      scene.fog.color = scene.background;
+      
+      // Cycle phase text
+      let phase = 'night';
+      if (hours >= 5 && hours < 7) phase = 'dawn';
+      else if (hours >= 7 && hours < 12) phase = 'morning';
+      else if (hours >= 12 && hours < 17) phase = 'afternoon';
+      else if (hours >= 17 && hours < 20) phase = 'evening';
+      else if (hours >= 20 && hours < 22) phase = 'dusk';
+      cyclePhaseEl.textContent = phase;
+      
+      // Building emissives glow more at night
+      const emissiveBoost = 1 + nightIntensity * 2;
+      city.buildings.forEach(b => {
+        if (b.mesh.material.emissive) {
+          b.mesh.material.emissiveIntensity = 0.5 * emissiveBoost;
+        }
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // BUILDING GENERATION
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createBuilding(config) {
+      const {
+        x = 0, z = 0,
+        width = 2 + Math.random() * 3,
+        depth = 2 + Math.random() * 3,
+        height = 5 + Math.random() * 20,
+        district = 'core',
+        label = '',
+      } = config;
+      
+      const districtData = DISTRICTS[district] || DISTRICTS.core;
+      
+      // Main structure
+      const geometry = new THREE.BoxGeometry(width, height, depth);
+      const material = new THREE.MeshStandardMaterial({
+        color: districtData.color.clone().multiplyScalar(0.3),
+        emissive: districtData.emissive,
+        emissiveIntensity: 0.5,
+        roughness: 0.7,
+        metalness: 0.3,
+      });
+      
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(x, height / 2, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      
+      // Window glow strips
+      const windowCount = Math.floor(height / 3);
+      for (let i = 0; i < windowCount; i++) {
+        const windowGeo = new THREE.BoxGeometry(width * 0.8, 0.3, depth + 0.1);
+        const windowMat = new THREE.MeshBasicMaterial({
+          color: districtData.color,
+          transparent: true,
+          opacity: 0.6 + Math.random() * 0.4,
+        });
+        const windowMesh = new THREE.Mesh(windowGeo, windowMat);
+        windowMesh.position.y = -height / 2 + 2 + i * 3;
+        mesh.add(windowMesh);
+      }
+      
+      // Top beacon for tall buildings
+      if (height > 15) {
+        const beaconGeo = new THREE.SphereGeometry(0.3, 8, 8);
+        const beaconMat = new THREE.MeshBasicMaterial({
+          color: districtData.color,
+        });
+        const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+        beacon.position.y = height / 2 + 0.5;
+        mesh.add(beacon);
+      }
+      
+      scene.add(mesh);
+      
+      const building = {
+        mesh,
+        district,
+        label,
+        x, z,
+        height,
+        createdAt: Date.now(),
+      };
+      
+      city.buildings.push(building);
+      
+      // Track district
+      if (!city.districts.has(district)) {
+        city.districts.set(district, []);
+      }
+      city.districts.get(district).push(building);
+      
+      updateStats();
+      return building;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // CONNECTION LINES (Transit/Roads)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createConnection(building1, building2) {
+      const points = [
+        new THREE.Vector3(building1.x, 0.5, building1.z),
+        new THREE.Vector3(building2.x, 0.5, building2.z),
+      ];
+      
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.3,
+      });
+      
+      const line = new THREE.Line(geometry, material);
+      scene.add(line);
+      
+      city.connections.push({ line, from: building1, to: building2 });
+      updateStats();
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // CORE SPIRE (Central Identity)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createCoreSpire() {
+      // Main spire
+      const spireGeo = new THREE.CylinderGeometry(0.5, 2, 35, 8);
+      const spireMat = new THREE.MeshStandardMaterial({
+        color: 0x001a1a,
+        emissive: 0x00ffff,
+        emissiveIntensity: 0.8,
+        roughness: 0.3,
+        metalness: 0.7,
+      });
+      const spire = new THREE.Mesh(spireGeo, spireMat);
+      spire.position.set(0, 17.5, 0);
+      spire.castShadow = true;
+      scene.add(spire);
+      
+      // Rotating rings
+      for (let i = 0; i < 3; i++) {
+        const ringGeo = new THREE.TorusGeometry(3 + i * 1.5, 0.1, 8, 32);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0x00ffff,
+          transparent: true,
+          opacity: 0.5 - i * 0.1,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.set(0, 10 + i * 8, 0);
+        ring.rotation.x = Math.PI / 2;
+        ring.userData.rotationSpeed = 0.3 + i * 0.2;
+        ring.userData.rotationAxis = i % 2 === 0 ? 'z' : 'y';
+        scene.add(ring);
+        city.coreRings = city.coreRings || [];
+        city.coreRings.push(ring);
+      }
+      
+      // Base platform
+      const baseGeo = new THREE.CylinderGeometry(5, 6, 1, 8);
+      const baseMat = new THREE.MeshStandardMaterial({
+        color: 0x0a1a1a,
+        emissive: 0x003333,
+        emissiveIntensity: 0.5,
+        roughness: 0.5,
+        metalness: 0.5,
+      });
+      const base = new THREE.Mesh(baseGeo, baseMat);
+      base.position.set(0, 0.5, 0);
+      base.receiveShadow = true;
+      scene.add(base);
+      
+      city.buildings.push({
+        mesh: spire,
+        district: 'core',
+        label: 'Core Spire',
+        x: 0, z: 0,
+        height: 35,
+        createdAt: Date.now(),
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // SEED INITIAL CITY FROM KNOWLEDGE
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function seedCity() {
+      createCoreSpire();
+      
+      // Create initial district seed buildings
+      Object.entries(DISTRICTS).forEach(([key, district]) => {
+        if (key === 'core') return;
+        
+        const pos = district.position;
+        // District anchor building
+        createBuilding({
+          x: pos.x,
+          z: pos.z,
+          height: 12 + Math.random() * 8,
+          width: 4,
+          depth: 4,
+          district: key,
+          label: `${district.name} Hub`,
+        });
+        
+        // A few surrounding buildings
+        for (let i = 0; i < 3; i++) {
+          const angle = (i / 3) * Math.PI * 2 + Math.random() * 0.5;
+          const radius = 5 + Math.random() * 5;
+          createBuilding({
+            x: pos.x + Math.cos(angle) * radius,
+            z: pos.z + Math.sin(angle) * radius,
+            height: 5 + Math.random() * 10,
+            district: key,
+          });
+        }
+      });
+      
+      // Create some initial connections
+      const districtKeys = Object.keys(DISTRICTS).filter(k => k !== 'core');
+      districtKeys.forEach(key => {
+        const districtBuildings = city.districts.get(key) || [];
+        if (districtBuildings.length > 0) {
+          // Connect to core
+          createConnection(city.buildings[0], districtBuildings[0]);
+        }
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // GROWTH SYSTEM (New buildings over time)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    let lastGrowth = Date.now();
+    const GROWTH_INTERVAL = 30000; // New building every 30 seconds for demo
+    
+    function growCity() {
+      const now = Date.now();
+      if (now - lastGrowth < GROWTH_INTERVAL) return;
+      lastGrowth = now;
+      
+      // Pick random district
+      const districtKeys = Object.keys(DISTRICTS);
+      const district = districtKeys[Math.floor(Math.random() * districtKeys.length)];
+      const districtData = DISTRICTS[district];
+      
+      // Find existing buildings in district
+      const existing = city.districts.get(district) || [];
+      let x, z;
+      
+      if (existing.length > 0) {
+        // Grow near existing
+        const parent = existing[Math.floor(Math.random() * existing.length)];
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 4 + Math.random() * 6;
+        x = parent.x + Math.cos(angle) * radius;
+        z = parent.z + Math.sin(angle) * radius;
+      } else {
+        // New district seed
+        x = districtData.position.x + (Math.random() - 0.5) * 10;
+        z = districtData.position.z + (Math.random() - 0.5) * 10;
+      }
+      
+      const newBuilding = createBuilding({
+        x, z,
+        district,
+        height: 5 + Math.random() * 15,
+      });
+      
+      // Connect to nearby building
+      if (existing.length > 0) {
+        const nearest = existing.reduce((best, b) => {
+          const d1 = Math.hypot(b.x - x, b.z - z);
+          const d2 = Math.hypot(best.x - x, best.z - z);
+          return d1 < d2 ? b : best;
+        });
+        createConnection(newBuilding, nearest);
+      }
+      
+      console.log(`[City] New ${district} building at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // STATS UPDATE
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function updateStats() {
+      buildingCountEl.textContent = city.buildings.length;
+      districtCountEl.textContent = city.districts.size;
+      connectionCountEl.textContent = city.connections.length;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // ANIMATION LOOP
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    let frameCount = 0;
+    let lastFpsTime = 0;
+    
+    function animate(time) {
+      requestAnimationFrame(animate);
+      
+      const dt = time * 0.001;
+      
+      // FPS counter
+      frameCount++;
+      if (time - lastFpsTime > 1000) {
+        fpsEl.textContent = `${frameCount} fps`;
+        frameCount = 0;
+        lastFpsTime = time;
+      }
+      
+      // Update controls
+      controls.update();
+      
+      // Update lighting based on real time
+      updateLighting();
+      
+      // Animate core rings
+      if (city.coreRings) {
+        city.coreRings.forEach(ring => {
+          if (ring.userData.rotationAxis === 'z') {
+            ring.rotation.z += ring.userData.rotationSpeed * 0.01;
+          } else {
+            ring.rotation.y += ring.userData.rotationSpeed * 0.01;
+          }
+        });
+      }
+      
+      // Pulse connections
+      city.connections.forEach((conn, i) => {
+        const pulse = Math.sin(dt * 2 + i) * 0.15 + 0.35;
+        conn.line.material.opacity = pulse;
+      });
+      
+      // City growth
+      growCity();
+      
+      renderer.render(scene, camera);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // RESIZE
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // WEBSOCKET CONNECTION (for live knowledge updates)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const WS_URL = 'wss://geometry-grid-table-reading.trycloudflare.com';
+    
+    function connectKnowledge() {
+      const ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => console.log('[WS] Connected to knowledge engine');
+      
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'graph:full') {
+            // Could seed more buildings from knowledge graph
+            console.log('[WS] Received knowledge graph:', msg.nodes?.length, 'nodes');
+          }
+        } catch (err) {}
+      };
+      
+      ws.onclose = () => setTimeout(connectKnowledge, 5000);
+      ws.onerror = () => ws.close();
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    createGround();
+    createLighting();
+    seedCity();
+    connectKnowledge();
+    animate(0);
+    
+    console.log('Absalom City — A Mind Made Manifest');
+  </script>
+</body>
+</html>
