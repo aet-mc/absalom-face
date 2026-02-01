@@ -552,6 +552,9 @@
       ctx.scale(breathScale, breathScale);
       ctx.translate(-cx, -cy);
       
+      // Ambient glow behind graph
+      renderAmbientGlow();
+      
       // Ambient particles (behind everything)
       renderParticles();
       
@@ -587,6 +590,38 @@
       
       ctx.fillStyle = vignette;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    function renderAmbientGlow() {
+      // Soft glow around the graph based on activity
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      
+      // Calculate average activation
+      let totalActivation = 0;
+      for (const n of nodes) {
+        totalActivation += n.activation;
+      }
+      const avgActivation = nodes.length > 0 ? totalActivation / nodes.length : 0;
+      
+      // Base intensity based on state
+      let baseIntensity = 0.03;
+      if (state.mode === 'thinking') baseIntensity = 0.08;
+      if (state.mode === 'responding') baseIntensity = 0.12;
+      
+      const intensity = baseIntensity + avgActivation * 0.1;
+      const glowRadius = Math.min(canvas.width, canvas.height) * 0.35;
+      
+      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowRadius);
+      glow.addColorStop(0, `rgba(45, 212, 168, ${intensity * 0.5})`);
+      glow.addColorStop(0.3, `rgba(45, 212, 168, ${intensity * 0.2})`);
+      glow.addColorStop(0.7, `rgba(45, 212, 168, ${intensity * 0.05})`);
+      glow.addColorStop(1, 'transparent');
+      
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(cx, cy, glowRadius, 0, Math.PI * 2);
+      ctx.fill();
     }
     
     // Thought ripples state
