@@ -21,6 +21,7 @@ const HALF_LIVES = {
 const SOURCE_WEIGHTS = {
   'SOUL.md': 5.0,      // Core identity, always bright
   'MEMORY.md': 3.0,    // Long-term memory, prominent
+  'MEMORY_EXTENDED.md': 2.0,  // Extended reference, moderate weight
   'USER.md': 3.0,      // User info, prominent
   'AGENTS.md': 2.0,    // Operating instructions
   'TOOLS.md': 2.0,     // Tool configuration

@@ -1,33 +1,33 @@
 {
-  "version": 1769968007811,
-  "lastUpdate": 1769968007811,
+  "version": 1769972397037,
+  "lastUpdate": 1769972397037,
   "cognitiveState": "idle",
   "activeDistrict": "trading",
   "districtActivity": {
     "trading": 1,
-    "infrastructure": 0.43122733254353995,
-    "projects": 0.6177500945580204,
-    "memory": 0.43054654923729585,
-    "core": 0.5272893023261789
+    "infrastructure": 0.734324130543641,
+    "projects": 0.7186834363589847,
+    "memory": 0.8436622426627393,
+    "core": 0.8436202655435167
   },
   "buildings": [
     {
       "id": "tool:github",
       "type": "tool",
-      "label": "github",
+      "label": "GitHub",
       "district": "infrastructure",
       "x": -24.4,
       "z": 10.9,
-      "height": 29,
+      "height": 26.2,
       "width": 3,
       "depth": 3,
-      "mentions": 26.91720013425926,
+      "mentions": 17.86429299537037,
       "sources": [
-        "MEMORY.md",
         "AGENTS.md",
         "TOOLS.md",
-        "memory/2025-01-31.md",
-        "memory/2026-01-31.md"
+        "memory/2026-01-30.md",
+        "memory/2026-01-31.md",
+        "memory/memory-research-2026-02-01.md"
       ]
     },
     {
@@ -37,13 +37,13 @@
       "district": "infrastructure",
       "x": -19.4,
       "z": 22.2,
-      "height": 25.6,
+      "height": 24.2,
       "width": 3,
       "depth": 3,
-      "mentions": 16.31098902777778,
+      "mentions": 13.250027513888888,
       "sources": [
         "MEMORY.md",
-        "memory/2025-01-31.md"
+        "memory/2026-01-30.md"
       ]
     },
     {
@@ -53,10 +53,10 @@
       "district": "infrastructure",
       "x": -15,
       "z": 8.5,
-      "height": 22.6,
+      "height": 22.5,
       "width": 3,
       "depth": 3,
-      "mentions": 10.399925921296296,
+      "mentions": 10.349124671296297,
       "sources": [
         "TOOLS.md",
         "memory/2026-01-31.md",
@@ -154,21 +154,6 @@
       ]
     },
     {
-      "id": "tool:electron",
-      "type": "tool",
-      "label": "Electron",
-      "district": "infrastructure",
-      "x": -28.9,
-      "z": 16.6,
-      "height": 21.6,
-      "width": 3,
-      "depth": 3,
-      "mentions": 9,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
       "id": "project:knowledge-engine",
       "type": "project",
       "label": "Knowledge Engine",
@@ -178,23 +163,7 @@
       "height": 20.4,
       "width": 4,
       "depth": 4,
-      "mentions": 7.497462920138889,
-      "sources": [
-        "MEMORY.md",
-        "memory/2026-02-01.md"
-      ]
-    },
-    {
-      "id": "project:living-mind",
-      "type": "project",
-      "label": "Living Mind",
-      "district": "projects",
-      "x": 10.6,
-      "z": -17.8,
-      "height": 20.4,
-      "width": 4,
-      "depth": 4,
-      "mentions": 7.497462920138889,
+      "mentions": 7.4986568784722225,
       "sources": [
         "MEMORY.md",
         "memory/2026-02-01.md"
@@ -205,15 +174,31 @@
       "type": "project",
       "label": "Skill Router",
       "district": "projects",
-      "x": 15,
-      "z": -31.5,
+      "x": 10.6,
+      "z": -17.8,
       "height": 20.3,
       "width": 4,
       "depth": 4,
-      "mentions": 7.3212792152777775,
+      "mentions": 7.306038840277777,
       "sources": [
         "MEMORY.md",
         "memory/2026-01-31.md"
+      ]
+    },
+    {
+      "id": "project:asymmetry-scanner",
+      "type": "project",
+      "label": "Asymmetry Scanner",
+      "district": "projects",
+      "x": 15,
+      "z": -31.5,
+      "height": 20.1,
+      "width": 4,
+      "depth": 4,
+      "mentions": 7.062506878472222,
+      "sources": [
+        "MEMORY.md",
+        "memory/2026-01-30.md"
       ]
     },
     {
@@ -264,7 +249,7 @@
     {
       "id": "topic:memory-md-long-term-memory",
       "type": "topic",
-      "label": "MEMORY.md - Long-Term Memory",
+      "label": "MEMORY.md — Long-Term Memory",
       "district": "memory",
       "x": -17.7,
       "z": -30,
@@ -277,54 +262,9 @@
       ]
     },
     {
-      "id": "topic:core-projects",
+      "id": "topic:anton",
       "type": "topic",
-      "label": "Core Projects",
-      "district": "projects",
-      "x": 1.1,
-      "z": -23.4,
-      "height": 19,
-      "width": 3,
-      "depth": 3,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "topic:asymmetry-scanner-pro-jan-2026-",
-      "type": "topic",
-      "label": "Asymmetry Scanner Pro (Jan 2026)",
-      "district": "trading",
-      "x": 16.1,
-      "z": 11.6,
-      "height": 19,
-      "width": 3,
-      "depth": 3,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "topic:anton-s-trading-context",
-      "type": "topic",
-      "label": "Anton's Trading Context",
-      "district": "trading",
-      "x": 33.2,
-      "z": 15.2,
-      "height": 19,
-      "width": 3,
-      "depth": 3,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "topic:focus-sectors",
-      "type": "topic",
-      "label": "Focus Sectors",
+      "label": "Anton",
       "district": "memory",
       "x": -20,
       "z": -10.3,
@@ -337,12 +277,12 @@
       ]
     },
     {
-      "id": "topic:known-holdings-as-of-jan-2026-",
+      "id": "topic:active-projects",
       "type": "topic",
-      "label": "Known Holdings (as of Jan 2026)",
-      "district": "trading",
-      "x": 22.3,
-      "z": 0,
+      "label": "Active Projects",
+      "district": "projects",
+      "x": 1.1,
+      "z": -23.4,
       "height": 19,
       "width": 3,
       "depth": 3,
@@ -352,39 +292,9 @@
       ]
     },
     {
-      "id": "topic:trading-style",
+      "id": "topic:working-decisions",
       "type": "topic",
-      "label": "Trading Style",
-      "district": "trading",
-      "x": 20,
-      "z": 19.7,
-      "height": 19,
-      "width": 3,
-      "depth": 3,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "topic:scheduled-alerts-cron-",
-      "type": "topic",
-      "label": "Scheduled Alerts (Cron)",
-      "district": "infrastructure",
-      "x": -11.8,
-      "z": 20.2,
-      "height": 19,
-      "width": 3,
-      "depth": 3,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "topic:for-anton-personal-",
-      "type": "topic",
-      "label": "For Anton (personal)",
+      "label": "Working Decisions",
       "district": "memory",
       "x": -4.2,
       "z": -23.9,
@@ -397,39 +307,9 @@
       ]
     },
     {
-      "id": "topic:for-scanner-channel",
+      "id": "topic:scheduled",
       "type": "topic",
-      "label": "For Scanner Channel",
-      "district": "trading",
-      "x": 35.8,
-      "z": 6.1,
-      "height": 19,
-      "width": 3,
-      "depth": 3,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "topic:skill-router-feb-2026-",
-      "type": "topic",
-      "label": "Skill Router (Feb 2026)",
-      "district": "projects",
-      "x": 18.2,
-      "z": -19.8,
-      "height": 19,
-      "width": 3,
-      "depth": 3,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "topic:decisions-preferences",
-      "type": "topic",
-      "label": "Decisions & Preferences",
+      "label": "Scheduled",
       "district": "memory",
       "x": -26.1,
       "z": -24.6,
@@ -442,89 +322,12 @@
       ]
     },
     {
-      "id": "topic:absalom-face-v3-0-the-living-mind-feb-2026-",
-      "type": "topic",
-      "label": "Absalom Face v3.0 — The Living Mind (Feb 2026)",
-      "district": "projects",
-      "x": 7.3,
-      "z": -35,
-      "height": 19,
-      "width": 3,
-      "depth": 3,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "topic:overnight-solo-session-feb-1-2026-",
-      "type": "topic",
-      "label": "Overnight Solo Session (Feb 1, 2026)",
-      "district": "memory",
-      "x": -9.7,
-      "z": -8.7,
-      "height": 19,
-      "width": 3,
-      "depth": 3,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "project:asymmetry-scanner-pro",
-      "type": "project",
-      "label": "Asymmetry Scanner Pro",
-      "district": "projects",
-      "x": 5,
-      "z": -15.3,
-      "height": 19,
-      "width": 4,
-      "depth": 4,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md",
-        "TOOLS.md"
-      ]
-    },
-    {
-      "id": "project:absalom-face",
-      "type": "project",
-      "label": "Absalom Face",
-      "district": "projects",
-      "x": 20.8,
-      "z": -28.9,
-      "height": 19,
-      "width": 4,
-      "depth": 4,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md",
-        "TOOLS.md"
-      ]
-    },
-    {
-      "id": "concept:purpose-",
-      "type": "concept",
-      "label": "Purpose:",
-      "district": "memory",
-      "x": -11.1,
-      "z": -32.4,
-      "height": 19,
-      "width": 2.5,
-      "depth": 2.5,
-      "mentions": 6,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
       "id": "tool:discord",
       "type": "tool",
       "label": "Discord",
       "district": "infrastructure",
-      "x": -22.7,
-      "z": 5,
+      "x": -28.9,
+      "z": 16.6,
       "height": 19,
       "width": 3,
       "depth": 3,
@@ -538,15 +341,630 @@
       "type": "tool",
       "label": "PM2",
       "district": "infrastructure",
-      "x": -25,
-      "z": 24.7,
+      "x": -11.8,
+      "z": 20.2,
       "height": 17.9,
       "width": 3,
       "depth": 3,
-      "mentions": 4.998308613425926,
+      "mentions": 4.999104585648148,
       "sources": [
         "MEMORY.md",
         "memory/2026-02-01.md"
+      ]
+    },
+    {
+      "id": "project:absalom-city",
+      "type": "project",
+      "label": "Absalom City",
+      "district": "projects",
+      "x": 18.2,
+      "z": -19.8,
+      "height": 17.3,
+      "width": 4,
+      "depth": 4,
+      "mentions": 4.5,
+      "sources": [
+        "MEMORY.md"
+      ]
+    },
+    {
+      "id": "topic:executive-summary",
+      "type": "topic",
+      "label": "Executive Summary",
+      "district": "memory",
+      "x": -9.7,
+      "z": -8.7,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:1-how-power-users-structure-memory-files",
+      "type": "topic",
+      "label": "1. How Power Users Structure Memory Files",
+      "district": "memory",
+      "x": -11.1,
+      "z": -32.4,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:openclaw-s-native-architecture",
+      "type": "topic",
+      "label": "OpenClaw's Native Architecture",
+      "district": "memory",
+      "x": -26.6,
+      "z": -13.3,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:claude-code-s-4-level-hierarchy",
+      "type": "topic",
+      "label": "Claude Code's 4-Level Hierarchy",
+      "district": "core",
+      "x": 0.6,
+      "z": 7.2,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:letta-memgpt-s-tiered-model",
+      "type": "topic",
+      "label": "Letta/MemGPT's Tiered Model",
+      "district": "memory",
+      "x": -1.5,
+      "z": -17,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:power-user-pattern-reddit-consensus-",
+      "type": "topic",
+      "label": "Power User Pattern (Reddit consensus)",
+      "district": "memory",
+      "x": -23.2,
+      "z": -31.6,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:2-optimal-size-for-long-term-vs-session-memory",
+      "type": "topic",
+      "label": "2. Optimal Size for Long-Term vs Session Memory",
+      "district": "memory",
+      "x": -16.9,
+      "z": -5.5,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:recommendations-from-research",
+      "type": "topic",
+      "label": "Recommendations from Research",
+      "district": "memory",
+      "x": -3.5,
+      "z": -29.7,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:key-principles",
+      "type": "topic",
+      "label": "Key Principles",
+      "district": "memory",
+      "x": -30.4,
+      "z": -20.6,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:claude-code-best-practice-cuong-io-",
+      "type": "topic",
+      "label": "Claude Code Best Practice (cuong.io)",
+      "district": "core",
+      "x": 5,
+      "z": -6.5,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:3-memory-pruning-compression-strategies",
+      "type": "topic",
+      "label": "3. Memory Pruning & Compression Strategies",
+      "district": "memory",
+      "x": -3.9,
+      "z": -8.9,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:automatic-approaches",
+      "type": "topic",
+      "label": "Automatic Approaches",
+      "district": "projects",
+      "x": 7.3,
+      "z": -35,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:manual-semi-auto-approaches",
+      "type": "topic",
+      "label": "Manual/Semi-Auto Approaches",
+      "district": "projects",
+      "x": 5,
+      "z": -15.3,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:when-to-compact-claude-code-guidance-",
+      "type": "topic",
+      "label": "When to Compact (Claude Code guidance)",
+      "district": "core",
+      "x": -8.9,
+      "z": 1.6,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:4-tools-scripts-for-memory-optimization",
+      "type": "topic",
+      "label": "4. Tools & Scripts for Memory Optimization",
+      "district": "memory",
+      "x": -15.7,
+      "z": -36.1,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:openclaw-native-tools",
+      "type": "topic",
+      "label": "OpenClaw Native Tools",
+      "district": "memory",
+      "x": -25.5,
+      "z": -7.4,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:external-memory-frameworks",
+      "type": "topic",
+      "label": "External Memory Frameworks",
+      "district": "memory",
+      "x": 1.6,
+      "z": -22.2,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:vector-databases-for-memory",
+      "type": "topic",
+      "label": "Vector Databases for Memory",
+      "district": "memory",
+      "x": -29,
+      "z": -29.7,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:openclaw-config-options",
+      "type": "topic",
+      "label": "OpenClaw Config Options",
+      "district": "trading",
+      "x": 16.1,
+      "z": 11.6,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:5-common-pitfalls-to-avoid",
+      "type": "topic",
+      "label": "5. Common Pitfalls to Avoid",
+      "district": "memory",
+      "x": -11.2,
+      "z": -3,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:memory-bloat",
+      "type": "topic",
+      "label": "Memory Bloat",
+      "district": "memory",
+      "x": -6.2,
+      "z": -35.4,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:over-compacting",
+      "type": "topic",
+      "label": "Over-Compacting",
+      "district": "memory",
+      "x": -32.1,
+      "z": -14.5,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:context-rot-drift",
+      "type": "topic",
+      "label": "Context Rot / Drift",
+      "district": "memory",
+      "x": 1.6,
+      "z": -12.3,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:keeping-everything-forever",
+      "type": "topic",
+      "label": "Keeping Everything Forever",
+      "district": "memory",
+      "x": -22.2,
+      "z": -37.1,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:treating-all-memories-equal",
+      "type": "topic",
+      "label": "Treating All Memories Equal",
+      "district": "memory",
+      "x": -21.4,
+      "z": -2.2,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:forgetting-to-actually-write",
+      "type": "topic",
+      "label": "Forgetting to Actually Write",
+      "district": "memory",
+      "x": 2,
+      "z": -28.9,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:memory-in-group-contexts",
+      "type": "topic",
+      "label": "Memory in Group Contexts",
+      "district": "memory",
+      "x": -33.8,
+      "z": -25,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:not-cleaning-up",
+      "type": "topic",
+      "label": "Not Cleaning Up",
+      "district": "memory",
+      "x": -4.3,
+      "z": -3.4,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:6-how-to-decide-what-to-remember-",
+      "type": "topic",
+      "label": "6. How to Decide \"What to Remember\"",
+      "district": "memory",
+      "x": -11.6,
+      "z": -39.7,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:the-hot-path-vs-background-decision",
+      "type": "topic",
+      "label": "The \"Hot Path\" vs \"Background\" Decision",
+      "district": "memory",
+      "x": -31,
+      "z": -7.6,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:what-should-go-where",
+      "type": "topic",
+      "label": "What Should Go Where",
+      "district": "memory",
+      "x": 5.4,
+      "z": -18.3,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:langchain-s-memory-type-framework",
+      "type": "topic",
+      "label": "LangChain's Memory Type Framework",
+      "district": "memory",
+      "x": -29.1,
+      "z": -35.2,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:practical-heuristic-reddit-",
+      "type": "topic",
+      "label": "Practical Heuristic (Reddit)",
+      "district": "memory",
+      "x": -14.9,
+      "z": 1,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:7-concrete-recommendations-for-absalom",
+      "type": "topic",
+      "label": "7. Concrete Recommendations for Absalom",
+      "district": "core",
+      "x": 8.2,
+      "z": 5.2,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:immediate-actions",
+      "type": "topic",
+      "label": "Immediate Actions",
+      "district": "memory",
+      "x": -0.7,
+      "z": -35.7,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:memory-file-structure-recommended-",
+      "type": "topic",
+      "label": "Memory File Structure (Recommended)",
+      "district": "memory",
+      "x": -36.4,
+      "z": -18,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:memory-maintenance-cadence",
+      "type": "topic",
+      "label": "Memory Maintenance Cadence",
+      "district": "memory",
+      "x": 2.3,
+      "z": -6.9,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:configuration-suggestion",
+      "type": "topic",
+      "label": "Configuration Suggestion",
+      "district": "memory",
+      "x": -18.9,
+      "z": -41.6,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:what-to-remember-decision-framework-",
+      "type": "topic",
+      "label": "What to Remember (Decision Framework)",
+      "district": "memory",
+      "x": -26.8,
+      "z": -1.2,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
+      ]
+    },
+    {
+      "id": "topic:sources",
+      "type": "topic",
+      "label": "Sources",
+      "district": "memory",
+      "x": 6.6,
+      "z": -25.9,
+      "height": 16.6,
+      "width": 3,
+      "depth": 3,
+      "mentions": 3.9985960787037036,
+      "sources": [
+        "memory/memory-research-2026-02-01.md"
       ]
     },
     {
@@ -554,12 +972,12 @@
       "type": "topic",
       "label": "2026-02-01 — Absalom Mind Overnight Session",
       "district": "projects",
-      "x": -1.1,
-      "z": -29.6,
+      "x": 20.8,
+      "z": -28.9,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -569,12 +987,12 @@
       "type": "topic",
       "label": "Living Mind v3.0 Development",
       "district": "projects",
-      "x": 15.3,
-      "z": -13.7,
+      "x": -1.1,
+      "z": -29.6,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -584,12 +1002,12 @@
       "type": "topic",
       "label": "absalom-mind.html — The Beautiful Version",
       "district": "projects",
-      "x": 13.9,
-      "z": -37.4,
+      "x": 15.3,
+      "z": -13.7,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -599,12 +1017,12 @@
       "type": "topic",
       "label": "Technical Notes",
       "district": "memory",
-      "x": -26.6,
-      "z": -13.3,
+      "x": -35.2,
+      "z": -30.4,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -614,12 +1032,12 @@
       "type": "topic",
       "label": "Files Modified",
       "district": "memory",
-      "x": -1.5,
-      "z": -17,
+      "x": -7,
+      "z": 1.5,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -629,12 +1047,12 @@
       "type": "topic",
       "label": "HIMS (Hims & Hers Health) Deep Research",
       "district": "memory",
-      "x": -23.2,
-      "z": -31.6,
+      "x": -6.3,
+      "z": -41.4,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -644,12 +1062,12 @@
       "type": "topic",
       "label": "Stock Data (as of Feb 1, 2026)",
       "district": "trading",
-      "x": 13.9,
-      "z": 5.4,
+      "x": 33.2,
+      "z": 15.2,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -659,12 +1077,12 @@
       "type": "topic",
       "label": "Key Risks Identified",
       "district": "memory",
-      "x": -16.9,
-      "z": -5.5,
+      "x": -36.1,
+      "z": -10,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -674,12 +1092,12 @@
       "type": "topic",
       "label": "Bull Case",
       "district": "memory",
-      "x": -3.5,
-      "z": -29.7,
+      "x": 7.5,
+      "z": -13.1,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -689,12 +1107,12 @@
       "type": "topic",
       "label": "Bear Case",
       "district": "memory",
-      "x": -30.4,
-      "z": -20.6,
+      "x": -27,
+      "z": -40.5,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -704,12 +1122,12 @@
       "type": "topic",
       "label": "Verdict",
       "district": "memory",
-      "x": -3.9,
-      "z": -8.9,
+      "x": -20,
+      "z": 3.5,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -719,27 +1137,12 @@
       "type": "topic",
       "label": "Plugin Debugging (Absalom State)",
       "district": "core",
-      "x": 0.6,
-      "z": 7.2,
+      "x": -2.7,
+      "z": -10,
       "height": 16.6,
       "width": 3,
       "depth": 3,
-      "mentions": 3.996617226851852,
-      "sources": [
-        "memory/2026-02-01.md"
-      ]
-    },
-    {
-      "id": "tool:websocket",
-      "type": "tool",
-      "label": "WebSocket",
-      "district": "infrastructure",
-      "x": -9.2,
-      "z": 11.1,
-      "height": 16.6,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.996617226851852,
+      "mentions": 3.9982091712962964,
       "sources": [
         "memory/2026-02-01.md"
       ]
@@ -749,12 +1152,12 @@
       "type": "topic",
       "label": "Quantum Computing Research — February 2026",
       "district": "memory",
-      "x": -15.7,
-      "z": -36.1,
+      "x": 4.7,
+      "z": -34,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -764,12 +1167,12 @@
       "type": "topic",
       "label": "Major Breakthroughs",
       "district": "memory",
-      "x": -25.5,
-      "z": -7.4,
+      "x": -39.2,
+      "z": -23,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -779,12 +1182,12 @@
       "type": "topic",
       "label": "Google Willow (Dec 2024 → ongoing)",
       "district": "memory",
-      "x": 1.6,
-      "z": -22.2,
+      "x": 1,
+      "z": -1.2,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -794,12 +1197,12 @@
       "type": "topic",
       "label": "Microsoft Majorana 1 (Feb 2025)",
       "district": "memory",
-      "x": -29,
-      "z": -29.7,
+      "x": -14.1,
+      "z": -44.8,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -809,12 +1212,12 @@
       "type": "topic",
       "label": "IBM Progress (Nov 2025)",
       "district": "memory",
-      "x": -11.2,
-      "z": -3,
+      "x": -32.6,
+      "z": -2.2,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -824,12 +1227,12 @@
       "type": "topic",
       "label": "IonQ Room Temperature (Feb 2025)",
       "district": "trading",
-      "x": 30.3,
-      "z": 21.3,
+      "x": 22.3,
+      "z": 0,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -839,12 +1242,12 @@
       "type": "topic",
       "label": "Fujitsu-RIKEN (Apr 2025)",
       "district": "memory",
-      "x": -6.2,
-      "z": -35.4,
+      "x": 10.2,
+      "z": -21.3,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -854,12 +1257,12 @@
       "type": "topic",
       "label": "Key Trends for 2026",
       "district": "memory",
-      "x": -32.1,
-      "z": -14.5,
+      "x": -34.6,
+      "z": -36.2,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -869,12 +1272,12 @@
       "type": "topic",
       "label": "Practical Applications Emerging",
       "district": "projects",
-      "x": -1.6,
-      "z": -18.3,
+      "x": 13.9,
+      "z": -37.4,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -884,12 +1287,12 @@
       "type": "topic",
       "label": "Investment Signal",
       "district": "memory",
-      "x": 1.6,
-      "z": -12.3,
+      "x": -11.5,
+      "z": 5.4,
       "height": 16.4,
       "width": 3,
       "depth": 3,
-      "mentions": 3.857946967592593,
+      "mentions": 3.8376264675925924,
       "sources": [
         "memory/quantum-research-2026-02-01.md"
       ]
@@ -899,12 +1302,12 @@
       "type": "topic",
       "label": "2026-01-31",
       "district": "memory",
-      "x": -22.2,
-      "z": -37.1,
-      "height": 16.3,
+      "x": -0.3,
+      "z": -41.3,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -914,12 +1317,12 @@
       "type": "topic",
       "label": "Session Notes",
       "district": "memory",
-      "x": -21.4,
-      "z": -2.2,
-      "height": 16.3,
+      "x": -40.4,
+      "z": -14.2,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -929,12 +1332,12 @@
       "type": "topic",
       "label": "Context Loss Incident (~20:00 UTC)",
       "district": "memory",
-      "x": 2,
-      "z": -28.9,
-      "height": 16.3,
+      "x": 7.8,
+      "z": -7.1,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -944,12 +1347,12 @@
       "type": "topic",
       "label": "Action Item",
       "district": "memory",
-      "x": -33.8,
-      "z": -25,
-      "height": 16.3,
+      "x": -23.2,
+      "z": -45.1,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -959,12 +1362,12 @@
       "type": "topic",
       "label": "Upgrades (2026-02-01 ~02:45 UTC)",
       "district": "memory",
-      "x": -4.3,
-      "z": -3.4,
-      "height": 16.3,
+      "x": -26,
+      "z": 4.2,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -974,12 +1377,12 @@
       "type": "topic",
       "label": "OpenClaw Updated",
       "district": "memory",
-      "x": -11.6,
-      "z": -39.7,
-      "height": 16.3,
+      "x": 9.7,
+      "z": -30.5,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -989,12 +1392,12 @@
       "type": "topic",
       "label": "Config Changes",
       "district": "memory",
-      "x": -31,
-      "z": -7.6,
-      "height": 16.3,
+      "x": -40.5,
+      "z": -29,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -1004,12 +1407,12 @@
       "type": "topic",
       "label": "HEARTBEAT.md Created",
       "district": "projects",
-      "x": 23.5,
-      "z": -22,
-      "height": 16.3,
+      "x": -1.6,
+      "z": -18.3,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -1019,12 +1422,12 @@
       "type": "topic",
       "label": "Behavioral Commitments",
       "district": "memory",
-      "x": 5.4,
-      "z": -18.3,
-      "height": 16.3,
+      "x": -2.2,
+      "z": 4,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -1034,12 +1437,12 @@
       "type": "topic",
       "label": "Skills Installed (114 total now)",
       "district": "projects",
-      "x": 1.8,
-      "z": -36.6,
-      "height": 16.3,
+      "x": 23.5,
+      "z": -22,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -1049,12 +1452,12 @@
       "type": "topic",
       "label": "Key Capabilities Added",
       "district": "memory",
-      "x": -29.1,
-      "z": -35.2,
-      "height": 16.3,
+      "x": -8.2,
+      "z": -46.5,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -1064,12 +1467,12 @@
       "type": "topic",
       "label": "Skill Router v2.0 Built (2026-02-01 ~03:30 UTC)",
       "district": "projects",
-      "x": 8.1,
-      "z": -10.5,
-      "height": 16.3,
+      "x": 1.8,
+      "z": -36.6,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -1079,12 +1482,12 @@
       "type": "tool",
       "label": "Docker",
       "district": "infrastructure",
-      "x": -31.1,
-      "z": 10.4,
-      "height": 16.3,
+      "x": -22.7,
+      "z": 5,
+      "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.7617056203703703,
+      "mentions": 3.7413851203703703,
       "sources": [
         "memory/2026-01-31.md"
       ]
@@ -1094,12 +1497,12 @@
       "type": "topic",
       "label": "Ideas Backlog",
       "district": "memory",
-      "x": -14.9,
-      "z": 1,
+      "x": -38.1,
+      "z": -5,
       "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.753029361111111,
+      "mentions": 3.732708861111111,
       "sources": [
         "memory/ideas-backlog.md"
       ]
@@ -1109,473 +1512,18 @@
       "type": "topic",
       "label": "OpenClaw Community Discoveries (2026-02-01)",
       "district": "memory",
-      "x": -0.7,
-      "z": -35.7,
+      "x": 12.4,
+      "z": -15.4,
       "height": 16.2,
       "width": 3,
       "depth": 3,
-      "mentions": 3.753029361111111,
+      "mentions": 3.732708861111111,
       "sources": [
         "memory/ideas-backlog.md"
-      ]
-    },
-    {
-      "id": "topic:moltbook-ai-social-network",
-      "type": "topic",
-      "label": "Moltbook — AI Social Network",
-      "district": "core",
-      "x": 5,
-      "z": -6.5,
-      "height": 16.2,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.753029361111111,
-      "sources": [
-        "memory/ideas-backlog.md"
-      ]
-    },
-    {
-      "id": "topic:crypto-trading-automation",
-      "type": "topic",
-      "label": "Crypto/Trading Automation",
-      "district": "trading",
-      "x": 28.9,
-      "z": -2.4,
-      "height": 16.2,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.753029361111111,
-      "sources": [
-        "memory/ideas-backlog.md"
-      ]
-    },
-    {
-      "id": "topic:infrastructure-options",
-      "type": "topic",
-      "label": "Infrastructure Options",
-      "district": "trading",
-      "x": 13.4,
-      "z": 16.7,
-      "height": 16.2,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.753029361111111,
-      "sources": [
-        "memory/ideas-backlog.md"
-      ]
-    },
-    {
-      "id": "topic:other-use-cases",
-      "type": "topic",
-      "label": "Other Use Cases",
-      "district": "memory",
-      "x": -36.4,
-      "z": -18,
-      "height": 16.2,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.753029361111111,
-      "sources": [
-        "memory/ideas-backlog.md"
-      ]
-    },
-    {
-      "id": "topic:2025-01-31",
-      "type": "topic",
-      "label": "2025-01-31",
-      "district": "memory",
-      "x": 2.3,
-      "z": -6.9,
-      "height": 15.7,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.4369963425925927,
-      "sources": [
-        "memory/2025-01-31.md"
-      ]
-    },
-    {
-      "id": "topic:asymmetry-scanner-monetization-project",
-      "type": "topic",
-      "label": "Asymmetry Scanner - Monetization Project",
-      "district": "trading",
-      "x": 38.5,
-      "z": 13,
-      "height": 15.7,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.4369963425925927,
-      "sources": [
-        "memory/2025-01-31.md"
-      ]
-    },
-    {
-      "id": "topic:features",
-      "type": "topic",
-      "label": "Features",
-      "district": "memory",
-      "x": -18.9,
-      "z": -41.6,
-      "height": 15.7,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.4369963425925927,
-      "sources": [
-        "memory/2025-01-31.md"
-      ]
-    },
-    {
-      "id": "topic:quick-wins-built-today-monetization-foundation-",
-      "type": "topic",
-      "label": "Quick Wins Built Today (Monetization Foundation)",
-      "district": "memory",
-      "x": -26.8,
-      "z": -1.2,
-      "height": 15.7,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.4369963425925927,
-      "sources": [
-        "memory/2025-01-31.md"
-      ]
-    },
-    {
-      "id": "topic:recurring-scans-mon-fri-pst-",
-      "type": "topic",
-      "label": "Recurring Scans (Mon-Fri, PST)",
-      "district": "memory",
-      "x": 6.6,
-      "z": -25.9,
-      "height": 15.7,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.4369963425925927,
-      "sources": [
-        "memory/2025-01-31.md"
-      ]
-    },
-    {
-      "id": "topic:next-steps-for-monetization",
-      "type": "topic",
-      "label": "Next Steps for Monetization",
-      "district": "memory",
-      "x": -35.2,
-      "z": -30.4,
-      "height": 15.7,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.4369963425925927,
-      "sources": [
-        "memory/2025-01-31.md"
-      ]
-    },
-    {
-      "id": "topic:run-commands",
-      "type": "topic",
-      "label": "Run Commands",
-      "district": "memory",
-      "x": -7,
-      "z": 1.5,
-      "height": 15.7,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.4369963425925927,
-      "sources": [
-        "memory/2025-01-31.md"
-      ]
-    },
-    {
-      "id": "topic:project-goal",
-      "type": "topic",
-      "label": "Project Goal",
-      "district": "projects",
-      "x": 21.5,
-      "z": -34.7,
-      "height": 15.7,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3.4369963425925927,
-      "sources": [
-        "memory/2025-01-31.md"
-      ]
-    },
-    {
-      "id": "ticker:RKLB",
-      "type": "ticker",
-      "label": "RKLB",
-      "district": "trading",
-      "x": 16.8,
-      "z": -1.6,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:ASTS",
-      "type": "ticker",
-      "label": "ASTS",
-      "district": "trading",
-      "x": 23.1,
-      "z": 24.5,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:CCJ",
-      "type": "ticker",
-      "label": "CCJ",
-      "district": "trading",
-      "x": 36.5,
-      "z": 0.3,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:SMR",
-      "type": "ticker",
-      "label": "SMR",
-      "district": "trading",
-      "x": 9.6,
-      "z": 9.4,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:OKLO",
-      "type": "ticker",
-      "label": "OKLO",
-      "district": "trading",
-      "x": 36.1,
-      "z": 21.1,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:IONQ",
-      "type": "ticker",
-      "label": "IONQ",
-      "district": "trading",
-      "x": 24.3,
-      "z": -6.1,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:RGTI",
-      "type": "ticker",
-      "label": "RGTI",
-      "district": "trading",
-      "x": 14.5,
-      "z": 22.6,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:QUBT",
-      "type": "ticker",
-      "label": "QUBT",
-      "district": "trading",
-      "x": 41.6,
-      "z": 7.8,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:SOFI",
-      "type": "ticker",
-      "label": "SOFI",
-      "district": "trading",
-      "x": 11,
-      "z": 0.3,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:HOOD",
-      "type": "ticker",
-      "label": "HOOD",
-      "district": "trading",
-      "x": 28.8,
-      "z": 27,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:AMPX",
-      "type": "ticker",
-      "label": "AMPX",
-      "district": "trading",
-      "x": 33.8,
-      "z": -5.4,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "ticker:CTMX",
-      "type": "ticker",
-      "label": "CTMX",
-      "district": "trading",
-      "x": 7.9,
-      "z": 15.5,
-      "height": 15,
-      "width": 2,
-      "depth": 2,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "tool:node.js",
-      "type": "tool",
-      "label": "Node.js",
-      "district": "infrastructure",
-      "x": -14.7,
-      "z": 26.3,
-      "height": 15,
-      "width": 3,
-      "depth": 3,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "concept:business-model-",
-      "type": "concept",
-      "label": "Business model:",
-      "district": "memory",
-      "x": -6.3,
-      "z": -41.4,
-      "height": 15,
-      "width": 2.5,
-      "depth": 2.5,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
-      ]
-    },
-    {
-      "id": "concept:delivery-",
-      "type": "concept",
-      "label": "Delivery:",
-      "district": "memory",
-      "x": -36.1,
-      "z": -10,
-      "height": 15,
-      "width": 2.5,
-      "depth": 2.5,
-      "mentions": 3,
-      "sources": [
-        "MEMORY.md"
       ]
     }
   ],
   "connections": [
-    {
-      "from": "tool:github",
-      "to": "tool:telegram",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:github",
-      "to": "tool:electron",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:github",
-      "to": "project:knowledge-engine",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:github",
-      "to": "project:living-mind",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:telegram",
-      "to": "tool:electron",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:telegram",
-      "to": "project:knowledge-engine",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:telegram",
-      "to": "project:living-mind",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:electron",
-      "to": "project:knowledge-engine",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:electron",
-      "to": "project:living-mind",
-      "strength": 0.5
-    },
-    {
-      "from": "project:knowledge-engine",
-      "to": "project:living-mind",
-      "strength": 0.5
-    },
     {
       "from": "tool:github",
       "to": "tool:discord",
@@ -1588,72 +1536,17 @@
     },
     {
       "from": "tool:github",
-      "to": "project:asymmetry-scanner-pro",
+      "to": "tool:telegram",
       "strength": 0.5
     },
     {
       "from": "tool:github",
-      "to": "project:absalom-face",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:cloudflare",
-      "to": "project:asymmetry-scanner-pro",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:cloudflare",
-      "to": "project:absalom-face",
-      "strength": 0.5
-    },
-    {
-      "from": "project:asymmetry-scanner-pro",
-      "to": "project:absalom-face",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:github",
-      "to": "topic:2025-01-31",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:github",
-      "to": "topic:asymmetry-scanner-monetization-project",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:github",
-      "to": "topic:features",
+      "to": "project:asymmetry-scanner",
       "strength": 0.5
     },
     {
       "from": "tool:telegram",
-      "to": "topic:2025-01-31",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:telegram",
-      "to": "topic:asymmetry-scanner-monetization-project",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:telegram",
-      "to": "topic:features",
-      "strength": 0.5
-    },
-    {
-      "from": "topic:2025-01-31",
-      "to": "topic:asymmetry-scanner-monetization-project",
-      "strength": 0.5
-    },
-    {
-      "from": "topic:2025-01-31",
-      "to": "topic:features",
-      "strength": 0.5
-    },
-    {
-      "from": "topic:asymmetry-scanner-monetization-project",
-      "to": "topic:features",
+      "to": "project:asymmetry-scanner",
       "strength": 0.5
     },
     {
@@ -1702,6 +1595,101 @@
       "strength": 0.5
     },
     {
+      "from": "tool:github",
+      "to": "topic:executive-summary",
+      "strength": 0.5
+    },
+    {
+      "from": "tool:github",
+      "to": "topic:1-how-power-users-structure-memory-files",
+      "strength": 0.5
+    },
+    {
+      "from": "tool:github",
+      "to": "topic:openclaw-s-native-architecture",
+      "strength": 0.5
+    },
+    {
+      "from": "tool:github",
+      "to": "topic:claude-code-s-4-level-hierarchy",
+      "strength": 0.5
+    },
+    {
+      "from": "topic:executive-summary",
+      "to": "topic:1-how-power-users-structure-memory-files",
+      "strength": 0.5
+    },
+    {
+      "from": "topic:executive-summary",
+      "to": "topic:openclaw-s-native-architecture",
+      "strength": 0.5
+    },
+    {
+      "from": "topic:executive-summary",
+      "to": "topic:claude-code-s-4-level-hierarchy",
+      "strength": 0.5
+    },
+    {
+      "from": "topic:1-how-power-users-structure-memory-files",
+      "to": "topic:openclaw-s-native-architecture",
+      "strength": 0.5
+    },
+    {
+      "from": "topic:1-how-power-users-structure-memory-files",
+      "to": "topic:claude-code-s-4-level-hierarchy",
+      "strength": 0.5
+    },
+    {
+      "from": "topic:openclaw-s-native-architecture",
+      "to": "topic:claude-code-s-4-level-hierarchy",
+      "strength": 0.5
+    },
+    {
+      "from": "tool:telegram",
+      "to": "project:knowledge-engine",
+      "strength": 0.5
+    },
+    {
+      "from": "tool:telegram",
+      "to": "project:skill-router",
+      "strength": 0.5
+    },
+    {
+      "from": "tool:telegram",
+      "to": "ticker:LUNR",
+      "strength": 0.5
+    },
+    {
+      "from": "project:knowledge-engine",
+      "to": "project:skill-router",
+      "strength": 0.5
+    },
+    {
+      "from": "project:knowledge-engine",
+      "to": "project:asymmetry-scanner",
+      "strength": 0.5
+    },
+    {
+      "from": "project:knowledge-engine",
+      "to": "ticker:LUNR",
+      "strength": 0.5
+    },
+    {
+      "from": "project:skill-router",
+      "to": "project:asymmetry-scanner",
+      "strength": 0.5
+    },
+    {
+      "from": "project:skill-router",
+      "to": "ticker:LUNR",
+      "strength": 0.5
+    },
+    {
+      "from": "project:asymmetry-scanner",
+      "to": "ticker:LUNR",
+      "strength": 0.5
+    },
+    {
       "from": "tool:cloudflare",
       "to": "topic:ideas-backlog",
       "strength": 0.5
@@ -1712,43 +1700,8 @@
       "strength": 0.5
     },
     {
-      "from": "tool:cloudflare",
-      "to": "topic:moltbook-ai-social-network",
-      "strength": 0.5
-    },
-    {
-      "from": "tool:cloudflare",
-      "to": "topic:crypto-trading-automation",
-      "strength": 0.5
-    },
-    {
       "from": "topic:ideas-backlog",
       "to": "topic:openclaw-community-discoveries-2026-02-01-",
-      "strength": 0.5
-    },
-    {
-      "from": "topic:ideas-backlog",
-      "to": "topic:moltbook-ai-social-network",
-      "strength": 0.5
-    },
-    {
-      "from": "topic:ideas-backlog",
-      "to": "topic:crypto-trading-automation",
-      "strength": 0.5
-    },
-    {
-      "from": "topic:openclaw-community-discoveries-2026-02-01-",
-      "to": "topic:moltbook-ai-social-network",
-      "strength": 0.5
-    },
-    {
-      "from": "topic:openclaw-community-discoveries-2026-02-01-",
-      "to": "topic:crypto-trading-automation",
-      "strength": 0.5
-    },
-    {
-      "from": "topic:moltbook-ai-social-network",
-      "to": "topic:crypto-trading-automation",
       "strength": 0.5
     },
     {
@@ -1817,18 +1770,8 @@
       "strength": 0.5
     },
     {
-      "from": "project:living-mind",
-      "to": "tool:pm2",
-      "strength": 0.5
-    },
-    {
-      "from": "project:living-mind",
-      "to": "topic:2026-02-01-absalom-mind-overnight-session",
-      "strength": 0.5
-    },
-    {
-      "from": "project:living-mind",
-      "to": "topic:living-mind-v3-0-development",
+      "from": "project:knowledge-engine",
+      "to": "topic:absalom-mind-html-the-beautiful-version",
       "strength": 0.5
     },
     {
@@ -1839,11 +1782,26 @@
     {
       "from": "tool:pm2",
       "to": "topic:living-mind-v3-0-development",
+      "strength": 0.5
+    },
+    {
+      "from": "tool:pm2",
+      "to": "topic:absalom-mind-html-the-beautiful-version",
       "strength": 0.5
     },
     {
       "from": "topic:2026-02-01-absalom-mind-overnight-session",
       "to": "topic:living-mind-v3-0-development",
+      "strength": 0.5
+    },
+    {
+      "from": "topic:2026-02-01-absalom-mind-overnight-session",
+      "to": "topic:absalom-mind-html-the-beautiful-version",
+      "strength": 0.5
+    },
+    {
+      "from": "topic:living-mind-v3-0-development",
+      "to": "topic:absalom-mind-html-the-beautiful-version",
       "strength": 0.5
     },
     {
@@ -1918,9 +1876,9 @@
     }
   ],
   "stats": {
-    "totalEntities": 183,
+    "totalEntities": 219,
     "buildingCount": 100,
-    "connectionCount": 78,
-    "fileCount": 10
+    "connectionCount": 70,
+    "fileCount": 11
   }
 }

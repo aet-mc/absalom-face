@@ -29,6 +29,7 @@ console.log('');
 // Files to watch and process
 const MEMORY_FILES = [
   'MEMORY.md',
+  'MEMORY_EXTENDED.md',
   'SOUL.md',
   'USER.md',
   'AGENTS.md',
