@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mycelium Layer Test - Absalom Face v3.0</title>
+  <title>Mycelium Layer — Absalom Face v3.0</title>
   <style>
     * {
       margin: 0;
@@ -12,7 +12,7 @@
     }
     
     body {
-      background: #050d0a;
+      background: #030908;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -40,108 +40,146 @@
       height: 100%;
     }
     
-    /* Water line indicator */
+    /* Water line indicator — subtle shimmer */
     .water-line {
       position: absolute;
       left: 0;
       right: 0;
-      height: 2px;
+      height: 1px;
       background: linear-gradient(90deg, 
         transparent 0%, 
-        rgba(45, 212, 168, 0.3) 20%, 
-        rgba(45, 212, 168, 0.5) 50%, 
-        rgba(45, 212, 168, 0.3) 80%, 
+        rgba(45, 212, 168, 0.15) 20%, 
+        rgba(94, 234, 212, 0.3) 50%, 
+        rgba(45, 212, 168, 0.15) 80%, 
         transparent 100%
       );
       pointer-events: none;
-      box-shadow: 0 0 20px rgba(45, 212, 168, 0.2);
+      box-shadow: 
+        0 0 30px rgba(45, 212, 168, 0.15),
+        0 0 60px rgba(45, 212, 168, 0.08);
+      animation: waterShimmer 4s ease-in-out infinite;
     }
     
+    @keyframes waterShimmer {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+    
+    /* Controls — minimal, out of the way */
     .controls {
       position: fixed;
       bottom: 20px;
       left: 20px;
-      background: rgba(10, 31, 26, 0.9);
+      background: rgba(5, 15, 12, 0.85);
       padding: 15px;
-      border-radius: 8px;
-      border: 1px solid rgba(45, 212, 168, 0.3);
-      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      border: 1px solid rgba(45, 212, 168, 0.15);
+      backdrop-filter: blur(20px);
       z-index: 100;
+      opacity: 0.4;
+      transition: opacity 0.3s;
+    }
+    
+    .controls:hover {
+      opacity: 1;
     }
     
     .controls h3 {
-      font-size: 12px;
+      font-size: 10px;
       margin-bottom: 10px;
-      opacity: 0.7;
+      opacity: 0.5;
       font-weight: normal;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 2px;
     }
     
     .controls button {
-      background: rgba(45, 212, 168, 0.2);
-      border: 1px solid rgba(45, 212, 168, 0.4);
+      background: rgba(45, 212, 168, 0.1);
+      border: 1px solid rgba(45, 212, 168, 0.25);
       color: #2dd4a8;
-      padding: 8px 16px;
-      margin: 4px;
-      border-radius: 4px;
+      padding: 8px 14px;
+      margin: 3px;
+      border-radius: 6px;
       cursor: pointer;
       font-family: inherit;
-      font-size: 12px;
+      font-size: 11px;
       transition: all 0.2s;
     }
     
     .controls button:hover {
-      background: rgba(45, 212, 168, 0.4);
-      border-color: #2dd4a8;
+      background: rgba(45, 212, 168, 0.25);
+      border-color: rgba(45, 212, 168, 0.5);
+      box-shadow: 0 0 15px rgba(45, 212, 168, 0.2);
     }
     
     .controls button:active {
-      transform: scale(0.95);
+      transform: scale(0.97);
     }
     
+    /* Legend — elegant and minimal */
     .legend {
       position: fixed;
       top: 20px;
       right: 20px;
-      background: rgba(10, 31, 26, 0.9);
-      padding: 15px;
-      border-radius: 8px;
-      border: 1px solid rgba(45, 212, 168, 0.3);
-      backdrop-filter: blur(10px);
+      background: rgba(5, 15, 12, 0.85);
+      padding: 15px 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(45, 212, 168, 0.15);
+      backdrop-filter: blur(20px);
       z-index: 100;
+      opacity: 0.4;
+      transition: opacity 0.3s;
+    }
+    
+    .legend:hover {
+      opacity: 1;
     }
     
     .legend h3 {
-      font-size: 12px;
-      margin-bottom: 10px;
-      opacity: 0.7;
+      font-size: 10px;
+      margin-bottom: 12px;
+      opacity: 0.5;
       font-weight: normal;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 2px;
     }
     
     .legend-item {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin: 6px 0;
-      font-size: 11px;
+      gap: 10px;
+      margin: 8px 0;
+      font-size: 10px;
+      opacity: 0.8;
     }
     
     .legend-dot {
-      width: 10px;
-      height: 10px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      box-shadow: 0 0 8px currentColor;
+      box-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
     }
     
+    /* Stats — barely visible until needed */
     .stats {
       position: fixed;
       top: 20px;
       left: 20px;
+      font-size: 10px;
+      opacity: 0.3;
+      letter-spacing: 1px;
+    }
+    
+    /* Ambient title */
+    .title {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
       font-size: 11px;
-      opacity: 0.5;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      opacity: 0.15;
+      pointer-events: none;
     }
   </style>
 </head>
@@ -154,8 +192,10 @@
   </div>
   
   <div class="stats" id="stats">
-    Nodes: 0 | Edges: 0 | FPS: 0
+    nodes 0 · edges 0 · particles 0 · fps 0
   </div>
+  
+  <div class="title">mycelium</div>
   
   <div class="legend">
     <h3>Node Types</h3>
@@ -219,55 +259,103 @@
     // Create mycelium layer
     const mycelium = new MyceliumLayer(canvas);
     
-    // Generate sample graph data
+    // Generate sample graph data — rich network for visual beauty
     function generateSampleGraph() {
       const types = ['topics', 'people', 'tickers', 'tools', 'headers', 'decisions'];
       const names = {
-        topics: ['trading', 'space', 'quantum computing', 'AI', 'consciousness', 'music', 'philosophy', 'markets'],
-        people: ['Anton', 'Elon', 'Sam Altman', 'Feynman', 'Einstein'],
-        tickers: ['NVDA', 'TSLA', 'SPY', 'BTC', 'ETH', 'AAPL', 'MSFT'],
-        tools: ['git', 'docker', 'python', 'nodejs', 'ffmpeg', 'vim'],
-        headers: ['Daily Log', 'Project Status', 'Notes', 'Ideas', 'Memory'],
-        decisions: ['use Claude', 'build face', 'launch scanner', 'explore quantum']
+        topics: [
+          'trading', 'space', 'quantum computing', 'AI', 'consciousness', 
+          'music', 'philosophy', 'markets', 'neural networks', 'emergence',
+          'complexity', 'fractals', 'entropy', 'information', 'cognition'
+        ],
+        people: [
+          'Anton', 'Elon', 'Sam Altman', 'Feynman', 'Einstein', 
+          'Hofstadter', 'Penrose', 'Turing', 'Dijkstra'
+        ],
+        tickers: [
+          'NVDA', 'TSLA', 'SPY', 'BTC', 'ETH', 'AAPL', 'MSFT',
+          'AMD', 'GOOG', 'META', 'AMZN', 'ARM'
+        ],
+        tools: [
+          'git', 'docker', 'python', 'nodejs', 'ffmpeg', 'vim',
+          'kubernetes', 'terraform', 'claude', 'neovim'
+        ],
+        headers: [
+          'Daily Log', 'Project Status', 'Notes', 'Ideas', 'Memory',
+          'Research', 'Experiments', 'Insights', 'Archive'
+        ],
+        decisions: [
+          'use Claude', 'build face', 'launch scanner', 'explore quantum',
+          'study emergence', 'refactor core', 'ship MVP', 'go deeper'
+        ]
       };
       
       const nodes = [];
       const edges = [];
       
-      // Create nodes
-      let nodeId = 0;
+      // Create nodes — more of them for richer network
       for (const type of types) {
         const typeNames = names[type];
-        const count = Math.floor(Math.random() * 3) + 2;
+        // Use more nodes: 3-6 per type
+        const count = Math.floor(Math.random() * 4) + 3;
         
         for (let i = 0; i < Math.min(count, typeNames.length); i++) {
-          const age = Math.random() * 30 * 24 * 60 * 60 * 1000; // 0-30 days old
+          const age = Math.random() * 45 * 24 * 60 * 60 * 1000; // 0-45 days old
           nodes.push({
             id: `${type}:${typeNames[i].toLowerCase().replace(/\s+/g, '-')}`,
             label: typeNames[i],
             type: type,
-            weight: Math.floor(Math.random() * 10) + 1,
+            weight: Math.floor(Math.random() * 12) + 1,
             firstSeen: Date.now() - age,
-            lastSeen: Date.now() - Math.random() * age * 0.5
+            lastSeen: Date.now() - Math.random() * age * 0.3
           });
-          nodeId++;
         }
       }
       
-      // Create edges (connect related nodes)
+      // Create edges — denser connectivity for more visual interest
+      const edgeSet = new Set();
+      
       for (let i = 0; i < nodes.length; i++) {
-        // Connect to 2-4 random other nodes
-        const connections = Math.floor(Math.random() * 3) + 2;
-        const connected = new Set();
+        // Connect to 2-5 random other nodes
+        const connections = Math.floor(Math.random() * 4) + 2;
         
         for (let c = 0; c < connections; c++) {
           let j = Math.floor(Math.random() * nodes.length);
-          if (j !== i && !connected.has(j)) {
-            connected.add(j);
+          if (j === i) continue;
+          
+          // Canonical edge key to avoid duplicates
+          const key = [nodes[i].id, nodes[j].id].sort().join('↔');
+          if (!edgeSet.has(key)) {
+            edgeSet.add(key);
             edges.push({
               source: nodes[i].id,
               target: nodes[j].id,
-              weight: Math.floor(Math.random() * 5) + 1
+              weight: Math.floor(Math.random() * 6) + 1
+            });
+          }
+        }
+      }
+      
+      // Add some cluster connections (nearby types connect more)
+      const typeOrder = types;
+      for (let t = 0; t < typeOrder.length - 1; t++) {
+        const type1 = typeOrder[t];
+        const type2 = typeOrder[t + 1];
+        const nodes1 = nodes.filter(n => n.type === type1);
+        const nodes2 = nodes.filter(n => n.type === type2);
+        
+        // Connect some nodes from adjacent types
+        const crossLinks = Math.min(3, Math.min(nodes1.length, nodes2.length));
+        for (let i = 0; i < crossLinks; i++) {
+          const n1 = nodes1[Math.floor(Math.random() * nodes1.length)];
+          const n2 = nodes2[Math.floor(Math.random() * nodes2.length)];
+          const key = [n1.id, n2.id].sort().join('↔');
+          if (!edgeSet.has(key)) {
+            edgeSet.add(key);
+            edges.push({
+              source: n1.id,
+              target: n2.id,
+              weight: Math.floor(Math.random() * 4) + 2
             });
           }
         }
@@ -300,7 +388,8 @@
         fps = Math.round(frameCount * 1000 / (time - lastFpsUpdate));
         lastFpsUpdate = time;
         frameCount = 0;
-        statsEl.textContent = `Nodes: ${graph.nodes.length} | Edges: ${graph.edges.length} | FPS: ${fps}`;
+        const particleCount = mycelium.particles?.particles?.length || 0;
+        statsEl.textContent = `nodes ${graph.nodes.length} · edges ${graph.edges.length} · particles ${particleCount} · fps ${fps}`;
       }
       
       // Update physics and animations
@@ -309,15 +398,14 @@
       // Clear and render
       const ctx = canvas.getContext('2d');
       
-      // Draw deep ocean background
-      const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      bgGradient.addColorStop(0, '#0a1f1a');
-      bgGradient.addColorStop(0.3, '#071512');
-      bgGradient.addColorStop(1, '#030908');
-      ctx.fillStyle = bgGradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Draw upper area (above water line) - deep space/sky gradient
+      const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.3);
+      skyGradient.addColorStop(0, '#020505');
+      skyGradient.addColorStop(1, '#061210');
+      ctx.fillStyle = skyGradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.3);
       
-      // Render mycelium
+      // Render mycelium (handles everything below water line)
       mycelium.render(ctx);
       
       requestAnimationFrame(animate);
@@ -422,12 +510,51 @@
       mycelium.setGraph(graph);
     }
     
-    // Auto-activate periodically for demo
-    setInterval(() => {
-      if (Math.random() < 0.3) {
+    // Auto-activate periodically for demo — creates mesmerizing pattern
+    let demoMode = true;
+    
+    function demoLoop() {
+      if (!demoMode) return;
+      
+      const r = Math.random();
+      
+      if (r < 0.4) {
+        // Random single activation — most common
         activateRandom();
+      } else if (r < 0.6) {
+        // Path activation — shows connectivity
+        activatePath();
+      } else if (r < 0.75) {
+        // Multiple random activations — cascade effect
+        activateRandom();
+        setTimeout(activateRandom, 200);
+        setTimeout(activateRandom, 400);
+      } else {
+        // Gentle wave — activates nodes by position
+        const sorted = [...mycelium.nodes].sort((a, b) => a.x - b.x);
+        sorted.forEach((node, idx) => {
+          setTimeout(() => {
+            mycelium.activate([node.id], 0.5 + Math.random() * 0.3);
+          }, idx * 80);
+        });
       }
-    }, 2000);
+      
+      // Variable timing for organic feel
+      const nextDelay = 1500 + Math.random() * 2500;
+      setTimeout(demoLoop, nextDelay);
+    }
+    
+    // Start demo after a moment
+    setTimeout(demoLoop, 1000);
+    
+    // Toggle demo mode on space
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        demoMode = !demoMode;
+        if (demoMode) demoLoop();
+        console.log('Demo mode:', demoMode ? 'ON' : 'OFF');
+      }
+    });
   </script>
 </body>
 </html>
