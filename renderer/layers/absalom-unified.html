@@ -18,6 +18,7 @@
       display: block; 
       position: absolute;
       top: 0; left: 0;
+      will-change: contents;
     }
     #sediment { z-index: 1; }
     #weather { z-index: 2; }
@@ -448,7 +449,11 @@
       crystalFormation: [], // target positions for crystal
     };
     
-    const BOID_COUNT = 80; // Further reduced for mobile 60fps
+    // Mobile detection for adaptive quality
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 
+                     window.innerWidth < 768;
+    
+    const BOID_COUNT = isMobile ? 50 : 80;
     const BOID_COLORS = [
       { h: 190, s: 85, l: 65 },  // bright cyan
       { h: 270, s: 75, l: 70 },  // vibrant purple
@@ -611,27 +616,26 @@
           boid.vy = (boid.vy / speed) * params.maxSpeed;
         }
         
-        // Update position
-        boid.x += boid.vx;
-        boid.y += boid.vy;
-        
-        // Strong boundary - keep boids in view
+        // Boundary steering BEFORE position update (critical fix!)
         const margin = 100;
-        const turnForce = 0.3;
+        const turnForce = 0.4;
         const bottomLimit = H * 0.5;
         const topLimit = 30;
         
-        // Proportional force - stronger the further out
         if (boid.x < margin) boid.vx += turnForce * (1 - boid.x / margin);
         if (boid.x > W - margin) boid.vx -= turnForce * (1 - (W - boid.x) / margin);
         if (boid.y < topLimit) boid.vy += turnForce * (1 - boid.y / topLimit);
         if (boid.y > bottomLimit) boid.vy -= turnForce * 2 * ((boid.y - bottomLimit) / (H - bottomLimit));
         
-        // Hard clamp - never go off screen
-        if (boid.x < 0) { boid.x = 10; boid.vx = Math.abs(boid.vx); }
-        if (boid.x > W) { boid.x = W - 10; boid.vx = -Math.abs(boid.vx); }
-        if (boid.y < 0) { boid.y = 10; boid.vy = Math.abs(boid.vy); }
-        if (boid.y > bottomLimit + 50) { boid.y = bottomLimit; boid.vy = -Math.abs(boid.vy); }
+        // Update position AFTER boundary steering
+        boid.x += boid.vx;
+        boid.y += boid.vy;
+        
+        // Hard clamp safety (use >= for edge case)
+        if (boid.x <= 0) { boid.x = 10; boid.vx = Math.abs(boid.vx); }
+        if (boid.x >= W) { boid.x = W - 10; boid.vx = -Math.abs(boid.vx); }
+        if (boid.y <= 0) { boid.y = 10; boid.vy = Math.abs(boid.vy); }
+        if (boid.y >= bottomLimit + 50) { boid.y = bottomLimit; boid.vy = -Math.abs(boid.vy); }
       });
     }
     
