@@ -450,8 +450,6 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
   
   <script>
     // ═══════════════════════════════════════════════════════════════════════
@@ -1326,13 +1324,15 @@
         }
         
         // Beacon pulse also follows district rhythm
-        building.mesh.children.forEach(child => {
-          if (child.userData.pulse) {
-            const beaconPulse = Math.sin(dt * rhythm.pulseFrequency * 1.5 + child.userData.pulsePhase);
-            const scale = 1 + beaconPulse * 0.3 * rhythm.activityLevel;
-            child.scale.set(scale, scale, scale);
-          }
-        });
+        if (building.mesh && building.mesh.children) {
+          building.mesh.children.forEach(child => {
+            if (child.userData && child.userData.pulse) {
+              const beaconPulse = Math.sin(dt * rhythm.pulseFrequency * 1.5 + child.userData.pulsePhase);
+              const scale = 1 + beaconPulse * 0.3 * rhythm.activityLevel;
+              child.scale.set(scale, scale, scale);
+            }
+          });
+        }
       });
     }
     
@@ -3519,54 +3519,8 @@
         createdAt: Date.now(),
       });
     }
-    
-    // ═══════════════════════════════════════════════════════════════════════
-    // SEED CITY
-    // ═══════════════════════════════════════════════════════════════════════
-    
-    function seedCity() {
-      createCoreSpire();
-      
-      Object.entries(DISTRICTS).forEach(([key, district]) => {
-        if (key === 'core') return;
-        
-        const pos = district.position;
-        
-        // District anchor - always a significant tower
-        createBuilding({
-          x: pos.x,
-          z: pos.z,
-          height: 18 + Math.random() * 12,
-          width: 4 + Math.random() * 2,
-          depth: 4 + Math.random() * 2,
-          district: key,
-          label: `${district.name} Hub`,
-          type: Math.random() > 0.5 ? 'tapered' : 'tower',
-        });
-        
-        // Surrounding buildings with variety
-        const buildingCount = isMobile ? 4 : 6;
-        for (let i = 0; i < buildingCount; i++) {
-          const angle = (i / buildingCount) * Math.PI * 2 + Math.random() * 0.5;
-          const radius = 6 + Math.random() * 8;
-          createBuilding({
-            x: pos.x + Math.cos(angle) * radius,
-            z: pos.z + Math.sin(angle) * radius,
-            height: 5 + Math.random() * 15,
-            district: key,
-          });
-        }
-      });
-      
-      // Create connections
-      const districtKeys = Object.keys(DISTRICTS).filter(k => k !== 'core');
-      districtKeys.forEach(key => {
-        const districtBuildings = city.districts.get(key) || [];
-        if (districtBuildings.length > 0) {
-          createConnection(city.buildings[0], districtBuildings[0]);
-        }
-      });
-    }
+    // NOTE: seedCity() removed - was dead code, replaced by seedCityFallback()
+    // which is called from the init section after createCoreSpire()
     
     // ═══════════════════════════════════════════════════════════════════════
     // ENVIRONMENT ANIMATION
@@ -4044,29 +3998,7 @@
       }
     }
     
-    // ═══════════════════════════════════════════════════════════════════════
-    // WEATHER KEYBOARD CONTROLS
-    // ═══════════════════════════════════════════════════════════════════════
-    
-    document.addEventListener('keydown', (e) => {
-      // Don't trigger if user is typing in an input
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      
-      switch (e.key.toLowerCase()) {
-        case 'r':
-          setWeather('rain');
-          break;
-        case 'f':
-          setWeather('fog');
-          break;
-        case 'a':
-          setWeather('aurora');
-          break;
-        case 'c':
-          setWeather('clear');
-          break;
-      }
-    });
+    // Weather keyboard controls are handled in the main keyboard handler below
     
     // ═══════════════════════════════════════════════════════════════════════
     // GROWTH SYSTEM
@@ -4183,11 +4115,13 @@
     function raycastBuildings() {
       interaction.raycaster.setFromCamera(interaction.mouse, camera);
       const meshes = getBuildingMeshes();
+      if (meshes.length === 0) return null;
+      
       const intersects = interaction.raycaster.intersectObjects(meshes, false);
       
-      if (intersects.length > 0) {
+      if (intersects.length > 0 && intersects[0].object) {
         const mesh = intersects[0].object;
-        return city.buildings.find(b => b.mesh === mesh);
+        return city.buildings.find(b => b.mesh === mesh) || null;
       }
       return null;
     }
@@ -4232,10 +4166,10 @@
       if (!building || !building.mesh || !building.mesh.material) return;
       
       const material = building.mesh.material;
-      const districtData = DISTRICTS[building.district] || DISTRICTS.core;
+      if (material.emissiveIntensity === undefined) return; // Not all materials have emissive
       
       // Store original values if not already stored
-      if (!building.originalEmissiveIntensity) {
+      if (building.originalEmissiveIntensity === undefined) {
         building.originalEmissiveIntensity = material.emissiveIntensity;
       }
       
@@ -4352,8 +4286,12 @@
       }
     }
     
-    // Close button handler
+    // Close button handler (click + touch for better mobile support)
     infoPanelCloseEl.addEventListener('click', hideInfoPanel);
+    infoPanelCloseEl.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      hideInfoPanel();
+    });
     
     // ─────────────────────────────────────────────────────────────────────────
     // DISTRICT FOCUS
@@ -4675,6 +4613,25 @@
       if (key === ' ') {
         event.preventDefault();
         togglePause();
+        return;
+      }
+      
+      // Weather controls (consolidated from separate handler)
+      if (key === 'r') {
+        setWeather('rain');
+        return;
+      }
+      if (key === 'f') {
+        setWeather('fog');
+        return;
+      }
+      // 'a' for aurora (but not if it conflicts with other shortcuts)
+      if (key === 'a' && !event.ctrlKey && !event.metaKey) {
+        setWeather('aurora');
+        return;
+      }
+      if (key === 'c' && !event.ctrlKey && !event.metaKey) {
+        setWeather('clear');
         return;
       }
       
@@ -5038,10 +4995,14 @@
       const district = DISTRICTS[districtKey];
       if (!district) return;
       
+      // Limit maximum concurrent ripples to prevent memory issues
+      if (activityState.ripples.length > 15) return;
+      
       const rippleCount = 3;
       for (let i = 0; i < rippleCount; i++) {
         setTimeout(() => {
-          const rippleGeo = new THREE.RingGeometry(0.5, 1, 32);
+          // Create ring with fixed geometry - animate via scale
+          const rippleGeo = new THREE.RingGeometry(0.8, 1, 32);
           const rippleMat = new THREE.MeshBasicMaterial({
             color: district.color.clone(),
             transparent: true,
@@ -5051,11 +5012,12 @@
           const ripple = new THREE.Mesh(rippleGeo, rippleMat);
           ripple.rotation.x = -Math.PI / 2;
           ripple.position.set(district.position.x, 0.2, district.position.z);
+          ripple.scale.set(0.5, 0.5, 1); // Start small
           
           ripple.userData = {
             startTime: performance.now(),
             duration: 2000,
-            maxRadius: 25,
+            maxScale: 25,
             districtColor: district.color.clone()
           };
           
@@ -5081,24 +5043,15 @@
           continue;
         }
         
-        // Expand ring
-        const radius = ripple.userData.maxRadius * progress;
-        const thickness = Math.max(0.3, 2 - progress * 1.5);
+        // Expand ring using scale (no geometry recreation)
+        const scale = ripple.userData.maxScale * progress;
         
-        // Update geometry (create new for size change)
-        ripple.geometry.dispose();
-        ripple.geometry = new THREE.RingGeometry(
-          Math.max(0.1, radius - thickness),
-          radius,
-          32
-        );
-        
-        // Fade out
-        ripple.material.opacity = 0.8 * (1 - progress * progress);
-        
-        // Pulse effect
+        // Add pulse effect
         const pulse = 1 + Math.sin(elapsed * 0.01) * 0.1;
-        ripple.scale.set(pulse, pulse, 1);
+        ripple.scale.set(scale * pulse, scale * pulse, 1);
+        
+        // Fade out with eased curve
+        ripple.material.opacity = 0.8 * (1 - progress * progress);
       }
     }
     
@@ -5107,6 +5060,9 @@
     // ═══════════════════════════════════════════════════════════════════════
     
     function createDataPacket(fromBuilding, toBuilding, color) {
+      // Limit max data packets to prevent memory issues
+      if (activityState.dataPackets.length > 50) return;
+      
       const packetGeo = new THREE.SphereGeometry(0.15, 6, 6);
       const packetMat = new THREE.MeshBasicMaterial({
         color: color || 0x00ffff,
@@ -5443,23 +5399,73 @@
     /**
      * Load city buildings from server state
      */
+    let isLoadingCity = false; // Prevent race conditions
+    
     function loadCityFromState(cityState) {
+      // Prevent concurrent loads (race condition fix)
+      if (isLoadingCity) {
+        console.log('[LoadCity] Already loading, skipping');
+        return;
+      }
+      
       console.log('[LoadCity] Called with', cityState?.buildings?.length, 'buildings');
       if (!cityState.buildings || cityState.buildings.length === 0) {
         console.log('[City] No buildings in state');
         return;
       }
       
+      isLoadingCity = true;
       cityLoadedFromServer = true;
       console.log('[LoadCity] Creating buildings...');
       
-      // Clear existing buildings except core spire (first building)
+      // Clean up memory before removing buildings (memory leak fix)
       while (city.buildings.length > 1) {
         const b = city.buildings.pop();
-        scene.remove(b.mesh);
+        
+        // Clean up windowStates for this building
+        if (city.windowStates.has(b)) {
+          city.windowStates.delete(b);
+        }
+        
+        // Clean up elevators attached to this building
+        if (b.mesh) {
+          b.mesh.children.forEach(child => {
+            if (child.userData && child.userData.isElevator) {
+              const idx = city.elevators.indexOf(child);
+              if (idx > -1) city.elevators.splice(idx, 1);
+            }
+          });
+        }
+        
+        // Dispose geometry and materials
+        if (b.mesh) {
+          if (b.mesh.geometry) b.mesh.geometry.dispose();
+          if (b.mesh.material) {
+            if (Array.isArray(b.mesh.material)) {
+              b.mesh.material.forEach(m => m.dispose());
+            } else {
+              b.mesh.material.dispose();
+            }
+          }
+          scene.remove(b.mesh);
+        }
       }
-      city.connections.forEach(c => scene.remove(c.line));
+      
+      // Clean up connections and their data streams
+      city.connections.forEach(c => {
+        scene.remove(c.line);
+        if (c.line.geometry) c.line.geometry.dispose();
+        if (c.line.material) c.line.material.dispose();
+      });
       city.connections = [];
+      
+      // Clean up data streams
+      city.dataStreams.forEach(stream => {
+        scene.remove(stream);
+        if (stream.geometry) stream.geometry.dispose();
+        if (stream.material) stream.material.dispose();
+      });
+      city.dataStreams = [];
       
       // Reset districts, keep core
       city.districts.clear();
@@ -5488,14 +5494,18 @@
       }
       console.log('[LoadCity] Created', created, 'buildings');
       
-      // Create connections from state
+      // Create connections from state (O(n) instead of O(n²))
       if (cityState.connections) {
+        // Build position-based lookup map once
+        const posKey = (x, z) => `${Math.round(x * 2)},${Math.round(z * 2)}`;
+        const posToBuilding = new Map();
+        city.buildings.forEach(b => {
+          posToBuilding.set(posKey(b.x, b.z), b);
+        });
+        
         const idToBuilding = new Map();
-        cityState.buildings.forEach((spec, i) => {
-          // Match spec to building by position
-          const b = city.buildings.find(bld => 
-            Math.abs(bld.x - spec.x) < 0.5 && Math.abs(bld.z - spec.z) < 0.5
-          );
+        cityState.buildings.forEach((spec) => {
+          const b = posToBuilding.get(posKey(spec.x, spec.z));
           if (b) idToBuilding.set(spec.id, b);
         });
         
@@ -5515,6 +5525,25 @@
       
       console.log(`[City] Loaded ${city.buildings.length} buildings from knowledge`);
       updateStats();
+      isLoadingCity = false;
+    }
+    
+    // Pre-compiled keyword regexes for performance (avoid creating in tight loop)
+    const districtKeywords = {
+      trading: ['stock', 'trading', 'market', 'ticker', 'price', 'portfolio', 'scan', 'asymmetry', 'options', 'calls', 'puts'],
+      infrastructure: ['server', 'deploy', 'api', 'docker', 'tunnel', 'pm2', 'cloudflare', 'coolify', 'tailscale', 'ssh'],
+      projects: ['project', 'build', 'app', 'visualization', 'face', 'city', 'mind', 'code', 'create', 'develop'],
+      memory: ['memory', 'remember', 'decision', 'note', 'log', 'history', 'learned', 'preference'],
+      core: ['self', 'absalom', 'knowledge', 'engine', 'think', 'process', 'identity', 'soul']
+    };
+    
+    // Pre-compile regex patterns for exact word matching
+    const districtKeywordRegexes = {};
+    for (const [district, keywords] of Object.entries(districtKeywords)) {
+      districtKeywordRegexes[district] = keywords.map(kw => ({
+        keyword: kw,
+        regex: new RegExp(`\\b${kw}\\b`, 'i')
+      }));
     }
     
     /**
@@ -5528,26 +5557,17 @@
       activityState.mode = mode || 'idle';
       activityState.activityStartTime = Date.now();
       
-      const districtKeywords = {
-        trading: ['stock', 'trading', 'market', 'ticker', 'price', 'portfolio', 'scan', 'asymmetry', 'options', 'calls', 'puts'],
-        infrastructure: ['server', 'deploy', 'api', 'docker', 'tunnel', 'pm2', 'cloudflare', 'coolify', 'tailscale', 'ssh'],
-        projects: ['project', 'build', 'app', 'visualization', 'face', 'city', 'mind', 'code', 'create', 'develop'],
-        memory: ['memory', 'remember', 'decision', 'note', 'log', 'history', 'learned', 'preference'],
-        core: ['self', 'absalom', 'knowledge', 'engine', 'think', 'process', 'identity', 'soul']
-      };
-      
       const lower = (message || '').toLowerCase();
       let detectedDistrict = null;
       let highestScore = 0;
       
-      // Score each district based on keyword matches
-      for (const [district, keywords] of Object.entries(districtKeywords)) {
+      // Score each district based on keyword matches (using pre-compiled regexes)
+      for (const [district, keywordData] of Object.entries(districtKeywordRegexes)) {
         let score = 0;
-        for (const kw of keywords) {
-          if (lower.includes(kw)) {
+        for (const { keyword, regex } of keywordData) {
+          if (lower.includes(keyword)) {
             score += 1;
-            // Bonus for exact word match
-            const regex = new RegExp(`\\b${kw}\\b`, 'i');
+            // Bonus for exact word match (using pre-compiled regex)
             if (regex.test(lower)) score += 0.5;
           }
         }
