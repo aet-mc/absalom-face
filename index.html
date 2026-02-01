@@ -82,6 +82,8 @@
 
   <!-- Include GraphClient for WebSocket protocol -->
   <script src="renderer/graph-client.js"></script>
+  <!-- Include Mycelium Layer for knowledge graph rendering -->
+  <script src="renderer/layers/mycelium.js"></script>
   
   <script>
     const canvas = document.getElementById('main-canvas');
@@ -154,9 +156,12 @@
     
     let graphActivations = new Map(); // nodeId -> { intensity, time }
     
-    // Layout computed nodes for rendering
+    // Layout computed nodes for rendering (fallback)
     let layoutNodes = []; // { id, x, y, type, label, displayWeight, ... }
     let layoutEdges = []; // { source, target, weight, ... }
+    
+    // MyceliumLayer instance (if available)
+    let myceliumLayer = null;
     
     // Ambient particles
     const ambientParticles = [];
@@ -254,9 +259,20 @@
       if (!graph.nodes || graph.nodes.length === 0) {
         layoutNodes = [];
         layoutEdges = [];
+        if (myceliumLayer) {
+          myceliumLayer.setGraph({ nodes: [], edges: [] });
+        }
         return;
       }
       
+      // If MyceliumLayer is available, use it
+      if (myceliumLayer) {
+        myceliumLayer.setGraph(graph);
+        console.log('[Absalom] Graph set on MyceliumLayer:', graph.nodes.length, 'nodes');
+        return;
+      }
+      
+      // Fallback: simple layout
       const waterLine = canvas.height * state.waterLineY;
       const depthHeight = canvas.height - waterLine;
       const centerX = canvas.width / 2;
@@ -369,6 +385,18 @@
     // ============================================
     
     function activateRandomNodes(count, intensity = 1) {
+      // Use MyceliumLayer if available
+      if (myceliumLayer && myceliumLayer.nodes.length > 0) {
+        const nodeIds = [];
+        for (let i = 0; i < count; i++) {
+          const idx = Math.floor(Math.random() * myceliumLayer.nodes.length);
+          nodeIds.push(myceliumLayer.nodes[idx].id);
+        }
+        myceliumLayer.activate(nodeIds, intensity);
+        return;
+      }
+      
+      // Fallback
       if (layoutNodes.length === 0) return;
       
       const now = Date.now();
@@ -379,6 +407,23 @@
     }
     
     function activateOutwardPath(intensity = 1) {
+      // Use MyceliumLayer if available
+      if (myceliumLayer && myceliumLayer.nodes.length > 0) {
+        // Create a path from center outward
+        const waterLine = canvas.height * state.waterLineY;
+        const cx = canvas.width / 2;
+        const cy = waterLine + (canvas.height - waterLine) * 0.5;
+        
+        const sorted = [...myceliumLayer.nodes].sort((a, b) => {
+          return Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy);
+        });
+        
+        const path = sorted.slice(0, Math.min(8, sorted.length)).map(n => n.id);
+        myceliumLayer.activatePath(path, intensity);
+        return;
+      }
+      
+      // Fallback
       if (layoutNodes.length === 0) return;
       
       const now = Date.now();
@@ -629,6 +674,18 @@
     // ============================================
     
     function drawMyceliumLayer(waterLine) {
+      // Use MyceliumLayer if available
+      if (myceliumLayer) {
+        myceliumLayer.setWaterLine(waterLine);
+        myceliumLayer.update(0.016); // ~60fps
+        myceliumLayer.render(ctx);
+        
+        // Still draw depth particles
+        drawDepthParticles(waterLine, Math.sin(state.time * 0.3) * 3);
+        return;
+      }
+      
+      // Fallback: simple rendering
       if (layoutNodes.length === 0) return;
       
       const breathe = Math.sin(state.time * 0.3) * 3;
@@ -1165,6 +1222,14 @@
     initAmbientParticles();
     initDepthParticles();
     initNeurons();
+    
+    // Initialize MyceliumLayer if available
+    if (typeof MyceliumLayer !== 'undefined') {
+      myceliumLayer = new MyceliumLayer(canvas);
+      myceliumLayer.setWaterLine(canvas.height * state.waterLineY);
+      console.log('[Absalom] MyceliumLayer initialized');
+    }
+    
     draw();
     
     window.addEventListener('resize', () => {
@@ -1176,6 +1241,11 @@
         // Re-layout graph if we have data
         if (graphData.nodes.length > 0) {
           layoutGraph(graphData);
+        }
+        // Resize mycelium layer
+        if (myceliumLayer) {
+          myceliumLayer.resize(canvas.width, canvas.height);
+          myceliumLayer.setWaterLine(canvas.height * state.waterLineY);
         }
       }, 100);
     });
@@ -1258,21 +1328,33 @@
       // Activation events
       graphClient.on('activate', (nodeIds, intensity) => {
         console.log('[Absalom] Activate nodes:', nodeIds.length, 'intensity:', intensity);
-        const now = Date.now();
-        for (const nodeId of nodeIds) {
-          graphActivations.set(nodeId, { intensity, time: now });
+        
+        // Use MyceliumLayer if available
+        if (myceliumLayer) {
+          myceliumLayer.activate(nodeIds, intensity);
+        } else {
+          const now = Date.now();
+          for (const nodeId of nodeIds) {
+            graphActivations.set(nodeId, { intensity, time: now });
+          }
         }
       });
       
       graphClient.on('activate:path', (path, intensity) => {
         console.log('[Absalom] Activate path:', path.length, 'nodes');
-        const now = Date.now();
-        path.forEach((nodeId, idx) => {
-          graphActivations.set(nodeId, { 
-            intensity: intensity * Math.max(0.3, 1 - idx * 0.1), 
-            time: now + idx * 100 
+        
+        // Use MyceliumLayer if available
+        if (myceliumLayer) {
+          myceliumLayer.activatePath(path, intensity);
+        } else {
+          const now = Date.now();
+          path.forEach((nodeId, idx) => {
+            graphActivations.set(nodeId, { 
+              intensity: intensity * Math.max(0.3, 1 - idx * 0.1), 
+              time: now + idx * 100 
+            });
           });
-        });
+        }
       });
       
       // Tide events
@@ -1400,10 +1482,21 @@
      * Activate specific nodes in the graph
      */
     window.absalomActivate = function(nodeIds, intensity = 1) {
-      const now = Date.now();
-      for (const nodeId of nodeIds) {
-        graphActivations.set(nodeId, { intensity, time: now });
+      if (myceliumLayer) {
+        myceliumLayer.activate(nodeIds, intensity);
+      } else {
+        const now = Date.now();
+        for (const nodeId of nodeIds) {
+          graphActivations.set(nodeId, { intensity, time: now });
+        }
       }
+    };
+    
+    /**
+     * Get the MyceliumLayer instance for direct access
+     */
+    window.absalomGetMyceliumLayer = function() {
+      return myceliumLayer;
     };
     
     /**
