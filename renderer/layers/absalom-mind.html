@@ -77,6 +77,18 @@
       font-variant-numeric: tabular-nums;
     }
     
+    .time {
+      position: fixed;
+      bottom: max(50px, calc(env(safe-area-inset-bottom) + 30px));
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 9px;
+      color: rgba(45, 212, 168, 0.15);
+      letter-spacing: 2px;
+      pointer-events: none;
+    }
+    
     /* Name at bottom */
     .name {
       position: fixed;
@@ -103,6 +115,7 @@
     <div class="stats" id="stats"></div>
   </div>
   
+  <div class="time" id="timeDisplay"></div>
   <div class="name">absalom</div>
   
   <script>
@@ -893,6 +906,28 @@
     function updateStats() {
       statsEl.textContent = `${nodes.length} · ${edges.length}`;
     }
+    
+    // Time display
+    const timeDisplay = document.getElementById('timeDisplay');
+    const startTime = Date.now();
+    
+    function updateTimeDisplay() {
+      const elapsed = Date.now() - startTime;
+      const seconds = Math.floor(elapsed / 1000) % 60;
+      const minutes = Math.floor(elapsed / 60000) % 60;
+      const hours = Math.floor(elapsed / 3600000);
+      
+      if (hours > 0) {
+        timeDisplay.textContent = `${hours}h ${minutes}m`;
+      } else if (minutes > 0) {
+        timeDisplay.textContent = `${minutes}m ${seconds}s`;
+      } else {
+        timeDisplay.textContent = `${seconds}s`;
+      }
+    }
+    
+    setInterval(updateTimeDisplay, 1000);
+    updateTimeDisplay();
     
     // ═══════════════════════════════════════════════════════════════
     // INTERACTION
