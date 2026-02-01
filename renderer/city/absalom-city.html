@@ -230,6 +230,179 @@
     };
     
     // ═══════════════════════════════════════════════════════════════════════
+    // SKY DOME WITH DYNAMIC GRADIENT
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createSkyDome() {
+      // Sky dome shader for beautiful time-based gradients
+      const skyVertexShader = `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `;
+      
+      const skyFragmentShader = `
+        uniform vec3 topColor;
+        uniform vec3 middleColor;
+        uniform vec3 horizonColor;
+        uniform vec3 horizonGlow;
+        uniform float horizonSharpness;
+        uniform float glowIntensity;
+        uniform float sunY;
+        varying vec3 vWorldPosition;
+        
+        void main() {
+          float height = normalize(vWorldPosition).y;
+          float heightClamped = max(0.0, height);
+          
+          // Three-zone gradient: horizon -> middle -> top
+          vec3 color;
+          if (heightClamped < 0.3) {
+            // Horizon to middle
+            float t = heightClamped / 0.3;
+            t = smoothstep(0.0, 1.0, t);
+            color = mix(horizonColor, middleColor, t);
+            // Add horizon glow (concentrated at very bottom)
+            float glowFactor = (1.0 - t) * (1.0 - t) * glowIntensity;
+            color = mix(color, horizonGlow, glowFactor);
+          } else {
+            // Middle to top
+            float t = (heightClamped - 0.3) / 0.7;
+            t = smoothstep(0.0, 1.0, t);
+            color = mix(middleColor, topColor, t);
+          }
+          
+          // Add subtle atmospheric scattering near horizon
+          float scatter = exp(-heightClamped * horizonSharpness) * 0.15;
+          color += horizonGlow * scatter;
+          
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `;
+      
+      const skyUniforms = {
+        topColor: { value: new THREE.Color(0x0a0a20) },
+        middleColor: { value: new THREE.Color(0x1a1a40) },
+        horizonColor: { value: new THREE.Color(0x2a2a50) },
+        horizonGlow: { value: new THREE.Color(0x4a3060) },
+        horizonSharpness: { value: 3.0 },
+        glowIntensity: { value: 0.3 },
+        sunY: { value: 0.0 }
+      };
+      
+      const skyGeo = new THREE.SphereGeometry(450, 32, 24);
+      const skyMat = new THREE.ShaderMaterial({
+        vertexShader: skyVertexShader,
+        fragmentShader: skyFragmentShader,
+        uniforms: skyUniforms,
+        side: THREE.BackSide,
+        depthWrite: false
+      });
+      
+      city.skyDome = new THREE.Mesh(skyGeo, skyMat);
+      city.skyUniforms = skyUniforms;
+      scene.add(city.skyDome);
+      
+      // Disable default background
+      scene.background = null;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // SUN & MOON CELESTIAL BODIES
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createCelestialBodies() {
+      // === SUN ===
+      const sunGroup = new THREE.Group();
+      
+      // Sun core (bright center)
+      const sunCoreGeo = new THREE.SphereGeometry(8, 24, 24);
+      const sunCoreMat = new THREE.MeshBasicMaterial({
+        color: 0xffffcc,
+        transparent: true,
+        opacity: 1.0
+      });
+      const sunCore = new THREE.Mesh(sunCoreGeo, sunCoreMat);
+      sunGroup.add(sunCore);
+      
+      // Sun glow layer 1 (inner glow)
+      const sunGlow1Geo = new THREE.SphereGeometry(12, 24, 24);
+      const sunGlow1Mat = new THREE.MeshBasicMaterial({
+        color: 0xffdd88,
+        transparent: true,
+        opacity: 0.4
+      });
+      const sunGlow1 = new THREE.Mesh(sunGlow1Geo, sunGlow1Mat);
+      sunGroup.add(sunGlow1);
+      
+      // Sun glow layer 2 (outer glow)
+      const sunGlow2Geo = new THREE.SphereGeometry(18, 24, 24);
+      const sunGlow2Mat = new THREE.MeshBasicMaterial({
+        color: 0xffaa44,
+        transparent: true,
+        opacity: 0.2
+      });
+      const sunGlow2 = new THREE.Mesh(sunGlow2Geo, sunGlow2Mat);
+      sunGroup.add(sunGlow2);
+      
+      // Sun corona (large faint glow)
+      const coronaGeo = new THREE.SphereGeometry(30, 16, 16);
+      const coronaMat = new THREE.MeshBasicMaterial({
+        color: 0xff8844,
+        transparent: true,
+        opacity: 0.1
+      });
+      const corona = new THREE.Mesh(coronaGeo, coronaMat);
+      sunGroup.add(corona);
+      
+      city.sun = sunGroup;
+      city.sunCore = sunCore;
+      city.sunGlows = [sunGlow1, sunGlow2, corona];
+      scene.add(sunGroup);
+      
+      // === MOON ===
+      const moonGroup = new THREE.Group();
+      
+      // Moon surface
+      const moonGeo = new THREE.SphereGeometry(5, 24, 24);
+      const moonMat = new THREE.MeshBasicMaterial({
+        color: 0xddeeff,
+        transparent: true,
+        opacity: 0.95
+      });
+      const moon = new THREE.Mesh(moonGeo, moonMat);
+      moonGroup.add(moon);
+      
+      // Moon glow
+      const moonGlowGeo = new THREE.SphereGeometry(8, 16, 16);
+      const moonGlowMat = new THREE.MeshBasicMaterial({
+        color: 0x8899bb,
+        transparent: true,
+        opacity: 0.25
+      });
+      const moonGlow = new THREE.Mesh(moonGlowGeo, moonGlowMat);
+      moonGroup.add(moonGlow);
+      
+      // Outer moon halo
+      const moonHaloGeo = new THREE.SphereGeometry(12, 16, 16);
+      const moonHaloMat = new THREE.MeshBasicMaterial({
+        color: 0x6677aa,
+        transparent: true,
+        opacity: 0.1
+      });
+      const moonHalo = new THREE.Mesh(moonHaloGeo, moonHaloMat);
+      moonGroup.add(moonHalo);
+      
+      city.moon = moonGroup;
+      city.moonCore = moon;
+      city.moonGlows = [moonGlow, moonHalo];
+      scene.add(moonGroup);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
     // STARFIELD SKYBOX
     // ═══════════════════════════════════════════════════════════════════════
     
@@ -244,7 +417,7 @@
         // Distribute on a large sphere
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
-        const radius = 400 + Math.random() * 100;
+        const radius = 380 + Math.random() * 40;
         
         positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
         positions[i * 3 + 1] = Math.abs(radius * Math.cos(phi)); // Only upper hemisphere
@@ -536,12 +709,84 @@
     }
     
     // ═══════════════════════════════════════════════════════════════════════
-    // LIGHTING
+    // CINEMATIC LIGHTING SYSTEM
     // ═══════════════════════════════════════════════════════════════════════
     
-    let sunLight, moonLight, ambientLight;
+    let sunLight, moonLight, ambientLight, hemiLight;
+    
+    // Lighting state for smooth transitions
+    const lighting = {
+      targetSunColor: new THREE.Color(),
+      targetAmbientColor: new THREE.Color(),
+      targetFogColor: new THREE.Color(),
+      currentSunColor: new THREE.Color(0xffeedd),
+      currentAmbientColor: new THREE.Color(0x111122),
+      currentFogColor: new THREE.Color(0x0a0a15),
+      goldenHourIntensity: 0,
+      rimLightIntensity: 0,
+      windowLightProgress: 0, // 0 = day, 1 = fully lit windows
+    };
+    
+    // Color presets for different times of day
+    const LIGHT_PRESETS = {
+      dawn: {
+        sun: new THREE.Color(0xff6633), // Deep orange-red
+        ambient: new THREE.Color(0x332244), // Purple-blue
+        fog: new THREE.Color(0x1a1525),
+        skyHue: 0.05, skySat: 0.7, skyLight: 0.08,
+      },
+      sunrise: {
+        sun: new THREE.Color(0xffaa55), // Warm orange
+        ambient: new THREE.Color(0x443322), // Warm brown
+        fog: new THREE.Color(0x2a1a15),
+        skyHue: 0.08, skySat: 0.6, skyLight: 0.15,
+      },
+      morning: {
+        sun: new THREE.Color(0xffeebb), // Warm white
+        ambient: new THREE.Color(0x334455), // Slight cool
+        fog: new THREE.Color(0x151820),
+        skyHue: 0.58, skySat: 0.4, skyLight: 0.12,
+      },
+      noon: {
+        sun: new THREE.Color(0xffffff), // Neutral white
+        ambient: new THREE.Color(0x445566), // Slight blue
+        fog: new THREE.Color(0x0f1520),
+        skyHue: 0.6, skySat: 0.35, skyLight: 0.1,
+      },
+      afternoon: {
+        sun: new THREE.Color(0xfff5e0), // Slightly warm
+        ambient: new THREE.Color(0x3a4455), // Neutral
+        fog: new THREE.Color(0x121825),
+        skyHue: 0.58, skySat: 0.4, skyLight: 0.09,
+      },
+      goldenHour: {
+        sun: new THREE.Color(0xffcc66), // Golden
+        ambient: new THREE.Color(0x553322), // Warm
+        fog: new THREE.Color(0x251a10),
+        skyHue: 0.07, skySat: 0.65, skyLight: 0.12,
+      },
+      sunset: {
+        sun: new THREE.Color(0xff7744), // Deep orange
+        ambient: new THREE.Color(0x442233), // Purple warm
+        fog: new THREE.Color(0x201515),
+        skyHue: 0.02, skySat: 0.7, skyLight: 0.08,
+      },
+      dusk: {
+        sun: new THREE.Color(0x663355), // Purple
+        ambient: new THREE.Color(0x221133), // Deep purple
+        fog: new THREE.Color(0x0f0a15),
+        skyHue: 0.75, skySat: 0.6, skyLight: 0.04,
+      },
+      night: {
+        sun: new THREE.Color(0x000000), // Off
+        ambient: new THREE.Color(0x0a1525), // Cool blue
+        fog: new THREE.Color(0x050810),
+        skyHue: 0.65, skySat: 0.7, skyLight: 0.01,
+      },
+    };
     
     function createLighting() {
+      // Main sun light with shadows
       sunLight = new THREE.DirectionalLight(0xffeedd, 1);
       if (!isMobile) {
         sunLight.castShadow = true;
@@ -549,26 +794,74 @@
         sunLight.shadow.mapSize.height = 2048;
         sunLight.shadow.camera.near = 0.5;
         sunLight.shadow.camera.far = 200;
-        sunLight.shadow.camera.left = -50;
-        sunLight.shadow.camera.right = 50;
-        sunLight.shadow.camera.top = 50;
-        sunLight.shadow.camera.bottom = -50;
+        sunLight.shadow.camera.left = -60;
+        sunLight.shadow.camera.right = 60;
+        sunLight.shadow.camera.top = 60;
+        sunLight.shadow.camera.bottom = -60;
+        sunLight.shadow.bias = -0.0005;
+        sunLight.shadow.normalBias = 0.02;
       }
       scene.add(sunLight);
       
-      moonLight = new THREE.DirectionalLight(0x4466aa, 0.3);
+      // Moon light - cooler, softer
+      moonLight = new THREE.DirectionalLight(0x3355aa, 0.3);
+      moonLight.position.set(30, 50, -40);
       scene.add(moonLight);
       
+      // Ambient light - fills shadows
       ambientLight = new THREE.AmbientLight(0x111122, 0.5);
       scene.add(ambientLight);
       
-      const hemiLight = new THREE.HemisphereLight(0x0a0a20, 0x000000, 0.3);
+      // Hemisphere light - sky/ground color influence
+      hemiLight = new THREE.HemisphereLight(0x2244aa, 0x221100, 0.2);
       scene.add(hemiLight);
+    }
+    
+    // Smooth interpolation helper
+    function smoothstep(x) {
+      return x * x * (3 - 2 * x);
+    }
+    
+    // Get lighting preset blend based on hour
+    function getLightingBlend(hours) {
+      // Define time ranges for each phase
+      const phases = [
+        { start: 0, end: 5, preset: 'night' },
+        { start: 5, end: 6, preset: 'dawn', nextPreset: 'sunrise' },
+        { start: 6, end: 7.5, preset: 'sunrise', nextPreset: 'morning' },
+        { start: 7.5, end: 11, preset: 'morning', nextPreset: 'noon' },
+        { start: 11, end: 14, preset: 'noon' },
+        { start: 14, end: 17, preset: 'afternoon', nextPreset: 'goldenHour' },
+        { start: 17, end: 18.5, preset: 'goldenHour', nextPreset: 'sunset' },
+        { start: 18.5, end: 20, preset: 'sunset', nextPreset: 'dusk' },
+        { start: 20, end: 21.5, preset: 'dusk', nextPreset: 'night' },
+        { start: 21.5, end: 24, preset: 'night' },
+      ];
+      
+      for (const phase of phases) {
+        if (hours >= phase.start && hours < phase.end) {
+          if (phase.nextPreset) {
+            const t = (hours - phase.start) / (phase.end - phase.start);
+            return { from: phase.preset, to: phase.nextPreset, blend: smoothstep(t) };
+          }
+          return { from: phase.preset, to: phase.preset, blend: 0 };
+        }
+      }
+      return { from: 'night', to: 'night', blend: 0 };
+    }
+    
+    // Blend two colors
+    function blendColors(color1, color2, t) {
+      const result = new THREE.Color();
+      result.r = color1.r + (color2.r - color1.r) * t;
+      result.g = color1.g + (color2.g - color1.g) * t;
+      result.b = color1.b + (color2.b - color1.b) * t;
+      return result;
     }
     
     function updateLighting() {
       const now = new Date();
-      const hours = now.getHours() + now.getMinutes() / 60;
+      const hours = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
       
       timeDisplayEl.textContent = now.toLocaleTimeString('en-US', { 
         hour: '2-digit', 
@@ -576,46 +869,307 @@
         hour12: false 
       });
       
+      // Calculate sun position (rises at 6, sets at 18)
       const sunAngle = ((hours - 6) / 24) * Math.PI * 2;
       const sunHeight = Math.sin(sunAngle);
-      const sunX = Math.cos(sunAngle) * 50;
-      const sunY = Math.max(sunHeight * 50, -20);
-      const sunZ = 30;
+      const sunAzimuth = Math.cos(sunAngle);
       
+      // Sun position in world space
+      const sunDistance = 80;
+      const sunX = sunAzimuth * sunDistance * 0.8;
+      const sunY = Math.max(sunHeight * sunDistance, -30);
+      const sunZ = 40;
       sunLight.position.set(sunX, sunY, sunZ);
-      moonLight.position.set(-sunX, -sunY + 30, -sunZ);
       
-      const dayIntensity = Math.max(0, sunHeight);
+      // Moon opposite to sun, slightly offset
+      moonLight.position.set(-sunX * 0.8, -sunY + 60, -sunZ * 0.7);
+      
+      // Get current lighting preset blend
+      const { from, to, blend } = getLightingBlend(hours);
+      const fromPreset = LIGHT_PRESETS[from];
+      const toPreset = LIGHT_PRESETS[to];
+      
+      // Blend target colors
+      lighting.targetSunColor = blendColors(fromPreset.sun, toPreset.sun, blend);
+      lighting.targetAmbientColor = blendColors(fromPreset.ambient, toPreset.ambient, blend);
+      lighting.targetFogColor = blendColors(fromPreset.fog, toPreset.fog, blend);
+      
+      // Smooth transition (lerp current toward target)
+      const colorLerpSpeed = 0.02;
+      lighting.currentSunColor.lerp(lighting.targetSunColor, colorLerpSpeed);
+      lighting.currentAmbientColor.lerp(lighting.targetAmbientColor, colorLerpSpeed);
+      lighting.currentFogColor.lerp(lighting.targetFogColor, colorLerpSpeed);
+      
+      // Apply colors to lights
+      sunLight.color.copy(lighting.currentSunColor);
+      ambientLight.color.copy(lighting.currentAmbientColor);
+      
+      // Calculate intensities
+      const dayProgress = Math.max(0, sunHeight); // 0 at horizon, 1 at noon
+      const horizonFactor = Math.abs(sunHeight); // Low at horizon
+      
+      // Sun intensity: parabolic curve, brightest at noon
+      const sunIntensityBase = Math.pow(dayProgress, 0.6); // Softer falloff
+      sunLight.intensity = sunIntensityBase * 1.4;
+      
+      // Night intensity for other systems
       city.nightIntensity = Math.max(0, -sunHeight);
+      const twilightIntensity = (1 - Math.abs(sunHeight)) * (sunHeight < 0.3 ? 1 : 0);
       
-      sunLight.intensity = dayIntensity * 1.2;
-      moonLight.intensity = city.nightIntensity * 0.4;
-      ambientLight.intensity = 0.2 + dayIntensity * 0.3;
+      // Moon intensity - stronger when sun is down
+      moonLight.intensity = city.nightIntensity * 0.5;
+      moonLight.color.setHSL(0.6, 0.5, 0.5 + city.nightIntensity * 0.2);
       
-      // Sky color
-      const skyHue = dayIntensity > 0.1 ? 0.6 : 0.68;
-      const skySat = dayIntensity > 0.1 ? 0.3 : 0.6;
-      const skyLight = 0.01 + dayIntensity * 0.06;
-      scene.background = new THREE.Color().setHSL(skyHue, skySat, skyLight);
-      scene.fog.color = scene.background;
+      // Ambient intensity - never fully dark
+      ambientLight.intensity = 0.15 + dayProgress * 0.25 + city.nightIntensity * 0.1;
       
-      // Stars visibility at night
-      if (city.stars) {
-        city.stars.material.opacity = Math.max(0, city.nightIntensity * 0.9);
+      // Hemisphere light adapts to time
+      const skyBlend = blend;
+      const skyHue = fromPreset.skyHue + (toPreset.skyHue - fromPreset.skyHue) * skyBlend;
+      const skySat = fromPreset.skySat + (toPreset.skySat - fromPreset.skySat) * skyBlend;
+      const skyLight_l = fromPreset.skyLight + (toPreset.skyLight - fromPreset.skyLight) * skyBlend;
+      
+      hemiLight.color.setHSL(skyHue, skySat, skyLight_l + 0.1);
+      hemiLight.groundColor.setHSL(0.08, 0.4, 0.02 + dayProgress * 0.03);
+      hemiLight.intensity = 0.15 + dayProgress * 0.15;
+      
+      // Shadow softness varies with sun angle (lower sun = softer shadows)
+      if (!isMobile && sunLight.shadow) {
+        const shadowRadius = 1 + (1 - horizonFactor) * 3; // 1-4 range
+        sunLight.shadow.radius = shadowRadius;
       }
       
-      // Bloom intensity increases at night
-      bloomPass.strength = isMobile ? 
-        (0.6 + city.nightIntensity * 0.6) : 
-        (0.8 + city.nightIntensity * 0.8);
+      // Sky color
+      scene.background = new THREE.Color().setHSL(skyHue, skySat, skyLight_l);
       
-      // Cycle phase
+      // Fog color and density
+      scene.fog.color.copy(lighting.currentFogColor);
+      // Denser fog at night (mystery), lighter during day
+      scene.fog.density = 0.004 + city.nightIntensity * 0.003 + twilightIntensity * 0.001;
+      
+      // Stars visibility - fade in during dusk, full at night
+      if (city.stars) {
+        const starVisibility = Math.max(0, city.nightIntensity * 1.2 - 0.1);
+        city.stars.material.opacity = Math.min(0.9, starVisibility);
+      }
+      
+      // Golden hour detection (1 hour before/after sunset/sunrise)
+      const isGoldenHour = (hours >= 6 && hours <= 7.5) || (hours >= 17 && hours <= 19);
+      lighting.goldenHourIntensity = isGoldenHour ? 
+        (1 - Math.abs((hours > 12 ? hours - 18 : hours - 6.75)) / 1.5) : 0;
+      lighting.goldenHourIntensity = Math.max(0, Math.min(1, lighting.goldenHourIntensity));
+      
+      // Rim lighting intensity (strong at sunrise/sunset when sun is low)
+      lighting.rimLightIntensity = (sunHeight > -0.1 && sunHeight < 0.3) ? 
+        (1 - Math.abs(sunHeight - 0.1) / 0.4) : 0;
+      
+      // Window light progress - gradual transition
+      const targetWindowLight = city.nightIntensity > 0.1 ? 
+        Math.min(1, (city.nightIntensity - 0.1) / 0.5) : 0;
+      lighting.windowLightProgress += (targetWindowLight - lighting.windowLightProgress) * 0.01;
+      
+      // Bloom: stronger at night for neon pop, softer during day
+      const baseBloom = isMobile ? 0.5 : 0.7;
+      const nightBloom = city.nightIntensity * (isMobile ? 0.8 : 1.2);
+      const goldenBloom = lighting.goldenHourIntensity * 0.3;
+      bloomPass.strength = baseBloom + nightBloom + goldenBloom;
+      bloomPass.threshold = 0.9 - city.nightIntensity * 0.2; // Lower threshold at night
+      
+      // Tone mapping exposure - brighter during day
+      renderer.toneMappingExposure = 0.8 + dayProgress * 0.4 - city.nightIntensity * 0.2;
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // SKY DOME UPDATE - Dynamic gradient based on time of day
+      // ═══════════════════════════════════════════════════════════════════════
+      if (city.skyUniforms) {
+        // Calculate sky colors based on time
+        let topColor, middleColor, horizonColor, horizonGlow, glowIntensity;
+        
+        if (hours >= 5 && hours < 7) {
+          // SUNRISE - purple → orange → pink
+          const t = (hours - 5) / 2;
+          topColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x0a0520), new THREE.Color(0x2244aa), t
+          );
+          middleColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x2a1050), new THREE.Color(0x5588cc), t
+          );
+          horizonColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x883355), new THREE.Color(0xffaa77), t
+          );
+          horizonGlow = new THREE.Color().lerpColors(
+            new THREE.Color(0xcc6655), new THREE.Color(0xffcc99), t
+          );
+          glowIntensity = 0.7 - t * 0.3;
+        } else if (hours >= 7 && hours < 17) {
+          // DAYTIME - deep blue → lighter blue
+          const morningT = Math.min(1, (hours - 7) / 3);
+          topColor = new THREE.Color(0x1155bb);
+          middleColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x4488dd), new THREE.Color(0x3377cc), morningT
+          );
+          horizonColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x99ccff), new THREE.Color(0x88bbee), morningT
+          );
+          horizonGlow = new THREE.Color(0xaaddff);
+          glowIntensity = 0.2;
+        } else if (hours >= 17 && hours < 20) {
+          // SUNSET - blue → orange → red → purple
+          const t = (hours - 17) / 3;
+          topColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x2244aa), new THREE.Color(0x1a1040), t
+          );
+          middleColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x6677aa), new THREE.Color(0x552255), t
+          );
+          horizonColor = new THREE.Color().lerpColors(
+            new THREE.Color(0xffaa66), new THREE.Color(0xff5533), t
+          );
+          horizonGlow = new THREE.Color().lerpColors(
+            new THREE.Color(0xffcc88), new THREE.Color(0xff7744), t
+          );
+          glowIntensity = 0.5 + t * 0.3;
+        } else {
+          // NIGHT - dark blue/purple
+          const nightT = hours >= 20 ? Math.min(1, (hours - 20) / 2) : 1;
+          topColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x0a0820), new THREE.Color(0x050510), nightT
+          );
+          middleColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x151230), new THREE.Color(0x080815), nightT
+          );
+          horizonColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x2a2040), new THREE.Color(0x101020), nightT
+          );
+          horizonGlow = new THREE.Color(0x1a1530);
+          glowIntensity = 0.15;
+        }
+        
+        // Apply to sky dome shader
+        city.skyUniforms.topColor.value.copy(topColor);
+        city.skyUniforms.middleColor.value.copy(middleColor);
+        city.skyUniforms.horizonColor.value.copy(horizonColor);
+        city.skyUniforms.horizonGlow.value.copy(horizonGlow);
+        city.skyUniforms.glowIntensity.value = glowIntensity;
+        city.skyUniforms.horizonSharpness.value = isGoldenHour ? 2.0 : 4.0;
+        city.skyUniforms.sunY.value = sunHeight;
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // SUN MESH UPDATE - Position and visibility
+      // ═══════════════════════════════════════════════════════════════════════
+      if (city.sun) {
+        const celestialRadius = 350;
+        const sunMeshX = sunAzimuth * celestialRadius * 0.7;
+        const sunMeshY = Math.max(sunHeight * celestialRadius * 0.8, -100);
+        const sunMeshZ = 100;
+        
+        city.sun.position.set(sunMeshX, sunMeshY, sunMeshZ);
+        
+        // Larger sun at horizon (atmospheric lensing effect)
+        const horizonScale = 1 + (1 - Math.abs(sunHeight)) * 0.4;
+        const visibility = Math.max(0, sunHeight + 0.15);
+        city.sun.scale.setScalar(horizonScale * Math.max(0.01, visibility));
+        
+        // Update sun colors based on time
+        if (city.sunCore) {
+          let sunCoreColor;
+          if (hours >= 5 && hours < 7) {
+            sunCoreColor = new THREE.Color(0xffaa55); // Orange sunrise
+          } else if (hours >= 7 && hours < 17) {
+            sunCoreColor = new THREE.Color(0xffffee); // Bright white day
+          } else if (hours >= 17 && hours < 20) {
+            const t = (hours - 17) / 3;
+            sunCoreColor = new THREE.Color().lerpColors(
+              new THREE.Color(0xffdd77), new THREE.Color(0xff5522), t
+            );
+          } else {
+            sunCoreColor = new THREE.Color(0x000000);
+          }
+          city.sunCore.material.color.copy(sunCoreColor);
+          city.sunCore.material.opacity = visibility;
+          
+          // Update glow colors too
+          city.sunGlows.forEach((glow, i) => {
+            glow.material.color.copy(sunCoreColor);
+            glow.material.opacity = [0.4, 0.2, 0.1][i] * visibility;
+          });
+        }
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // MOON MESH UPDATE - Position and visibility  
+      // ═══════════════════════════════════════════════════════════════════════
+      if (city.moon) {
+        const moonAngle = sunAngle + Math.PI;
+        const moonHeight = Math.sin(moonAngle);
+        const moonAzimuth = Math.cos(moonAngle);
+        const celestialRadius = 320;
+        
+        const moonMeshX = moonAzimuth * celestialRadius * 0.7;
+        const moonMeshY = Math.max(moonHeight * celestialRadius * 0.6, -80);
+        const moonMeshZ = -80;
+        
+        city.moon.position.set(moonMeshX, moonMeshY, moonMeshZ);
+        
+        const moonVisibility = Math.max(0, moonHeight + 0.1);
+        city.moon.scale.setScalar(Math.max(0.01, moonVisibility));
+        
+        if (city.moonCore) {
+          city.moonCore.material.opacity = moonVisibility * 0.95;
+          city.moonGlows.forEach((glow, i) => {
+            glow.material.opacity = [0.25, 0.1][i] * moonVisibility;
+          });
+        }
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // CLOUD COLOR UPDATE - Based on time of day
+      // ═══════════════════════════════════════════════════════════════════════
+      if (city.clouds) {
+        let cloudColor;
+        if (hours >= 5 && hours < 7) {
+          // Sunrise - pink/orange clouds
+          const t = (hours - 5) / 2;
+          cloudColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x332233), new THREE.Color(0xff8866), t
+          );
+        } else if (hours >= 7 && hours < 17) {
+          // Day - white/light gray
+          cloudColor = new THREE.Color(0xccddee);
+        } else if (hours >= 17 && hours < 20) {
+          // Sunset - dramatic oranges/pinks
+          const t = (hours - 17) / 3;
+          cloudColor = new THREE.Color().lerpColors(
+            new THREE.Color(0xffaa77), new THREE.Color(0xff6644), t
+          );
+        } else {
+          // Night - dark
+          cloudColor = new THREE.Color(0x1a1a25);
+        }
+        
+        city.clouds.forEach(cloud => {
+          cloud.material.color.copy(cloudColor);
+          // Vary opacity
+          const baseOpacity = 0.12;
+          const goldenBoost = isGoldenHour ? 0.15 : 0;
+          cloud.material.opacity = baseOpacity + goldenBoost - city.nightIntensity * 0.04;
+        });
+      }
+      
+      // Disable scene.background since we have sky dome
+      scene.background = null;
+      
+      // Cycle phase display
       let phase = 'night';
-      if (hours >= 5 && hours < 7) phase = 'dawn';
-      else if (hours >= 7 && hours < 12) phase = 'morning';
-      else if (hours >= 12 && hours < 17) phase = 'afternoon';
-      else if (hours >= 17 && hours < 20) phase = 'evening';
-      else if (hours >= 20 && hours < 22) phase = 'dusk';
+      if (hours >= 5 && hours < 6) phase = 'dawn';
+      else if (hours >= 6 && hours < 7.5) phase = 'sunrise';
+      else if (hours >= 7.5 && hours < 11) phase = 'morning';
+      else if (hours >= 11 && hours < 14) phase = 'noon';
+      else if (hours >= 14 && hours < 17) phase = 'afternoon';
+      else if (hours >= 17 && hours < 18.5) phase = 'golden hour';
+      else if (hours >= 18.5 && hours < 20) phase = 'sunset';
+      else if (hours >= 20 && hours < 21.5) phase = 'dusk';
       cyclePhaseEl.textContent = phase;
     }
     
@@ -1012,7 +1566,7 @@
     }
     
     function updateDrones(time) {
-      city.drones.forEach(drone => {
+      city.drones.forEach((drone, i) => {
         const { pathRadius, pathHeight, pathSpeed, pathOffset, pathTilt } = drone.userData;
         
         const t = time * pathSpeed + pathOffset;
@@ -1027,6 +1581,24 @@
         const nextX = Math.cos(nextT) * pathRadius;
         const nextZ = Math.sin(nextT) * pathRadius + Math.sin(nextT * 2) * pathRadius * 0.2;
         drone.lookAt(nextX, y, nextZ);
+        
+        // Update drone lighting based on time of day
+        drone.children.forEach(child => {
+          if (child.material) {
+            // Brighter at night, dimmer during bright day
+            const baseOpacity = 0.5 + city.nightIntensity * 0.4;
+            child.material.opacity = baseOpacity;
+            
+            // Color shift: warmer during golden hour, cooler at night
+            if (lighting.goldenHourIntensity > 0) {
+              child.material.color.setHex(0x44ffcc);
+            } else if (city.nightIntensity > 0.5) {
+              child.material.color.setHex(0x4488ff);
+            } else {
+              child.material.color.setHex(0x00ffff);
+            }
+          }
+        });
       });
     }
     
@@ -1085,6 +1657,21 @@
       }
       
       city.particles.geometry.attributes.position.needsUpdate = true;
+      
+      // Particle color and visibility responds to time
+      // Brighter and more visible at night, almost invisible during bright day
+      const dayVisibility = 0.3;
+      const nightVisibility = 0.8;
+      city.particles.material.opacity = dayVisibility + (nightVisibility - dayVisibility) * city.nightIntensity;
+      
+      // Color shift with atmosphere
+      if (lighting.goldenHourIntensity > 0) {
+        city.particles.material.color.setHex(0xffdd88); // Warm golden
+      } else if (city.nightIntensity > 0.5) {
+        city.particles.material.color.setHex(0x88ccff); // Cool blue
+      } else {
+        city.particles.material.color.setHex(0x66ddff); // Neutral cyan
+      }
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -1249,35 +1836,75 @@
     // ═══════════════════════════════════════════════════════════════════════
     
     function updateEnvironment(dt) {
-      // Animate clouds (slow orbital drift)
+      // Animate clouds - color responds to fog/sky
       if (city.clouds) {
         city.clouds.forEach(cloud => {
           cloud.userData.angle += cloud.userData.speed;
           cloud.position.x = Math.cos(cloud.userData.angle) * cloud.userData.radius;
           cloud.position.z = Math.sin(cloud.userData.angle) * cloud.userData.radius;
           cloud.position.y = cloud.userData.baseY + Math.sin(dt * 0.2 + cloud.userData.angle) * 3;
+          
+          // Cloud color matches fog with slight warmth during golden hour
+          if (cloud.material.color) {
+            cloud.material.color.copy(lighting.currentFogColor).multiplyScalar(2.5);
+            if (lighting.goldenHourIntensity > 0) {
+              cloud.material.color.r += lighting.goldenHourIntensity * 0.15;
+              cloud.material.color.g += lighting.goldenHourIntensity * 0.05;
+            }
+          }
+          // Clouds more opaque at night (denser atmosphere feel)
+          cloud.material.opacity = 0.12 + city.nightIntensity * 0.1;
         });
       }
       
-      // Animate floating rocks (gentle bob)
+      // Animate floating rocks - subtle glow at night
       if (city.floatingRocks) {
         city.floatingRocks.forEach(rock => {
           rock.position.y = rock.userData.baseY + 
             Math.sin(dt * rock.userData.floatSpeed + rock.userData.floatPhase) * 2;
           rock.rotation.y += 0.001;
+          
+          // Emissive glow intensifies at night
+          if (rock.material.emissiveIntensity !== undefined) {
+            rock.material.emissiveIntensity = 0.2 + city.nightIntensity * 0.5;
+            // Moonlight tint
+            if (city.nightIntensity > 0.3) {
+              rock.material.emissive.setHex(0x112244);
+            } else {
+              rock.material.emissive.setHex(0x001122);
+            }
+          }
         });
       }
       
-      // Pulse island edge
+      // Pulse island edge - color shifts with time
       if (city.islandEdge) {
-        city.islandEdge.material.opacity = 0.3 + Math.sin(dt * 0.5) * 0.1;
+        const basePulse = Math.sin(dt * 0.5) * 0.1;
+        city.islandEdge.material.opacity = 0.25 + basePulse + city.nightIntensity * 0.15;
+        // Warmer during golden hour, cooler at night
+        if (lighting.goldenHourIntensity > 0) {
+          city.islandEdge.material.color.setHex(0xffaa44);
+        } else if (city.nightIntensity > 0.3) {
+          city.islandEdge.material.color.setHex(0x3366ff);
+        } else {
+          city.islandEdge.material.color.setHex(0x00aaff);
+        }
       }
       
-      // Pulse horizon ring
+      // Pulse horizon ring - atmospheric glow
       if (city.horizonRing) {
         const scale = 1 + Math.sin(dt * 0.3) * 0.02;
         city.horizonRing.scale.set(scale, scale, 1);
-        city.horizonRing.material.opacity = 0.25 + Math.sin(dt * 0.4) * 0.1 + city.nightIntensity * 0.15;
+        city.horizonRing.material.opacity = 0.2 + Math.sin(dt * 0.4) * 0.1 + city.nightIntensity * 0.2;
+        
+        // Horizon color matches atmosphere
+        if (lighting.goldenHourIntensity > 0) {
+          city.horizonRing.material.color.setHex(0xff7744);
+        } else if (city.nightIntensity > 0.5) {
+          city.horizonRing.material.color.setHex(0x1a3366);
+        } else {
+          city.horizonRing.material.color.setHex(0x003355);
+        }
       }
     }
     
@@ -1360,65 +1987,154 @@
       controls.update();
       updateLighting();
       
-      // Core animations
+      // Core animations - more vibrant at night
       if (city.coreRings) {
+        const coreNightBoost = 1 + city.nightIntensity * 0.5;
         city.coreRings.forEach(ring => {
           if (ring.userData.rotationAxis === 'z') {
             ring.rotation.z += ring.userData.rotationSpeed * 0.01;
             ring.rotation.x = Math.PI / 2 + Math.sin(dt + ring.userData.wobble) * 0.1;
+            ring.material.opacity = (0.5 + city.nightIntensity * 0.3) * coreNightBoost;
           } else if (ring.userData.rotationAxis === 'y') {
             ring.rotation.y += ring.userData.rotationSpeed * 0.01;
+            ring.material.opacity = (0.4 + city.nightIntensity * 0.4) * coreNightBoost;
           } else if (ring.userData.beamPhase !== undefined) {
-            ring.material.opacity = 0.2 + Math.sin(dt * 2 + ring.userData.beamPhase) * 0.15;
+            const beamPulse = Math.sin(dt * 2 + ring.userData.beamPhase) * 0.15;
+            ring.material.opacity = (0.15 + beamPulse + city.nightIntensity * 0.2) * coreNightBoost;
           } else if (ring.userData.pulseRing) {
             const scale = 1 + Math.sin(dt * 1.5 + ring.userData.pulsePhase) * 0.1;
             ring.scale.set(scale, scale, 1);
+            ring.material.opacity = (0.25 + city.nightIntensity * 0.2) * coreNightBoost;
           }
         });
       }
       
-      // Core glow pulse
+      // Core glow pulse - heart of the city
       if (city.coreGlow) {
-        const pulse = 1 + Math.sin(dt * 2) * 0.2;
+        const nightIntensity = 1 + city.nightIntensity * 0.4;
+        const pulse = 1 + Math.sin(dt * 2) * 0.2 * nightIntensity;
         city.coreGlow.scale.set(pulse, pulse, pulse);
-        city.coreGlow.material.opacity = 0.6 + Math.sin(dt * 3) * 0.2;
+        city.coreGlow.material.opacity = (0.5 + Math.sin(dt * 3) * 0.2) * nightIntensity;
+        
+        // Color shifts slightly with time
+        if (lighting.goldenHourIntensity > 0) {
+          city.coreGlow.material.color.setHex(0x44ffcc); // Warm cyan
+        } else if (city.nightIntensity > 0.5) {
+          city.coreGlow.material.color.setHex(0x00ddff); // Cool cyan
+        } else {
+          city.coreGlow.material.color.setHex(0x00ffff); // Neutral cyan
+        }
       }
       
-      // Building effects (throttled for performance)
+      // Building effects with cinematic lighting response
       if (Math.floor(time) % 100 < 16) {
-        const emissiveBoost = 1 + city.nightIntensity * 2;
-        city.buildings.forEach(b => {
+        // Golden hour surface glow factor
+        const goldenGlow = lighting.goldenHourIntensity;
+        const rimFactor = lighting.rimLightIntensity;
+        const windowProgress = lighting.windowLightProgress;
+        
+        city.buildings.forEach((b, buildingIndex) => {
           if (b.mesh.material && b.mesh.material.emissive) {
-            b.mesh.material.emissiveIntensity = 0.5 * emissiveBoost;
+            // Base emissive from district
+            const districtData = DISTRICTS[b.district] || DISTRICTS.core;
+            
+            // Night boost for emissives
+            const nightBoost = 0.5 + city.nightIntensity * 1.5;
+            
+            // Golden hour warm tint on surfaces
+            if (goldenGlow > 0) {
+              const warmTint = new THREE.Color(0xff9944).multiplyScalar(goldenGlow * 0.3);
+              b.mesh.material.emissive.copy(districtData.emissive).add(warmTint);
+            } else {
+              b.mesh.material.emissive.copy(districtData.emissive);
+            }
+            
+            b.mesh.material.emissiveIntensity = 0.4 * nightBoost;
+            
+            // Moonlight blue tint at night
+            if (city.nightIntensity > 0.3) {
+              const moonTint = new THREE.Color(0x2244aa).multiplyScalar(city.nightIntensity * 0.1);
+              b.mesh.material.emissive.add(moonTint);
+            }
           }
           
-          // Animate child elements
-          b.mesh.children.forEach(child => {
+          // Animate child elements (windows, antennas, holograms)
+          b.mesh.children.forEach((child, childIndex) => {
+            // Antenna blink lights
             if (child.userData.blink) {
-              child.material.opacity = Math.sin(dt * 4 + child.userData.blinkPhase) > 0.7 ? 1 : 0.2;
+              const blinkSpeed = 3 + (buildingIndex % 3); // Varied speeds
+              child.material.opacity = Math.sin(dt * blinkSpeed + child.userData.blinkPhase) > 0.7 ? 1 : 0.2;
             }
+            
+            // Beacon pulse
             if (child.userData.pulse) {
-              const p = 1 + Math.sin(dt * 2 + child.userData.pulsePhase) * 0.3;
+              const pulseIntensity = 0.2 + city.nightIntensity * 0.3;
+              const p = 1 + Math.sin(dt * 2 + child.userData.pulsePhase) * pulseIntensity;
               child.scale.set(p, p, p);
             }
+            
+            // Window strips - gradual lighting response
+            if (child.geometry && (child.geometry.type === 'BoxGeometry' || child.geometry.type === 'TorusGeometry')) {
+              // Some windows are "always on" (odd indices), others respond to time
+              const alwaysOn = childIndex % 3 === 0;
+              const baseOpacity = alwaysOn ? 0.4 : 0.1;
+              const nightOpacity = alwaysOn ? 0.8 : windowProgress * 0.7;
+              
+              // Slight flicker for realism
+              const flicker = Math.random() > 0.98 ? 0.1 : 0;
+              child.material.opacity = baseOpacity + nightOpacity + flicker;
+              
+              // Windows get warmer at night (interior glow)
+              if (city.nightIntensity > 0.2 && child.material.color) {
+                const warmth = city.nightIntensity * 0.2;
+                child.material.color.setRGB(
+                  1, 
+                  0.9 - warmth * 0.1, 
+                  0.7 - warmth * 0.3
+                );
+              }
+            }
+            
+            // Holographic ads - much brighter at night
             if (child.userData.hologram) {
-              child.material.opacity = 0.3 + Math.sin(dt * 5 + child.userData.flickerPhase) * 0.15 +
-                (Math.random() > 0.95 ? -0.2 : 0); // Random flicker
+              const nightMultiplier = 1 + city.nightIntensity * 1.5;
+              const baseFlicker = Math.sin(dt * 5 + child.userData.flickerPhase) * 0.15;
+              const glitchChance = Math.random() > 0.97 ? -0.3 : 0;
+              child.material.opacity = (0.25 + baseFlicker + glitchChance) * nightMultiplier;
+              
+              // Scanline children also brighten
+              child.children.forEach(scanline => {
+                if (scanline.material) {
+                  scanline.material.opacity = 0.2 + city.nightIntensity * 0.4;
+                }
+              });
             }
           });
         });
       }
       
-      // Connection pulse
+      // Connection pulse - brighter energy flow at night
       city.connections.forEach((conn, i) => {
-        const pulse = Math.sin(dt * 2 + i * 0.5) * 0.15 + 0.25;
-        conn.line.material.opacity = pulse * (1 + city.nightIntensity);
+        const baseSpeed = 2 + (i % 3) * 0.3; // Varied speeds
+        const pulse = Math.sin(dt * baseSpeed + i * 0.5) * 0.12 + 0.2;
+        const nightBoost = 1 + city.nightIntensity * 1.2;
+        conn.line.material.opacity = pulse * nightBoost;
+        
+        // Shift connection color slightly warmer during golden hour
+        if (lighting.goldenHourIntensity > 0) {
+          const warmShift = lighting.goldenHourIntensity * 0.2;
+          conn.line.material.color.setRGB(0 + warmShift, 1, 1 - warmShift * 0.5);
+        } else {
+          conn.line.material.color.setHex(0x00ffff);
+        }
       });
       
-      // District labels float
+      // District labels float - more visible at night, subtle during day
       city.districtLabels.forEach(label => {
         label.position.y = label.userData.baseY + Math.sin(dt * 0.5 + label.userData.floatPhase) * 1;
-        label.material.opacity = 0.5 + city.nightIntensity * 0.4;
+        // Fade based on time: subtle during bright day, prominent at night
+        const dayFade = Math.max(0, 1 - city.nightIntensity * 0.5 - (1 - city.nightIntensity) * 0.4);
+        label.material.opacity = 0.3 + dayFade * 0.2 + city.nightIntensity * 0.5;
       });
       
       // Drones
@@ -1642,6 +2358,8 @@
     // INIT
     // ═══════════════════════════════════════════════════════════════════════
     
+    createSkyDome();
+    createCelestialBodies();
     createStarfield();
     createGround();
     createEnvironment();
