@@ -466,9 +466,9 @@
         const color = BOID_COLORS[i % BOID_COLORS.length];
         flock.boids.push({
           x: W * 0.3 + Math.random() * W * 0.4, // Start clustered in center
-          y: H * 0.15 + Math.random() * H * 0.25, // Upper portion
-          vx: (Math.random() - 0.5) * 2,
-          vy: (Math.random() - 0.5) * 2,
+          y: H * 0.1 + Math.random() * H * 0.3, // Upper portion (10-40% of height)
+          vx: (Math.random() - 0.5) * 1, // Gentler initial velocity
+          vy: (Math.random() - 0.5) * 1, // Gentler initial velocity
           color: color,
           size: 3 + Math.random() * 2,
           trail: [],
@@ -517,10 +517,9 @@
       flock.crystalCenter = { x: W / 2, y: H / 3 };
       
       flock.boids.forEach((boid, i) => {
-        // Skip trail for performance
-        
         let ax = 0, ay = 0;
-        let neighbors = 0;
+        let alignNeighbors = 0;
+        let cohesionNeighbors = 0;
         let avgVx = 0, avgVy = 0;
         let avgX = 0, avgY = 0;
         
@@ -531,31 +530,39 @@
           const dy = other.y - boid.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           
+          // Separation - push away from very close neighbors
           if (dist < params.separation && dist > 0) {
             ax -= (dx / dist) * params.separationForce;
             ay -= (dy / dist) * params.separationForce;
           }
           
+          // Alignment - match velocity of nearby neighbors
           if (dist < params.alignment) {
             avgVx += other.vx;
             avgVy += other.vy;
-            neighbors++;
+            alignNeighbors++;
           }
           
+          // Cohesion - move toward center of nearby neighbors
           if (dist < params.cohesion) {
             avgX += other.x;
             avgY += other.y;
+            cohesionNeighbors++;
           }
         });
         
-        if (neighbors > 0) {
-          avgVx /= neighbors;
-          avgVy /= neighbors;
+        // Apply alignment force
+        if (alignNeighbors > 0) {
+          avgVx /= alignNeighbors;
+          avgVy /= alignNeighbors;
           ax += (avgVx - boid.vx) * params.alignmentForce;
           ay += (avgVy - boid.vy) * params.alignmentForce;
-          
-          avgX /= neighbors;
-          avgY /= neighbors;
+        }
+        
+        // Apply cohesion force (using correct neighbor count!)
+        if (cohesionNeighbors > 0) {
+          avgX /= cohesionNeighbors;
+          avgY /= cohesionNeighbors;
           ax += (avgX - boid.x) * params.cohesionForce;
           ay += (avgY - boid.y) * params.cohesionForce;
         }
@@ -564,10 +571,11 @@
         ax += (flock.center.x - boid.x) * params.centerAttraction;
         ay += (flock.center.y - boid.y) * params.centerAttraction;
         
-        // Organic wander when idle - each boid has unique noise
+        // Organic wander when idle - use boid index for unique noise, not position
         if (params.wander > 0) {
-          const noiseX = perlin(boid.x * 0.01, state.time * 0.5 + i * 0.1);
-          const noiseY = perlin(boid.y * 0.01, state.time * 0.5 + i * 0.1 + 100);
+          // Use index-based noise so each boid wanders independently
+          const noiseX = perlin(i * 0.7, state.time * 0.3);
+          const noiseY = perlin(i * 0.7 + 50, state.time * 0.3);
           ax += noiseX * params.wander;
           ay += noiseY * params.wander;
         }
