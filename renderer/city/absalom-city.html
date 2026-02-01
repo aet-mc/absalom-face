@@ -3487,6 +3487,597 @@
     }
     
     // ═══════════════════════════════════════════════════════════════════════
+    // INTERACTION SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const interaction = {
+      raycaster: new THREE.Raycaster(),
+      mouse: new THREE.Vector2(),
+      hoveredBuilding: null,
+      selectedBuilding: null,
+      focusedDistrict: null,
+      isPaused: false,
+      originalCameraPosition: null,
+      originalControlsTarget: null,
+      isAnimatingCamera: false,
+      // Touch state
+      touchStartTime: 0,
+      touchStartPos: { x: 0, y: 0 },
+      lastTapTime: 0,
+      longPressTimer: null,
+    };
+    
+    // UI Elements
+    const tooltipEl = document.getElementById('tooltip');
+    const infoPanelEl = document.getElementById('infoPanel');
+    const infoPanelTitleEl = document.getElementById('infoPanelTitle');
+    const infoPanelCloseEl = document.getElementById('infoPanelClose');
+    const infoPanelDistrictEl = document.getElementById('infoPanelDistrict');
+    const infoPanelTypeEl = document.getElementById('infoPanelType');
+    const infoPanelDimensionsEl = document.getElementById('infoPanelDimensions');
+    const infoPanelSourcesEl = document.getElementById('infoPanelSources');
+    const focusIndicatorEl = document.getElementById('focusIndicator');
+    const focusDistrictNameEl = document.getElementById('focusDistrictName');
+    const pauseIndicatorEl = document.getElementById('pauseIndicator');
+    const controlsHintEl = document.querySelector('.controls-hint');
+    
+    // District keys mapping for keyboard shortcuts
+    const DISTRICT_KEYS = ['core', 'trading', 'infrastructure', 'projects', 'memory'];
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // RAYCASTING & SELECTION
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    function updateMousePosition(event) {
+      const rect = canvas.getBoundingClientRect();
+      interaction.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      interaction.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+    
+    function getBuildingMeshes() {
+      return city.buildings.map(b => b.mesh).filter(m => m);
+    }
+    
+    function getDistrictLabelSprites() {
+      return city.districtLabels.filter(l => l);
+    }
+    
+    function raycastBuildings() {
+      interaction.raycaster.setFromCamera(interaction.mouse, camera);
+      const meshes = getBuildingMeshes();
+      const intersects = interaction.raycaster.intersectObjects(meshes, false);
+      
+      if (intersects.length > 0) {
+        const mesh = intersects[0].object;
+        return city.buildings.find(b => b.mesh === mesh);
+      }
+      return null;
+    }
+    
+    function raycastDistrictLabels() {
+      interaction.raycaster.setFromCamera(interaction.mouse, camera);
+      const sprites = getDistrictLabelSprites();
+      const intersects = interaction.raycaster.intersectObjects(sprites, false);
+      
+      if (intersects.length > 0) {
+        const sprite = intersects[0].object;
+        const index = city.districtLabels.indexOf(sprite);
+        if (index >= 0) {
+          return DISTRICT_KEYS[index];
+        }
+      }
+      return null;
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // HOVER EFFECTS
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    function setHoveredBuilding(building) {
+      // Unhover previous
+      if (interaction.hoveredBuilding && interaction.hoveredBuilding !== building) {
+        unhighlightBuilding(interaction.hoveredBuilding);
+      }
+      
+      interaction.hoveredBuilding = building;
+      
+      if (building) {
+        highlightBuilding(building, 'hover');
+        canvas.classList.add('interactive-hover');
+      } else {
+        canvas.classList.remove('interactive-hover');
+        hideTooltip();
+      }
+    }
+    
+    function highlightBuilding(building, mode = 'hover') {
+      if (!building || !building.mesh || !building.mesh.material) return;
+      
+      const material = building.mesh.material;
+      const districtData = DISTRICTS[building.district] || DISTRICTS.core;
+      
+      // Store original values if not already stored
+      if (!building.originalEmissiveIntensity) {
+        building.originalEmissiveIntensity = material.emissiveIntensity;
+      }
+      
+      // Apply highlight
+      if (mode === 'hover') {
+        material.emissiveIntensity = (building.originalEmissiveIntensity || 0.5) + 0.4;
+      } else if (mode === 'selected') {
+        material.emissiveIntensity = (building.originalEmissiveIntensity || 0.5) + 0.7;
+      }
+    }
+    
+    function unhighlightBuilding(building) {
+      if (!building || !building.mesh || !building.mesh.material) return;
+      
+      const material = building.mesh.material;
+      
+      // Restore original intensity
+      if (building.originalEmissiveIntensity !== undefined) {
+        material.emissiveIntensity = building.originalEmissiveIntensity;
+      }
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // TOOLTIP
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    function showTooltip(building, x, y) {
+      if (!building) return;
+      
+      const districtData = DISTRICTS[building.district] || DISTRICTS.core;
+      const name = building.label || `${districtData.name} Structure`;
+      
+      tooltipEl.querySelector('.tooltip-name').textContent = name;
+      tooltipEl.querySelector('.district-tag').textContent = districtData.name;
+      
+      // Position tooltip
+      const padding = 15;
+      let posX = x + padding;
+      let posY = y + padding;
+      
+      // Keep within viewport
+      const tooltipRect = tooltipEl.getBoundingClientRect();
+      if (posX + 200 > window.innerWidth) {
+        posX = x - 200 - padding;
+      }
+      if (posY + 60 > window.innerHeight) {
+        posY = y - 60 - padding;
+      }
+      
+      tooltipEl.style.left = posX + 'px';
+      tooltipEl.style.top = posY + 'px';
+      tooltipEl.classList.add('visible');
+    }
+    
+    function hideTooltip() {
+      tooltipEl.classList.remove('visible');
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // INFO PANEL
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    function selectBuilding(building) {
+      // Deselect previous
+      if (interaction.selectedBuilding && interaction.selectedBuilding !== building) {
+        unhighlightBuilding(interaction.selectedBuilding);
+      }
+      
+      interaction.selectedBuilding = building;
+      
+      if (building) {
+        highlightBuilding(building, 'selected');
+        showInfoPanel(building);
+      } else {
+        hideInfoPanel();
+      }
+    }
+    
+    function showInfoPanel(building) {
+      if (!building) return;
+      
+      const districtData = DISTRICTS[building.district] || DISTRICTS.core;
+      const name = building.label || `${districtData.name} Structure`;
+      const type = building.type ? building.type.charAt(0).toUpperCase() + building.type.slice(1) : 'Building';
+      
+      infoPanelTitleEl.textContent = name;
+      infoPanelDistrictEl.textContent = districtData.name;
+      infoPanelDistrictEl.style.backgroundColor = `rgba(${Math.round(districtData.color.r * 255)}, ${Math.round(districtData.color.g * 255)}, ${Math.round(districtData.color.b * 255)}, 0.2)`;
+      infoPanelDistrictEl.style.color = '#' + districtData.color.getHexString();
+      infoPanelDistrictEl.style.borderColor = `rgba(${Math.round(districtData.color.r * 255)}, ${Math.round(districtData.color.g * 255)}, ${Math.round(districtData.color.b * 255)}, 0.4)`;
+      
+      infoPanelTypeEl.textContent = type;
+      
+      // Dimensions
+      const dims = building.height ? 
+        `${building.width?.toFixed(1) || '?'} × ${building.depth?.toFixed(1) || '?'} × ${building.height.toFixed(1)}` :
+        'Unknown';
+      infoPanelDimensionsEl.textContent = dims;
+      
+      // Memory sources (based on district keywords)
+      const sources = districtData.keywords || [];
+      infoPanelSourcesEl.innerHTML = sources.map(s => 
+        `<span class="info-panel-source">${s}</span>`
+      ).join('');
+      
+      infoPanelEl.classList.add('visible');
+    }
+    
+    function hideInfoPanel() {
+      infoPanelEl.classList.remove('visible');
+      if (interaction.selectedBuilding) {
+        unhighlightBuilding(interaction.selectedBuilding);
+        interaction.selectedBuilding = null;
+      }
+    }
+    
+    // Close button handler
+    infoPanelCloseEl.addEventListener('click', hideInfoPanel);
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // DISTRICT FOCUS
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    function focusDistrict(districtKey) {
+      if (interaction.isAnimatingCamera) return;
+      
+      const districtData = DISTRICTS[districtKey];
+      if (!districtData) return;
+      
+      // Store original camera state if not already stored
+      if (!interaction.originalCameraPosition) {
+        interaction.originalCameraPosition = camera.position.clone();
+        interaction.originalControlsTarget = controls.target.clone();
+      }
+      
+      interaction.focusedDistrict = districtKey;
+      
+      // Calculate target camera position
+      const targetPos = districtData.position.clone();
+      const cameraOffset = new THREE.Vector3(15, 20, 15);
+      const targetCameraPos = targetPos.clone().add(cameraOffset);
+      const targetLookAt = targetPos.clone().add(new THREE.Vector3(0, 8, 0));
+      
+      // Animate camera
+      animateCamera(targetCameraPos, targetLookAt);
+      
+      // Fade other districts
+      fadeOtherDistricts(districtKey, 0.3);
+      
+      // Show focus indicator
+      focusDistrictNameEl.textContent = districtData.name;
+      focusIndicatorEl.classList.add('visible');
+      
+      // Update controls hint
+      if (controlsHintEl) {
+        controlsHintEl.style.opacity = '0';
+      }
+    }
+    
+    function resetView() {
+      if (interaction.isAnimatingCamera) return;
+      if (!interaction.originalCameraPosition) return;
+      
+      interaction.focusedDistrict = null;
+      
+      // Animate back to original position
+      animateCamera(
+        interaction.originalCameraPosition.clone(),
+        interaction.originalControlsTarget.clone()
+      );
+      
+      // Restore all district visibility
+      fadeOtherDistricts(null, 1);
+      
+      // Hide focus indicator
+      focusIndicatorEl.classList.remove('visible');
+      
+      // Restore controls hint
+      if (controlsHintEl) {
+        controlsHintEl.style.opacity = '1';
+      }
+      
+      // Clear stored positions
+      interaction.originalCameraPosition = null;
+      interaction.originalControlsTarget = null;
+    }
+    
+    function animateCamera(targetPosition, targetLookAt) {
+      interaction.isAnimatingCamera = true;
+      
+      const startPosition = camera.position.clone();
+      const startTarget = controls.target.clone();
+      const duration = 1000; // ms
+      const startTime = Date.now();
+      
+      function animate() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Ease out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        
+        camera.position.lerpVectors(startPosition, targetPosition, eased);
+        controls.target.lerpVectors(startTarget, targetLookAt, eased);
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          interaction.isAnimatingCamera = false;
+        }
+      }
+      
+      animate();
+    }
+    
+    function fadeOtherDistricts(focusedKey, targetOpacity) {
+      city.buildings.forEach(building => {
+        if (!building.mesh || !building.mesh.material) return;
+        
+        const material = building.mesh.material;
+        
+        if (focusedKey && building.district !== focusedKey) {
+          // Fade out non-focused buildings
+          if (material.transparent === undefined || material.transparent === false) {
+            material.transparent = true;
+          }
+          material.opacity = targetOpacity;
+        } else {
+          // Restore focused or all buildings
+          material.opacity = 1;
+        }
+      });
+      
+      // Fade district labels
+      city.districtLabels.forEach((label, index) => {
+        const key = DISTRICT_KEYS[index];
+        if (focusedKey && key !== focusedKey) {
+          label.material.opacity = targetOpacity;
+        } else {
+          label.material.opacity = 0.8;
+        }
+      });
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // PAUSE/RESUME
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    function togglePause() {
+      interaction.isPaused = !interaction.isPaused;
+      pauseIndicatorEl.classList.toggle('visible', interaction.isPaused);
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // MOUSE EVENTS
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    let mouseDownTime = 0;
+    let mouseDownPos = { x: 0, y: 0 };
+    
+    canvas.addEventListener('mousemove', (event) => {
+      updateMousePosition(event);
+      
+      // Raycast for hover
+      const hoveredBuilding = raycastBuildings();
+      const hoveredDistrict = raycastDistrictLabels();
+      
+      if (hoveredBuilding) {
+        setHoveredBuilding(hoveredBuilding);
+        showTooltip(hoveredBuilding, event.clientX, event.clientY);
+      } else if (hoveredDistrict) {
+        canvas.classList.add('interactive-hover');
+        hideTooltip();
+        setHoveredBuilding(null);
+      } else {
+        setHoveredBuilding(null);
+      }
+    });
+    
+    canvas.addEventListener('mousedown', (event) => {
+      mouseDownTime = Date.now();
+      mouseDownPos = { x: event.clientX, y: event.clientY };
+    });
+    
+    canvas.addEventListener('mouseup', (event) => {
+      const elapsed = Date.now() - mouseDownTime;
+      const distance = Math.hypot(event.clientX - mouseDownPos.x, event.clientY - mouseDownPos.y);
+      
+      // Only count as click if short duration and minimal movement
+      if (elapsed < 300 && distance < 10) {
+        handleClick(event);
+      }
+    });
+    
+    canvas.addEventListener('dblclick', (event) => {
+      updateMousePosition(event);
+      
+      const hoveredDistrict = raycastDistrictLabels();
+      if (hoveredDistrict) {
+        focusDistrict(hoveredDistrict);
+      } else if (interaction.focusedDistrict) {
+        resetView();
+      }
+    });
+    
+    function handleClick(event) {
+      updateMousePosition(event);
+      
+      const clickedBuilding = raycastBuildings();
+      const clickedDistrict = raycastDistrictLabels();
+      
+      if (clickedBuilding) {
+        selectBuilding(clickedBuilding);
+      } else if (clickedDistrict) {
+        focusDistrict(clickedDistrict);
+      } else {
+        // Clicked on empty space - close info panel if open
+        if (interaction.selectedBuilding) {
+          hideInfoPanel();
+        }
+      }
+    }
+    
+    // Hide tooltip when leaving canvas
+    canvas.addEventListener('mouseleave', () => {
+      hideTooltip();
+      setHoveredBuilding(null);
+    });
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // TOUCH EVENTS
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    canvas.addEventListener('touchstart', (event) => {
+      if (event.touches.length !== 1) return;
+      
+      const touch = event.touches[0];
+      interaction.touchStartTime = Date.now();
+      interaction.touchStartPos = { x: touch.clientX, y: touch.clientY };
+      
+      // Setup long press detection
+      interaction.longPressTimer = setTimeout(() => {
+        // Long press - show info panel
+        updateMousePosition(touch);
+        const building = raycastBuildings();
+        if (building) {
+          selectBuilding(building);
+        }
+      }, 500);
+    });
+    
+    canvas.addEventListener('touchmove', (event) => {
+      // Cancel long press if finger moves
+      if (interaction.longPressTimer) {
+        const touch = event.touches[0];
+        const distance = Math.hypot(
+          touch.clientX - interaction.touchStartPos.x,
+          touch.clientY - interaction.touchStartPos.y
+        );
+        if (distance > 10) {
+          clearTimeout(interaction.longPressTimer);
+          interaction.longPressTimer = null;
+        }
+      }
+    });
+    
+    canvas.addEventListener('touchend', (event) => {
+      clearTimeout(interaction.longPressTimer);
+      interaction.longPressTimer = null;
+      
+      const elapsed = Date.now() - interaction.touchStartTime;
+      const touch = event.changedTouches[0];
+      const distance = Math.hypot(
+        touch.clientX - interaction.touchStartPos.x,
+        touch.clientY - interaction.touchStartPos.y
+      );
+      
+      // Tap detection
+      if (elapsed < 300 && distance < 15) {
+        const now = Date.now();
+        
+        // Double tap detection
+        if (now - interaction.lastTapTime < 300) {
+          // Double tap - zoom to district or reset view
+          updateMousePosition(touch);
+          const district = raycastDistrictLabels();
+          if (district) {
+            focusDistrict(district);
+          } else if (interaction.focusedDistrict) {
+            resetView();
+          }
+        } else {
+          // Single tap
+          updateMousePosition(touch);
+          const building = raycastBuildings();
+          if (building) {
+            selectBuilding(building);
+          } else {
+            hideInfoPanel();
+          }
+        }
+        
+        interaction.lastTapTime = now;
+      }
+    });
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // KEYBOARD CONTROLS
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    document.addEventListener('keydown', (event) => {
+      // Ignore if typing in an input
+      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
+      
+      const key = event.key.toLowerCase();
+      
+      // Number keys 1-5 for district focus
+      if (key >= '1' && key <= '5') {
+        const index = parseInt(key) - 1;
+        if (DISTRICT_KEYS[index]) {
+          focusDistrict(DISTRICT_KEYS[index]);
+        }
+        return;
+      }
+      
+      // 0 or Escape to reset view
+      if (key === '0' || key === 'escape') {
+        if (interaction.focusedDistrict) {
+          resetView();
+        } else if (interaction.selectedBuilding) {
+          hideInfoPanel();
+        }
+        return;
+      }
+      
+      // Space to pause/resume animations
+      if (key === ' ') {
+        event.preventDefault();
+        togglePause();
+        return;
+      }
+      
+      // Arrow keys for slow camera rotation
+      const rotationSpeed = 0.02;
+      if (key === 'arrowleft') {
+        controls.autoRotate = false;
+        const angle = rotationSpeed;
+        const x = camera.position.x - controls.target.x;
+        const z = camera.position.z - controls.target.z;
+        camera.position.x = controls.target.x + x * Math.cos(angle) - z * Math.sin(angle);
+        camera.position.z = controls.target.z + x * Math.sin(angle) + z * Math.cos(angle);
+        return;
+      }
+      if (key === 'arrowright') {
+        controls.autoRotate = false;
+        const angle = -rotationSpeed;
+        const x = camera.position.x - controls.target.x;
+        const z = camera.position.z - controls.target.z;
+        camera.position.x = controls.target.x + x * Math.cos(angle) - z * Math.sin(angle);
+        camera.position.z = controls.target.z + x * Math.sin(angle) + z * Math.cos(angle);
+        return;
+      }
+      if (key === 'arrowup') {
+        const distance = camera.position.distanceTo(controls.target);
+        if (distance > controls.minDistance + 5) {
+          camera.position.lerp(controls.target, 0.05);
+        }
+        return;
+      }
+      if (key === 'arrowdown') {
+        const distance = camera.position.distanceTo(controls.target);
+        if (distance < controls.maxDistance - 5) {
+          const direction = camera.position.clone().sub(controls.target).normalize();
+          camera.position.add(direction.multiplyScalar(2));
+        }
+        return;
+      }
+    });
+    
+    // ═══════════════════════════════════════════════════════════════════════
     // ANIMATION LOOP
     // ═══════════════════════════════════════════════════════════════════════
     
