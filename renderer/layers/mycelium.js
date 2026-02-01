@@ -1171,10 +1171,10 @@ class ForceSimulation {
     this.width = options.width || 800;
     this.height = options.height || 600;
     
-    this.centerForce = options.centerForce || 0.006;    // Stronger center to prevent drift
-    this.repulsionForce = options.repulsionForce || 800; // Balanced repulsion
-    this.edgeForce = options.edgeForce || 0.008;         // Softer springs
-    this.edgeLength = options.edgeLength || 180;         // Longer rest length
+    this.centerForce = options.centerForce || 0.015;    // Strong center pull
+    this.repulsionForce = options.repulsionForce || 400; // Moderate repulsion
+    this.edgeForce = options.edgeForce || 0.02;          // Stronger springs to cluster
+    this.edgeLength = options.edgeLength || 80;          // Shorter ideal length
     this.damping = options.damping || 0.92;
     this.depthInfluence = options.depthInfluence || 0.3;
     
@@ -1220,12 +1220,12 @@ class ForceSimulation {
       const spread = (hash % 1000) / 1000 - 0.5;
       const angle = baseAngle + spread * 0.5;
       
-      // Radius based on weight (heavier = more central)
+      // Radius based on weight (heavier = more central) - COMPACT layout
       const weightFactor = Math.min(1, node.weight / 10);
-      const radius = 120 + (1 - weightFactor) * 280 + (hash % 100);
+      const radius = 50 + (1 - weightFactor) * 150 + (hash % 50);
       
       node.x = this.centerX + Math.cos(angle) * radius;
-      node.y = this.centerY + Math.sin(angle) * radius * 0.7; // Squash vertically
+      node.y = this.centerY + Math.sin(angle) * radius * 0.6; // Squash vertically
       
       // Age-based depth offset - SYMMETRIC around center, not just downward
       // Older nodes drift slightly below center, but max offset is limited
@@ -1282,7 +1282,7 @@ class ForceSimulation {
     }
     
     // Repulsion - PERF: Check distance squared first to avoid sqrt when unnecessary
-    const maxDistSq = 400 * 400; // 400px cutoff (reduced from 600)
+    const maxDistSq = 200 * 200; // 200px cutoff - tight clustering
     for (let i = 0; i < this.nodes.length; i++) {
       const a = this.nodes[i];
       for (let j = i + 1; j < this.nodes.length; j++) {
@@ -1365,59 +1365,26 @@ class ForceSimulation {
       }
     }
     
-    // Update positions with STRONG boundary enforcement
+    // Update positions - simple boundary clamping
     for (const node of this.nodes) {
-      const margin = 80;
-      const softMargin = 150; // Start pushing back before hard boundary
+      const margin = 40;
       
       if (node.fx === null) {
         node.vx *= this.damping;
         node.x += node.vx;
         
-        // Soft boundary - push back toward center when approaching edges
-        if (node.x < softMargin) {
-          const pushForce = (softMargin - node.x) / softMargin * 0.5;
-          node.vx += pushForce * alpha;
-        }
-        if (node.x > this.width - softMargin) {
-          const pushForce = (node.x - (this.width - softMargin)) / softMargin * 0.5;
-          node.vx -= pushForce * alpha;
-        }
-        
-        // Hard boundary - clamp and kill velocity
-        if (node.x < margin) { 
-          node.x = margin; 
-          node.vx = Math.abs(node.vx) * 0.1; // Push away from edge
-        }
-        if (node.x > this.width - margin) { 
-          node.x = this.width - margin; 
-          node.vx = -Math.abs(node.vx) * 0.1; // Push away from edge
-        }
+        // Simple boundary clamp
+        if (node.x < margin) { node.x = margin; node.vx *= -0.3; }
+        if (node.x > this.width - margin) { node.x = this.width - margin; node.vx *= -0.3; }
       }
       
       if (node.fy === null) {
         node.vy *= this.damping;
         node.y += node.vy;
         
-        // Soft boundary - push back toward center when approaching edges
-        if (node.y < softMargin) {
-          const pushForce = (softMargin - node.y) / softMargin * 0.5;
-          node.vy += pushForce * alpha;
-        }
-        if (node.y > this.height - softMargin) {
-          const pushForce = (node.y - (this.height - softMargin)) / softMargin * 0.5;
-          node.vy -= pushForce * alpha;
-        }
-        
-        // Hard boundary - clamp and kill velocity
-        if (node.y < margin) { 
-          node.y = margin; 
-          node.vy = Math.abs(node.vy) * 0.1; // Push away from edge
-        }
-        if (node.y > this.height - margin) { 
-          node.y = this.height - margin; 
-          node.vy = -Math.abs(node.vy) * 0.1; // Push away from edge
-        }
+        // Simple boundary clamp
+        if (node.y < margin) { node.y = margin; node.vy *= -0.3; }
+        if (node.y > this.height - margin) { node.y = this.height - margin; node.vy *= -0.3; }
       }
     }
   }
