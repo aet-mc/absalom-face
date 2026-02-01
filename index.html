@@ -563,6 +563,101 @@
       neurons.length = 0;
       setTimeout(initNeurons, 100);
     });
+    
+    // ============================================
+    // WebSocket Connection for Live State Sync
+    // ============================================
+    
+    const WS_URL = new URLSearchParams(window.location.search).get('ws') || 
+                   localStorage.getItem('absalom_ws') ||
+                   null;
+    
+    let ws = null;
+    let wsRetryTimeout = null;
+    let wsConnected = false;
+    
+    function connectWebSocket() {
+      if (!WS_URL) {
+        console.log('No WebSocket URL configured. Use ?ws=wss://your-server or click to demo.');
+        return;
+      }
+      
+      console.log('Connecting to:', WS_URL);
+      ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        wsConnected = true;
+        // Update status to show connected
+        document.querySelector('.status-dot').style.background = '#1a6b4a';
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'state' && data.mode) {
+            state.mode = data.mode;
+            updateStatus();
+            state.lastActivity = Date.now();
+            
+            // Fire neurons on state change
+            if (data.mode === 'thinking') {
+              fireNeurons(8);
+            } else if (data.mode === 'responding') {
+              fireNeurons(5);
+            }
+            
+            console.log('State update:', data.mode);
+          }
+        } catch (e) {
+          console.error('WebSocket message error:', e);
+        }
+      };
+      
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        wsConnected = false;
+        document.querySelector('.status-dot').style.background = '#4a2020';
+        
+        // Retry connection after 5 seconds
+        clearTimeout(wsRetryTimeout);
+        wsRetryTimeout = setTimeout(connectWebSocket, 5000);
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    }
+    
+    // Start WebSocket connection if URL provided
+    if (WS_URL) {
+      connectWebSocket();
+      // Disable click-to-change when connected
+      document.removeEventListener('click', arguments.callee);
+    }
+    
+    // Save WS URL to localStorage if provided in query
+    const queryWs = new URLSearchParams(window.location.search).get('ws');
+    if (queryWs) {
+      localStorage.setItem('absalom_ws', queryWs);
+    }
+    
+    // Connection indicator
+    const connIndicator = document.createElement('div');
+    connIndicator.style.cssText = 'position:fixed;top:10px;right:10px;font-size:10px;color:#333;';
+    connIndicator.id = 'conn-indicator';
+    document.body.appendChild(connIndicator);
+    
+    setInterval(() => {
+      const ind = document.getElementById('conn-indicator');
+      if (WS_URL) {
+        ind.textContent = wsConnected ? '● live' : '○ reconnecting...';
+        ind.style.color = wsConnected ? '#1a6b4a' : '#4a2020';
+      } else {
+        ind.textContent = '○ demo mode';
+        ind.style.color = '#333';
+      }
+    }, 1000);
   </script>
 </body>
 </html>
