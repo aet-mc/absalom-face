@@ -320,10 +320,10 @@ class Particle {
 }
 
 class ParticleSystem {
-  constructor(maxParticles = 3500) {
+  constructor(maxParticles = 1500) {
     this.particles = [];
     this.maxParticles = maxParticles;
-    this.spawnRate = 50; // particles per second (was 30)
+    this.spawnRate = 25; // balanced for performance
     this.spawnAccumulator = 0;
   }
   
@@ -1204,8 +1204,8 @@ class ForceSimulation {
     this.width = options.width || 800;
     this.height = options.height || 600;
     
-    this.centerForce = options.centerForce || 0.002;    // 4x weaker center pull → more spread
-    this.repulsionForce = options.repulsionForce || 1200; // 5x stronger repulsion
+    this.centerForce = options.centerForce || 0.006;    // Stronger center to prevent drift
+    this.repulsionForce = options.repulsionForce || 800; // Balanced repulsion
     this.edgeForce = options.edgeForce || 0.008;         // Softer springs
     this.edgeLength = options.edgeLength || 180;         // Longer rest length
     this.damping = options.damping || 0.92;
@@ -1297,10 +1297,10 @@ class ForceSimulation {
       node.vx += dx * this.centerForce * alpha;
       node.vy += dy * this.centerForce * alpha;
       
-      // Slow orbital drift - nodes rotate around center
+      // Slow orbital drift - very subtle, only when close to center
       const distFromCenter = Math.sqrt(dx * dx + dy * dy);
-      if (distFromCenter > 50) {
-        const orbitSpeed = 0.0003 * (1 + node.activation * 2);
+      if (distFromCenter > 50 && distFromCenter < 300) {
+        const orbitSpeed = 0.00005 * (1 + node.activation); // Much gentler
         const perpX = -dy / distFromCenter;
         const perpY = dx / distFromCenter;
         node.vx += perpX * orbitSpeed * distFromCenter * alpha;
@@ -1721,10 +1721,7 @@ class MyceliumLayer {
     // Physics
     this.simulation.step(dt, this.time);
     
-    // Update simulation center with breath drift
-    const breathDriftX = Math.sin(this.globalBreath.phase * 0.7) * this.globalBreath.driftAmp;
-    const breathDriftY = Math.cos(this.globalBreath.phase * 0.5) * this.globalBreath.driftAmp * 0.6;
-    this.simulation.centerX = this.canvas.width / 2 + breathDriftX;
+    // Don't modify simulation center - keep it fixed
     
     // Nodes
     for (const node of this.nodes) {
