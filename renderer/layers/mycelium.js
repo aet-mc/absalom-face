@@ -156,11 +156,17 @@ class Particle {
     this.life = lifeRatio < 0.1 ? lifeRatio * 10 :
                 lifeRatio > 0.8 ? (1 - lifeRatio) * 5 : 1;
     
-    // Store trail
+    // Store trail - PERF: Reuse objects instead of shift+push (ring buffer style)
     if (this.trail.length >= this.maxTrail) {
-      this.trail.shift();
+      // Reuse oldest object instead of creating new one
+      const oldest = this.trail.shift();
+      oldest.x = this.x;
+      oldest.y = this.y;
+      oldest.life = this.life;
+      this.trail.push(oldest);
+    } else {
+      this.trail.push({ x: this.x, y: this.y, life: this.life });
     }
-    this.trail.push({ x: this.x, y: this.y, life: this.life });
     
     // Movement based on mode
     if (this.mode === 'flow' && this.sourceEdge) {
@@ -281,7 +287,7 @@ class Particle {
     
     const alpha = this.life * this.brightness * 0.8;
     
-    // Draw trail
+    // Draw trail - use solid color with opacity fade (no gradient)
     if (this.trail.length > 1) {
       ctx.beginPath();
       ctx.moveTo(this.trail[0].x, this.trail[0].y);
@@ -291,39 +297,36 @@ class Particle {
       }
       ctx.lineTo(this.x, this.y);
       
-      const gradient = ctx.createLinearGradient(
-        this.trail[0].x, this.trail[0].y,
-        this.x, this.y
-      );
-      gradient.addColorStop(0, `hsla(${this.hue}, ${this.saturation}%, 70%, 0)`);
-      gradient.addColorStop(1, `hsla(${this.hue}, ${this.saturation}%, 70%, ${alpha * 0.5})`);
-      
-      ctx.strokeStyle = gradient;
+      // PERF: Solid color instead of gradient - visually similar, 10x faster
+      ctx.strokeStyle = `hsla(${this.hue}, ${this.saturation}%, 70%, ${alpha * 0.3})`;
       ctx.lineWidth = this.size * 0.5;
       ctx.lineCap = 'round';
       ctx.stroke();
     }
     
-    // Draw particle core
+    // Draw particle core - simple circle with solid color (no radial gradient)
     const glowSize = this.size * (2 + Math.sin(time * 3 + this.phase) * 0.5);
     
-    const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, glowSize);
-    glow.addColorStop(0, `hsla(${this.hue}, ${this.saturation}%, 85%, ${alpha})`);
-    glow.addColorStop(0.3, `hsla(${this.hue}, ${this.saturation}%, 70%, ${alpha * 0.6})`);
-    glow.addColorStop(1, `hsla(${this.hue}, ${this.saturation}%, 50%, 0)`);
-    
+    // PERF: Two concentric circles instead of radial gradient
+    // Outer glow
     ctx.beginPath();
     ctx.arc(this.x, this.y, glowSize, 0, Math.PI * 2);
-    ctx.fillStyle = glow;
+    ctx.fillStyle = `hsla(${this.hue}, ${this.saturation}%, 60%, ${alpha * 0.3})`;
+    ctx.fill();
+    
+    // Inner core
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, glowSize * 0.4, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${this.hue}, ${this.saturation}%, 85%, ${alpha})`;
     ctx.fill();
   }
 }
 
 class ParticleSystem {
-  constructor(maxParticles = 1500) {
+  constructor(maxParticles = 800) { // PERF: Reduced from 1500
     this.particles = [];
     this.maxParticles = maxParticles;
-    this.spawnRate = 25; // balanced for performance
+    this.spawnRate = 12; // PERF: Reduced from 25
     this.spawnAccumulator = 0;
   }
   
@@ -424,12 +427,46 @@ class ParticleSystem {
   }
   
   render(ctx, time) {
-    // Use lighter composite for glow effect
+    // PERF: Batch render with single save/restore
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
+    ctx.lineCap = 'round'; // Set once for all trails
+    
+    // PERF: Pre-calc time-based sin for particles (avoid recalculating per particle)
+    const timeSin3 = Math.sin(time * 3);
     
     for (const particle of this.particles) {
-      particle.render(ctx, time);
+      if (particle.life <= 0) continue;
+      
+      const alpha = particle.life * particle.brightness * 0.8;
+      const hue = particle.hue;
+      const sat = particle.saturation;
+      
+      // Draw trail
+      if (particle.trail.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(particle.trail[0].x, particle.trail[0].y);
+        for (let i = 1; i < particle.trail.length; i++) {
+          ctx.lineTo(particle.trail[i].x, particle.trail[i].y);
+        }
+        ctx.lineTo(particle.x, particle.y);
+        ctx.strokeStyle = `hsla(${hue}, ${sat}%, 70%, ${alpha * 0.3})`;
+        ctx.lineWidth = particle.size * 0.5;
+        ctx.stroke();
+      }
+      
+      // Particle glow
+      const glowSize = particle.size * (2 + (timeSin3 + Math.sin(particle.phase)) * 0.25);
+      
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, glowSize, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${hue}, ${sat}%, 60%, ${alpha * 0.3})`;
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, glowSize * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${hue}, ${sat}%, 85%, ${alpha})`;
+      ctx.fill();
     }
     
     ctx.restore();
@@ -451,16 +488,16 @@ class OrganicEdge {
     this.activation = 0;
     this.targetActivation = 0;
     
-    // Organic properties - multiple strands (TUNED for visibility)
-    this.strandCount = 3 + Math.floor(Math.random() * 3); // 3-5 strands for fuller tendrils
+    // PERF: Reduced strand count (2-3 instead of 3-5)
+    this.strandCount = 2 + Math.floor(Math.random() * 2);
     this.strands = [];
     for (let i = 0; i < this.strandCount; i++) {
       this.strands.push({
-        offset: (Math.random() - 0.5) * 0.15, // REDUCED: tighter bundle (was 0.4)
-        thickness: 0.6 + Math.random() * 0.5, // BOOSTED: minimum 0.6 (was 0.3)
+        offset: (Math.random() - 0.5) * 0.15,
+        thickness: 0.7 + Math.random() * 0.4, // Slightly thicker to compensate
         phase: Math.random() * Math.PI * 2,
-        waveFreq: 1.5 + Math.random() * 2, // SLOWER: gentler undulation (was 2-5)
-        waveAmp: 2 + Math.random() * 4 // REDUCED: tighter waves (was 5-15)
+        waveFreq: 1.5 + Math.random() * 2,
+        waveAmp: 2 + Math.random() * 4
       });
     }
     
@@ -581,7 +618,8 @@ class OrganicEdge {
   }
   
   renderStrand(ctx, time, strand, baseWidth, edgeLength) {
-    const segments = Math.max(20, Math.floor(edgeLength / 10));
+    // PERF: Reduce segment count - 12-20 is plenty for smooth curves
+    const segments = Math.max(12, Math.min(20, Math.floor(edgeLength / 20)));
     const points = [];
     
     // Generate points along strand
@@ -629,51 +667,27 @@ class OrganicEdge {
       points[points.length - 1].x, points[points.length - 1].y
     );
     
-    // Create gradient between source and target node colors (if different types)
-    const sourceColor = PALETTE.nodes[this.source.type] || PALETTE.nodes.default;
-    const targetColor = PALETTE.nodes[this.target.type] || PALETTE.nodes.default;
-    const useGradient = sourceColor.h !== targetColor.h;
-    
-    if (useGradient && points.length > 1) {
-      // Gradient along edge path
-      const gradient = ctx.createLinearGradient(
-        points[0].x, points[0].y,
-        points[points.length - 1].x, points[points.length - 1].y
-      );
-      // Blend toward edge color at center, node colors at ends
-      const srcR = Math.round(sourceColor.r * 0.3 + r * 0.7);
-      const srcG = Math.round(sourceColor.g * 0.3 + g * 0.7);
-      const srcB = Math.round(sourceColor.b * 0.3 + b * 0.7);
-      const tgtR = Math.round(targetColor.r * 0.3 + r * 0.7);
-      const tgtG = Math.round(targetColor.g * 0.3 + g * 0.7);
-      const tgtB = Math.round(targetColor.b * 0.3 + b * 0.7);
-      
-      gradient.addColorStop(0, `rgba(${srcR}, ${srcG}, ${srcB}, ${alpha})`);
-      gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${alpha})`);
-      gradient.addColorStop(1, `rgba(${tgtR}, ${tgtG}, ${tgtB}, ${alpha})`);
-      ctx.strokeStyle = gradient;
-    } else {
-      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
+    // PERF: Use solid color instead of gradient for edge coloring
+    // The visual difference is minimal but performance impact is significant
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
     ctx.lineWidth = width;
     ctx.stroke();
     
-    // AMBIENT GLOW - all edges get subtle glow, active edges get bloom
+    // AMBIENT GLOW - simulate with wider, more transparent strokes (NO BLUR FILTER)
+    // PERF: ctx.filter='blur()' is catastrophically slow - use layered strokes instead
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     
-    // Subtle ambient glow for ALL edges (always visible)
-    const ambientGlowAlpha = 0.08 + this.activation * 0.15;
-    ctx.filter = `blur(${4 + this.activation * 6}px)`;
-    ctx.strokeStyle = `rgba(${r + 30}, ${g + 20}, ${b + 20}, ${ambientGlowAlpha})`;
-    ctx.lineWidth = width * 2.5;
+    // Outer glow layer (widest, faintest)
+    const glowAlpha = 0.04 + this.activation * 0.08;
+    ctx.strokeStyle = `rgba(${r + 30}, ${g + 20}, ${b + 20}, ${glowAlpha})`;
+    ctx.lineWidth = width * 4;
     ctx.stroke();
     
-    // Extra bloom layer when highly active
-    if (this.activation > 0.4) {
-      ctx.filter = `blur(${8 + this.activation * 10}px)`;
-      ctx.strokeStyle = `rgba(${r + 50}, ${g + 30}, ${b + 30}, ${(this.activation - 0.4) * 0.5})`;
-      ctx.lineWidth = width * 4;
+    // Mid glow layer
+    if (this.activation > 0.2) {
+      ctx.strokeStyle = `rgba(${r + 40}, ${g + 25}, ${b + 25}, ${this.activation * 0.1})`;
+      ctx.lineWidth = width * 2.5;
       ctx.stroke();
     }
     
@@ -683,34 +697,29 @@ class OrganicEdge {
   renderPulse(ctx, time, pulse) {
     const point = this.getPointOnCurve(pulse.progress, time);
     
-    // Brighter, more saturated pulse colors
+    // PERF: Concentric circles instead of radial gradients
     const r = 100, g = 245, b = 210;
     const size = pulse.size;
     
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     
-    // Outer bloom (large, soft)
-    const outerGlow = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, size * 4);
-    outerGlow.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${pulse.brightness * 0.4})`);
-    outerGlow.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, ${pulse.brightness * 0.2})`);
-    outerGlow.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-    
+    // Outer glow - single circle
     ctx.beginPath();
-    ctx.arc(point.x, point.y, size * 4, 0, Math.PI * 2);
-    ctx.fillStyle = outerGlow;
+    ctx.arc(point.x, point.y, size * 3, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${pulse.brightness * 0.15})`;
     ctx.fill();
     
-    // Inner core (bright, sharp)
-    const coreGlow = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, size * 1.5);
-    coreGlow.addColorStop(0, `rgba(255, 255, 255, ${pulse.brightness * 0.9})`);
-    coreGlow.addColorStop(0.2, `rgba(${r}, ${g}, ${b}, ${pulse.brightness * 0.8})`);
-    coreGlow.addColorStop(0.6, `rgba(${r - 30}, ${g - 20}, ${b - 20}, ${pulse.brightness * 0.4})`);
-    coreGlow.addColorStop(1, `rgba(${r - 50}, ${g - 40}, ${b - 40}, 0)`);
-    
+    // Mid glow
     ctx.beginPath();
     ctx.arc(point.x, point.y, size * 1.5, 0, Math.PI * 2);
-    ctx.fillStyle = coreGlow;
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${pulse.brightness * 0.4})`;
+    ctx.fill();
+    
+    // Inner core (bright)
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, size * 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${pulse.brightness * 0.9})`;
     ctx.fill();
     
     ctx.restore();
@@ -968,111 +977,82 @@ class OrganicNode {
       this.renderRings(ctx, time, radius, hue, glowIntensity);
     }
     
-    // ===== OUTER BLOOM (furthest out, very soft) =====
+    // ===== OUTER BLOOM - PERF: concentric circles instead of gradient loops =====
     if (effectiveGlow > 0.05) {
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
       
-      // Multiple bloom layers for richer glow
-      const bloomLayers = this.signature.coronaLayers;
-      for (let i = 0; i < bloomLayers; i++) {
-        const layerT = i / bloomLayers;
-        const bloomRadius = radius * (4 + layerT * 6 + effectiveGlow * 10);
-        const bloomOpacity = effectiveGlow * 0.35 * (1 - layerT * 0.6);
-        const bloomHue = (hue + layerT * 15) % 360; // Slight hue shift per layer
-        
-        const bloom = ctx.createRadialGradient(0, 0, 0, 0, 0, bloomRadius);
-        bloom.addColorStop(0, `hsla(${bloomHue}, 85%, 65%, ${bloomOpacity})`);
-        bloom.addColorStop(0.2, `hsla(${bloomHue}, 75%, 55%, ${bloomOpacity * 0.6})`);
-        bloom.addColorStop(0.5, `hsla(${bloomHue}, 65%, 45%, ${bloomOpacity * 0.2})`);
-        bloom.addColorStop(0.8, `hsla(${bloomHue}, 55%, 35%, ${bloomOpacity * 0.05})`);
-        bloom.addColorStop(1, 'transparent');
-        
+      // Single large bloom (instead of multiple gradient layers)
+      const bloomRadius = radius * (4 + effectiveGlow * 8);
+      ctx.beginPath();
+      ctx.arc(0, 0, bloomRadius, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${hue}, 70%, 50%, ${effectiveGlow * 0.12})`;
+      ctx.fill();
+      
+      // Second bloom layer only when very active
+      if (effectiveGlow > 0.3) {
         ctx.beginPath();
-        ctx.arc(0, 0, bloomRadius, 0, Math.PI * 2);
-        ctx.fillStyle = bloom;
+        ctx.arc(0, 0, bloomRadius * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${hue}, 75%, 55%, ${effectiveGlow * 0.15})`;
         ctx.fill();
       }
       
       ctx.restore();
     }
     
-    // ===== AURA (warm types like people) =====
+    // ===== AURA (warm types like people) - simplified =====
     if (this.signature.hasAura && effectiveGlow > 0.1) {
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
-      
-      const auraRadius = radius * 2.5;
-      const warmHue = (hue + 20) % 360; // Warmer shift
-      const aura = ctx.createRadialGradient(0, 0, radius * 0.8, 0, 0, auraRadius);
-      aura.addColorStop(0, `hsla(${warmHue}, 90%, 70%, ${effectiveGlow * 0.3})`);
-      aura.addColorStop(0.5, `hsla(${warmHue}, 80%, 60%, ${effectiveGlow * 0.15})`);
-      aura.addColorStop(1, 'transparent');
-      
+      const warmHue = (hue + 20) % 360;
       ctx.beginPath();
-      ctx.arc(0, 0, auraRadius, 0, Math.PI * 2);
-      ctx.fillStyle = aura;
+      ctx.arc(0, 0, radius * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${warmHue}, 85%, 65%, ${effectiveGlow * 0.15})`;
       ctx.fill();
-      
       ctx.restore();
     }
     
-    // ===== OUTER CORONA =====
-    const outerRadius = radius * (2.5 + effectiveGlow * 2.5);
-    const outerGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, outerRadius);
-    outerGlow.addColorStop(0, `hsla(${hue}, 80%, 70%, ${glowIntensity * 0.7})`);
-    outerGlow.addColorStop(0.15, `hsla(${hue}, 75%, 60%, ${glowIntensity * 0.5})`);
-    outerGlow.addColorStop(0.35, `hsla(${hue}, 70%, 50%, ${glowIntensity * 0.25})`);
-    outerGlow.addColorStop(0.6, `hsla(${hue}, 65%, 40%, ${glowIntensity * 0.08})`);
-    outerGlow.addColorStop(0.85, `hsla(${hue}, 60%, 35%, ${glowIntensity * 0.02})`);
-    outerGlow.addColorStop(1, 'transparent');
+    // ===== CORONA - PERF: 3 concentric circles instead of 6-stop gradient =====
+    const outerRadius = radius * (2.5 + effectiveGlow * 2);
     
+    // Outer corona
     ctx.beginPath();
     ctx.arc(0, 0, outerRadius, 0, Math.PI * 2);
-    ctx.fillStyle = outerGlow;
+    ctx.fillStyle = `hsla(${hue}, 65%, 45%, ${glowIntensity * 0.15})`;
     ctx.fill();
     
-    // ===== INNER GLOW (mid-layer) =====
-    const innerRadius = radius * 1.6;
-    const innerGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, innerRadius);
-    innerGlow.addColorStop(0, `hsla(${hue}, 85%, 80%, ${0.85 + glowIntensity * 0.15})`);
-    innerGlow.addColorStop(0.25, `hsla(${hue}, 80%, 70%, ${0.6 + glowIntensity * 0.25})`);
-    innerGlow.addColorStop(0.5, `hsla(${hue}, 75%, 58%, ${0.35 + glowIntensity * 0.2})`);
-    innerGlow.addColorStop(0.8, `hsla(${hue}, 70%, 45%, ${0.1 + glowIntensity * 0.1})`);
-    innerGlow.addColorStop(1, 'transparent');
-    
+    // Mid corona
     ctx.beginPath();
-    ctx.arc(0, 0, innerRadius, 0, Math.PI * 2);
-    ctx.fillStyle = innerGlow;
+    ctx.arc(0, 0, outerRadius * 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 75%, 55%, ${glowIntensity * 0.3})`;
     ctx.fill();
     
-    // ===== CORE (bright center) =====
+    // Inner glow
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 1.4, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 80%, 65%, ${glowIntensity * 0.5})`;
+    ctx.fill();
+    
+    // ===== CORE - PERF: 2 circles instead of 6-stop gradient =====
     const coreRadius = radius * 0.55;
     const coreIntensity = this.signature.coreIntensity;
-    const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreRadius);
-    // More gradient stops for smoother falloff
-    core.addColorStop(0, `hsla(${hue}, 30%, 98%, ${coreIntensity})`);
-    core.addColorStop(0.15, `hsla(${hue}, 45%, 92%, ${coreIntensity * 0.95})`);
-    core.addColorStop(0.35, `hsla(${hue}, 60%, 82%, ${coreIntensity * 0.9})`);
-    core.addColorStop(0.55, `hsla(${hue}, 75%, 70%, ${coreIntensity * 0.8})`);
-    core.addColorStop(0.75, `hsla(${hue}, 82%, 60%, ${coreIntensity * 0.6})`);
-    core.addColorStop(1, `hsla(${hue}, 85%, 50%, ${coreIntensity * 0.3})`);
     
+    // Core outer
     ctx.beginPath();
     ctx.arc(0, 0, coreRadius, 0, Math.PI * 2);
-    ctx.fillStyle = core;
+    ctx.fillStyle = `hsla(${hue}, 70%, 70%, ${coreIntensity * 0.8})`;
     ctx.fill();
     
-    // ===== HOT SPOT (tiny bright center) =====
-    const hotspotRadius = radius * 0.15;
-    const hotspot = ctx.createRadialGradient(0, 0, 0, 0, 0, hotspotRadius);
-    hotspot.addColorStop(0, `hsla(${hue}, 20%, 100%, ${0.9 + effectiveGlow * 0.1})`);
-    hotspot.addColorStop(0.5, `hsla(${hue}, 40%, 95%, 0.7)`);
-    hotspot.addColorStop(1, `hsla(${hue}, 60%, 85%, 0)`);
-    
+    // Core inner (bright)
     ctx.beginPath();
-    ctx.arc(0, 0, hotspotRadius, 0, Math.PI * 2);
-    ctx.fillStyle = hotspot;
+    ctx.arc(0, 0, coreRadius * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 40%, 92%, ${coreIntensity})`;
+    ctx.fill();
+    
+    // ===== HOT SPOT - single bright circle =====
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.12, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 20%, 100%, ${0.9 + effectiveGlow * 0.1})`;
     ctx.fill();
     
     // ===== LABEL (appears on activation) =====
@@ -1088,23 +1068,15 @@ class OrganicNode {
     
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
+    ctx.lineCap = 'round';
     
     for (const tendril of this.tendrils) {
       const waveOffset = Math.sin(tendril.phase) * 0.3;
       const angle = tendril.angle + waveOffset;
       const length = radius * (1.5 + tendril.length * 2 + activation * 2);
       
-      // Tendril as a tapered line with glow
       const endX = Math.cos(angle) * length;
       const endY = Math.sin(angle) * length;
-      
-      const gradient = ctx.createLinearGradient(0, 0, endX, endY);
-      gradient.addColorStop(0, `hsla(${hue}, 70%, 60%, ${activation * 0.4})`);
-      gradient.addColorStop(0.5, `hsla(${hue}, 65%, 50%, ${activation * 0.2})`);
-      gradient.addColorStop(1, `hsla(${hue}, 60%, 40%, 0)`);
-      
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
       
       // Curved tendril using quadratic bezier
       const controlDist = length * 0.5;
@@ -1112,11 +1084,13 @@ class OrganicNode {
       const cx = Math.cos(controlAngle) * controlDist;
       const cy = Math.sin(controlAngle) * controlDist;
       
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
       ctx.quadraticCurveTo(cx, cy, endX, endY);
       
-      ctx.strokeStyle = gradient;
+      // PERF: Solid color with tapered lineWidth instead of gradient
+      ctx.strokeStyle = `hsla(${hue}, 68%, 55%, ${activation * 0.35})`;
       ctx.lineWidth = 2 + activation * 3;
-      ctx.lineCap = 'round';
       ctx.stroke();
     }
     
@@ -1135,21 +1109,21 @@ class OrganicNode {
       const ringRadius = radius * ring.radius;
       const thickness = ring.thickness * (1 + this.activation * 0.5);
       
-      // Draw ring as ellipse
+      // PERF: Draw glow first (wider stroke) then main ring - no blur filter
+      if (this.activation > 0.2) {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, ringRadius, ringRadius * 0.3, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsla(${hue}, 65%, 60%, ${this.activation * 0.15})`;
+        ctx.lineWidth = thickness * 3;
+        ctx.stroke();
+      }
+      
+      // Main ring
       ctx.beginPath();
       ctx.ellipse(0, 0, ringRadius, ringRadius * 0.3, 0, 0, Math.PI * 2);
-      
       ctx.strokeStyle = `hsla(${hue}, 60%, 55%, ${glowIntensity * 0.4})`;
       ctx.lineWidth = thickness;
       ctx.stroke();
-      
-      // Glow on ring
-      if (this.activation > 0.2) {
-        ctx.strokeStyle = `hsla(${hue}, 70%, 65%, ${this.activation * 0.3})`;
-        ctx.lineWidth = thickness * 2;
-        ctx.filter = 'blur(2px)';
-        ctx.stroke();
-      }
       
       ctx.restore();
     }
@@ -1161,29 +1135,22 @@ class OrganicNode {
     const label = this.label;
     if (!label || label.length === 0) return;
     
-    // Position label above the node
     const labelY = -radius * 2.5 - 8;
     
     ctx.save();
     
-    // Text styling
     const fontSize = Math.max(10, Math.min(14, radius * 0.6));
     ctx.font = `${fontSize}px "Inter", -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
-    // Truncate long labels
     const maxLen = 20;
     const displayLabel = label.length > maxLen ? label.slice(0, maxLen) + '…' : label;
     
-    // Glow behind text
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    ctx.shadowColor = `hsla(${hue}, 70%, 60%, ${this.labelOpacity * 0.8})`;
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = `hsla(${hue}, 60%, 85%, ${this.labelOpacity * 0.9})`;
-    ctx.fillText(displayLabel, 0, labelY);
-    ctx.restore();
+    // PERF: Remove shadowBlur - use layered text instead
+    // Background text (wider, darker) for contrast
+    ctx.fillStyle = `hsla(${hue}, 50%, 20%, ${this.labelOpacity * 0.6})`;
+    ctx.fillText(displayLabel, 1, labelY + 1);
     
     // Main text
     ctx.fillStyle = `rgba(255, 255, 255, ${this.labelOpacity * 0.95})`;
@@ -1260,10 +1227,12 @@ class ForceSimulation {
       node.x = this.centerX + Math.cos(angle) * radius;
       node.y = this.centerY + Math.sin(angle) * radius * 0.7; // Squash vertically
       
-      // Age-based depth still applies
+      // Age-based depth offset - SYMMETRIC around center, not just downward
+      // Older nodes drift slightly below center, but max offset is limited
       const age = Date.now() - node.firstSeen;
       const ageDepth = Math.min(1, age / (30 * 24 * 60 * 60 * 1000));
-      node.y += ageDepth * this.height * this.depthInfluence * 0.5;
+      // Max offset of 50px below center for oldest nodes
+      node.y += ageDepth * 50 * this.depthInfluence;
     }
   }
   
@@ -1280,27 +1249,31 @@ class ForceSimulation {
   step(dt, time) {
     const alpha = Math.min(dt * 8, 1);
     
-    // Add organic global motion - more noticeable drift
-    const globalSwayX = Math.sin(time * 0.03) * 2.5; // 5x (was 0.5)
-    const globalSwayY = Math.cos(time * 0.025) * 1.8; // 6x (was 0.3)
-    
     // Reset fixed nodes
     for (const node of this.nodes) {
       if (node.fx !== null) { node.x = node.fx; node.vx = 0; }
       if (node.fy !== null) { node.y = node.fy; node.vy = 0; }
     }
     
-    // Center force with organic offset
+    // CENTER FORCE - pulls toward TRUE center (no sway offset!)
+    // This is the primary stabilizing force that prevents drift
     for (const node of this.nodes) {
-      const dx = this.centerX + globalSwayX * 20 - node.x;
-      const dy = this.centerY + globalSwayY * 20 - node.y;
+      const dx = this.centerX - node.x;
+      const dy = this.centerY - node.y;
       node.vx += dx * this.centerForce * alpha;
       node.vy += dy * this.centerForce * alpha;
-      
-      // Slow orbital drift - very subtle, only when close to center
+    }
+    
+    // SUBTLE ORBITAL DRIFT - based on true center, not swaying
+    // Applied separately to avoid biased perpendicular vectors
+    for (const node of this.nodes) {
+      const dx = node.x - this.centerX;
+      const dy = node.y - this.centerY;
       const distFromCenter = Math.sqrt(dx * dx + dy * dy);
-      if (distFromCenter > 50 && distFromCenter < 300) {
-        const orbitSpeed = 0.00005 * (1 + node.activation); // Much gentler
+      
+      if (distFromCenter > 80 && distFromCenter < 250) {
+        // Gentle orbit that doesn't accumulate (activation-based only)
+        const orbitSpeed = 0.00003 * node.activation; // Only active nodes drift
         const perpX = -dy / distFromCenter;
         const perpY = dx / distFromCenter;
         node.vx += perpX * orbitSpeed * distFromCenter * alpha;
@@ -1308,21 +1281,25 @@ class ForceSimulation {
       }
     }
     
-    // Repulsion
+    // Repulsion - PERF: Check distance squared first to avoid sqrt when unnecessary
+    const maxDistSq = 400 * 400; // 400px cutoff (reduced from 600)
     for (let i = 0; i < this.nodes.length; i++) {
+      const a = this.nodes[i];
       for (let j = i + 1; j < this.nodes.length; j++) {
-        const a = this.nodes[i];
         const b = this.nodes[j];
         
-        let dx = b.x - a.x;
-        let dy = b.y - a.y;
-        let dist = Math.sqrt(dx * dx + dy * dy);
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const distSq = dx * dx + dy * dy;
         
-        if (dist < 1) dist = 1;
-        if (dist > 600) continue; // Repulsion reaches farther (was 350)
+        // PERF: Early exit using squared distance (avoids sqrt)
+        if (distSq > maxDistSq) continue;
+        if (distSq < 1) continue;
         
-        // Hybrid falloff - gentler, reaches farther
-        const force = this.repulsionForce / (dist * dist + dist * 50) * alpha;
+        const dist = Math.sqrt(distSq);
+        
+        // Hybrid falloff
+        const force = this.repulsionForce / (distSq + dist * 50) * alpha;
         const fx = (dx / dist) * force;
         const fy = (dy / dist) * force;
         
@@ -1357,43 +1334,90 @@ class ForceSimulation {
       if (target.fy === null) target.vy -= fy;
     }
     
-    // Depth gravity
+    // Depth gravity - SYMMETRIC around centerY with slight downward bias for older nodes
+    // This doesn't push all nodes down; it creates vertical stratification around center
     for (const node of this.nodes) {
       const age = Date.now() - node.firstSeen;
       const ageDepth = Math.min(1, age / (30 * 24 * 60 * 60 * 1000));
-      const targetY = this.centerY + ageDepth * this.height * this.depthInfluence;
-      node.vy += (targetY - node.y) * 0.003 * alpha;
+      // Target is slightly below center for old nodes, at center for new nodes
+      const targetY = this.centerY + ageDepth * 50 * this.depthInfluence;
+      const dy = targetY - node.y;
+      // Very gentle - this is cosmetic stratification, not a strong force
+      node.vy += dy * 0.001 * alpha;
     }
     
     // Global breathing - expand/contract entire layout
+    // Uses POSITION adjustment, not velocity, to avoid drift accumulation
     this.breathPhase += dt * 0.15; // ~42 second full cycle
     const breathFactor = 1 + Math.sin(this.breathPhase) * this.breathAmp;
+    const prevBreathFactor = 1 + Math.sin(this.breathPhase - dt * 0.15) * this.breathAmp;
+    const breathDelta = breathFactor - prevBreathFactor;
     
+    // Apply breath as position delta, not velocity (prevents accumulation)
     for (const node of this.nodes) {
-      const dx = node.x - this.centerX;
-      const dy = node.y - this.centerY;
-      node.vx += dx * (breathFactor - 1) * 0.5;
-      node.vy += dy * (breathFactor - 1) * 0.5;
+      if (node.fx === null) {
+        const dx = node.x - this.centerX;
+        node.x += dx * breathDelta;
+      }
+      if (node.fy === null) {
+        const dy = node.y - this.centerY;
+        node.y += dy * breathDelta;
+      }
     }
     
-    // Update positions
+    // Update positions with STRONG boundary enforcement
     for (const node of this.nodes) {
+      const margin = 80;
+      const softMargin = 150; // Start pushing back before hard boundary
+      
       if (node.fx === null) {
         node.vx *= this.damping;
         node.x += node.vx;
         
-        const margin = 60;
-        if (node.x < margin) { node.x = margin; node.vx *= -0.3; }
-        if (node.x > this.width - margin) { node.x = this.width - margin; node.vx *= -0.3; }
+        // Soft boundary - push back toward center when approaching edges
+        if (node.x < softMargin) {
+          const pushForce = (softMargin - node.x) / softMargin * 0.5;
+          node.vx += pushForce * alpha;
+        }
+        if (node.x > this.width - softMargin) {
+          const pushForce = (node.x - (this.width - softMargin)) / softMargin * 0.5;
+          node.vx -= pushForce * alpha;
+        }
+        
+        // Hard boundary - clamp and kill velocity
+        if (node.x < margin) { 
+          node.x = margin; 
+          node.vx = Math.abs(node.vx) * 0.1; // Push away from edge
+        }
+        if (node.x > this.width - margin) { 
+          node.x = this.width - margin; 
+          node.vx = -Math.abs(node.vx) * 0.1; // Push away from edge
+        }
       }
       
       if (node.fy === null) {
         node.vy *= this.damping;
         node.y += node.vy;
         
-        const margin = 60;
-        if (node.y < margin) { node.y = margin; node.vy *= -0.3; }
-        if (node.y > this.height - margin) { node.y = this.height - margin; node.vy *= -0.3; }
+        // Soft boundary - push back toward center when approaching edges
+        if (node.y < softMargin) {
+          const pushForce = (softMargin - node.y) / softMargin * 0.5;
+          node.vy += pushForce * alpha;
+        }
+        if (node.y > this.height - softMargin) {
+          const pushForce = (node.y - (this.height - softMargin)) / softMargin * 0.5;
+          node.vy -= pushForce * alpha;
+        }
+        
+        // Hard boundary - clamp and kill velocity
+        if (node.y < margin) { 
+          node.y = margin; 
+          node.vy = Math.abs(node.vy) * 0.1; // Push away from edge
+        }
+        if (node.y > this.height - margin) { 
+          node.y = this.height - margin; 
+          node.vy = -Math.abs(node.vy) * 0.1; // Push away from edge
+        }
       }
     }
   }
@@ -1408,28 +1432,65 @@ class AtmosphericEffects {
     this.canvas = canvas;
     this.causticPhase = 0;
     
-    // Pre-generate caustic pattern points - denser for richer light play
+    // Pre-generate caustic pattern points
     this.causticPoints = [];
-    for (let i = 0; i < 50; i++) { // Was 30
+    for (let i = 0; i < 30; i++) { // PERF: Reduced from 50
       this.causticPoints.push({
         x: Math.random(),
         y: Math.random(),
         phase: Math.random() * Math.PI * 2,
-        speed: 0.15 + Math.random() * 0.4, // Slower, more hypnotic
-        size: 80 + Math.random() * 200 // Larger caustics
+        speed: 0.15 + Math.random() * 0.4,
+        size: 80 + Math.random() * 200
       });
     }
+    
+    // PERF: Cache static gradients
+    this._cachedVignette = null;
+    this._cachedFog = null;
+    this._cachedBackground = null;
+    this._cacheWidth = 0;
+    this._cacheHeight = 0;
+  }
+  
+  _updateCaches(ctx, waterLine) {
+    if (this._cacheWidth === this.canvas.width && this._cacheHeight === this.canvas.height) {
+      return; // Caches still valid
+    }
+    
+    this._cacheWidth = this.canvas.width;
+    this._cacheHeight = this.canvas.height;
+    
+    // Cache background gradient
+    this._cachedBackground = ctx.createLinearGradient(0, waterLine, 0, this.canvas.height);
+    this._cachedBackground.addColorStop(0, 'rgb(12, 28, 35)');
+    this._cachedBackground.addColorStop(0.3, 'rgb(8, 20, 26)');
+    this._cachedBackground.addColorStop(0.7, 'rgb(5, 14, 18)');
+    this._cachedBackground.addColorStop(1, 'rgb(3, 8, 12)');
+    
+    // Cache fog gradient
+    this._cachedFog = ctx.createLinearGradient(0, waterLine, 0, this.canvas.height);
+    this._cachedFog.addColorStop(0, 'rgba(10, 25, 32, 0)');
+    this._cachedFog.addColorStop(0.3, 'rgba(8, 20, 26, 0.15)');
+    this._cachedFog.addColorStop(0.5, 'rgba(6, 16, 22, 0.35)');
+    this._cachedFog.addColorStop(0.75, 'rgba(4, 12, 16, 0.55)');
+    this._cachedFog.addColorStop(0.9, 'rgba(3, 10, 14, 0.75)');
+    this._cachedFog.addColorStop(1, 'rgba(2, 6, 10, 0.85)');
+    
+    // Cache vignette gradient
+    const cx = this.canvas.width / 2;
+    const cy = this.canvas.height * 0.55;
+    const radius = Math.max(this.canvas.width, this.canvas.height) * 0.85;
+    this._cachedVignette = ctx.createRadialGradient(cx, cy, radius * 0.4, cx, cy, radius);
+    this._cachedVignette.addColorStop(0, 'transparent');
+    this._cachedVignette.addColorStop(0.5, 'rgba(0, 0, 0, 0.05)');
+    this._cachedVignette.addColorStop(0.75, 'rgba(0, 0, 0, 0.2)');
+    this._cachedVignette.addColorStop(0.9, 'rgba(0, 0, 0, 0.45)');
+    this._cachedVignette.addColorStop(1, 'rgba(0, 0, 0, 0.65)');
   }
   
   renderBackground(ctx, waterLine) {
-    // Deep gradient from top of water to bottom
-    const gradient = ctx.createLinearGradient(0, waterLine, 0, this.canvas.height);
-    gradient.addColorStop(0, 'rgb(12, 28, 35)');
-    gradient.addColorStop(0.3, 'rgb(8, 20, 26)');
-    gradient.addColorStop(0.7, 'rgb(5, 14, 18)');
-    gradient.addColorStop(1, 'rgb(3, 8, 12)');
-    
-    ctx.fillStyle = gradient;
+    this._updateCaches(ctx, waterLine);
+    ctx.fillStyle = this._cachedBackground;
     ctx.fillRect(0, waterLine, this.canvas.width, this.canvas.height - waterLine);
   }
   
@@ -1437,86 +1498,55 @@ class AtmosphericEffects {
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     
-    for (const point of this.causticPoints) {
+    // PERF: Reduce caustic count and use simple circles instead of gradients
+    for (let i = 0; i < this.causticPoints.length; i += 2) { // Skip every other
+      const point = this.causticPoints[i];
       const x = point.x * this.canvas.width;
       const baseY = waterLine + point.y * (this.canvas.height - waterLine) * 0.5;
       const y = baseY + Math.sin(time * point.speed + point.phase) * 20;
       
-      // Caustic intensity fades with depth - warmer tones near surface
       const depthRatio = (y - waterLine) / (this.canvas.height - waterLine);
       const warmth = 1 - depthRatio;
-      const intensity = 0.045 * (1 - depthRatio * 0.7); // Was 0.03
+      const intensity = 0.035 * (1 - depthRatio * 0.7);
       
       const size = point.size * (1 + Math.sin(time * point.speed * 1.5 + point.phase) * 0.2);
       
-      // Warmer tones near surface, cooler in depths
       const r = Math.round(80 + warmth * 60);
       const g = Math.round(180 + warmth * 40);
       const b = Math.round(140 + warmth * 20);
       
-      const caustic = ctx.createRadialGradient(x, y, 0, x, y, size);
-      caustic.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${intensity})`);
-      caustic.addColorStop(0.4, `rgba(${r - 20}, ${g - 20}, ${b - 20}, ${intensity * 0.5})`);
-      caustic.addColorStop(1, 'transparent');
+      // PERF: Two concentric circles instead of radial gradient
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.8, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${intensity * 0.4})`;
+      ctx.fill();
       
-      ctx.fillStyle = caustic;
-      ctx.fillRect(x - size, y - size, size * 2, size * 2);
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${intensity})`;
+      ctx.fill();
     }
     
     ctx.restore();
   }
   
   renderFog(ctx, waterLine) {
-    // Depth fog - richer gradient, true abyss feeling
-    const fogGradient = ctx.createLinearGradient(0, waterLine, 0, this.canvas.height);
-    fogGradient.addColorStop(0, 'rgba(10, 25, 32, 0)');
-    fogGradient.addColorStop(0.3, 'rgba(8, 20, 26, 0.15)');
-    fogGradient.addColorStop(0.5, 'rgba(6, 16, 22, 0.35)');
-    fogGradient.addColorStop(0.75, 'rgba(4, 12, 16, 0.55)');
-    fogGradient.addColorStop(0.9, 'rgba(3, 10, 14, 0.75)');
-    fogGradient.addColorStop(1, 'rgba(2, 6, 10, 0.85)'); // True abyss (was 0.6 max)
-    
-    ctx.fillStyle = fogGradient;
+    // PERF: Use cached gradient
+    ctx.fillStyle = this._cachedFog;
     ctx.fillRect(0, waterLine, this.canvas.width, this.canvas.height - waterLine);
   }
   
   renderVignette(ctx) {
-    const cx = this.canvas.width / 2;
-    const cy = this.canvas.height * 0.55; // Bias focus slightly downward toward mycelium
-    const radius = Math.max(this.canvas.width, this.canvas.height) * 0.85;
-    
-    const vignette = ctx.createRadialGradient(cx, cy, radius * 0.4, cx, cy, radius);
-    vignette.addColorStop(0, 'transparent');
-    vignette.addColorStop(0.5, 'rgba(0, 0, 0, 0.05)');
-    vignette.addColorStop(0.75, 'rgba(0, 0, 0, 0.2)');
-    vignette.addColorStop(0.9, 'rgba(0, 0, 0, 0.45)');
-    vignette.addColorStop(1, 'rgba(0, 0, 0, 0.65)'); // Darker corners (was 0.5)
-    
-    ctx.fillStyle = vignette;
+    // PERF: Use cached gradient
+    ctx.fillStyle = this._cachedVignette;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
   
   renderNoiseGrain(ctx, time) {
-    // Subtle animated noise (every few frames for performance)
-    if (Math.floor(time * 20) % 3 !== 0) return;
-    
-    ctx.save();
-    ctx.globalAlpha = 0.015;
-    ctx.globalCompositeOperation = 'overlay';
-    
-    const imageData = ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-    const data = imageData.data;
-    
-    // Apply subtle noise (sample every 4th pixel for performance)
-    for (let i = 0; i < data.length; i += 16) {
-      const noise = (Math.random() - 0.5) * 30;
-      data[i] += noise;
-      data[i + 1] += noise;
-      data[i + 2] += noise;
-    }
-    
-    ctx.putImageData(imageData, 0, 0);
-    ctx.restore();
+    // PERF: DISABLED - getImageData/putImageData is catastrophically slow
+    // The visual effect is minimal and not worth the 10-15ms per frame cost
+    // If noise is essential, use a pre-rendered noise texture overlay instead
+    return;
   }
 }
 
@@ -1541,7 +1571,7 @@ class MyceliumLayer {
       centerY: canvas.height / 2
     });
     
-    this.particles = new ParticleSystem(2000);
+    this.particles = new ParticleSystem(800); // PERF: Reduced from 2000
     this.atmosphere = new AtmosphericEffects(canvas);
     
     this.waterLine = canvas.height * 0.3;
@@ -1755,6 +1785,12 @@ class MyceliumLayer {
     ctx.beginPath();
     ctx.rect(0, this.waterLine, this.canvas.width, this.canvas.height - this.waterLine);
     ctx.clip();
+    
+    // ORGANIC SWAY - applied as view transform, not physics force
+    // This gives gentle underwater drift feel without causing position drift
+    const swayX = Math.sin(this.time * 0.03) * 3;
+    const swayY = Math.cos(this.time * 0.025) * 2;
+    ctx.translate(swayX, swayY);
     
     // === LAYER 1: Background ===
     this.atmosphere.renderBackground(ctx, this.waterLine);
