@@ -311,10 +311,11 @@ function generateBuildings(entities) {
   // Sort by mentions (most important first)
   const sorted = [...entities.values()].sort((a, b) => b.mentions - a.mentions);
   
-  // Limit to top 100 entities
-  const top = sorted.slice(0, 100);
+  // NO LIMIT — use ALL entities as buildings
+  const maxMentions = sorted[0]?.mentions || 1;
   
-  for (const entity of top) {
+  for (let i = 0; i < sorted.length; i++) {
+    const entity = sorted[i];
     const district = entity.district;
     const districtConfig = DISTRICTS[district];
     
@@ -324,17 +325,38 @@ function generateBuildings(entities) {
     
     // Spiral outward from district center
     const angle = (index * 0.618033988749895 * Math.PI * 2); // Golden angle
-    const radius = 3 + Math.sqrt(index) * 3;
+    const radius = 3 + Math.sqrt(index) * 3.5; // Slightly wider spread
     
     const x = districtConfig.position.x + Math.cos(angle) * radius;
     const z = districtConfig.position.z + Math.sin(angle) * radius;
     
-    // Height based on mention frequency (log scale)
-    const height = 5 + Math.log2(entity.mentions + 1) * 5;
+    // IMPORTANCE-BASED HEIGHT: Skyscrapers for top entities, small buildings for rest
+    // Top 5%: 40-60 height (skyscrapers)
+    // Top 20%: 25-40 height (tall buildings)
+    // Top 50%: 12-25 height (medium buildings)
+    // Bottom 50%: 4-12 height (small buildings)
+    const percentile = i / sorted.length;
+    const importanceRatio = entity.mentions / maxMentions;
     
-    // Width based on type
+    let height;
+    if (percentile < 0.05) {
+      // Top 5%: Skyscrapers (40-60)
+      height = 40 + importanceRatio * 20;
+    } else if (percentile < 0.20) {
+      // Top 20%: Tall buildings (25-40)
+      height = 25 + importanceRatio * 15;
+    } else if (percentile < 0.50) {
+      // Top 50%: Medium buildings (12-25)
+      height = 12 + importanceRatio * 13;
+    } else {
+      // Bottom 50%: Small buildings (4-12)
+      height = 4 + importanceRatio * 8;
+    }
+    
+    // Width also scales slightly with importance (bigger = more important)
     const typeWidths = { ticker: 2, tool: 3, project: 4, topic: 3, concept: 2.5 };
-    const width = typeWidths[entity.type] || 2.5;
+    const baseWidth = typeWidths[entity.type] || 2.5;
+    const width = baseWidth * (0.7 + importanceRatio * 0.6); // 0.7x to 1.3x base
     
     buildings.push({
       id: entity.id,
