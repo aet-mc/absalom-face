@@ -199,6 +199,7 @@
       ws.onopen = () => {
         state.connected = true;
         stateText.textContent = 'idle';
+        clearTimeout(demoTimeout); // Cancel demo mode
         ws.send(JSON.stringify({ type: 'graph:get' }));
       };
       
@@ -220,6 +221,50 @@
       
       ws.onerror = () => {};
     }
+    
+    // Demo mode - generates a sample graph when WS unavailable
+    function initDemoGraph() {
+      const types = ['topics', 'people', 'tickers', 'tools', 'decisions'];
+      const demoNodes = [];
+      const demoEdges = [];
+      
+      // Generate 60 sample nodes
+      for (let i = 0; i < 60; i++) {
+        const type = types[i % types.length];
+        demoNodes.push({
+          id: `demo-${i}`,
+          label: `${type} ${i}`,
+          type: type,
+          weight: 1 + Math.floor(Math.random() * 8),
+        });
+      }
+      
+      // Generate connections
+      for (let i = 0; i < demoNodes.length; i++) {
+        // Connect to 2-4 random other nodes
+        const connections = 2 + Math.floor(Math.random() * 3);
+        for (let c = 0; c < connections; c++) {
+          const j = Math.floor(Math.random() * demoNodes.length);
+          if (i !== j) {
+            demoEdges.push({
+              source: demoNodes[i].id,
+              target: demoNodes[j].id,
+              weight: 1 + Math.floor(Math.random() * 4),
+            });
+          }
+        }
+      }
+      
+      initializeGraph({ nodes: demoNodes, edges: demoEdges });
+      stateText.textContent = 'demo';
+    }
+    
+    // Start demo after 5s if WS doesn't connect
+    let demoTimeout = setTimeout(() => {
+      if (!state.connected && nodes.length === 0) {
+        initDemoGraph();
+      }
+    }, 5000);
     
     function handleMessage(msg) {
       switch (msg.type) {
