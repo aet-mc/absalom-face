@@ -52,6 +52,62 @@
       text-align: right;
     }
     
+    .cognitive-indicator {
+      position: fixed;
+      bottom: 60px;
+      left: 20px;
+      z-index: 100;
+      padding: 10px 14px;
+      background: rgba(10, 10, 20, 0.85);
+      border-radius: 8px;
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      backdrop-filter: blur(10px);
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+      transition: all 0.3s ease;
+    }
+    .cognitive-indicator.thinking {
+      border-color: rgba(0, 200, 255, 0.6);
+      box-shadow: 0 0 20px rgba(0, 200, 255, 0.3);
+    }
+    .cognitive-indicator.responding {
+      border-color: rgba(255, 200, 0, 0.6);
+      box-shadow: 0 0 20px rgba(255, 200, 0, 0.3);
+    }
+    .cognitive-mode {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(100, 200, 255, 0.6);
+      margin-bottom: 4px;
+    }
+    .cognitive-mode.thinking { color: rgba(0, 200, 255, 0.9); }
+    .cognitive-mode.responding { color: rgba(255, 200, 0, 0.9); }
+    .cognitive-district {
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.9);
+    }
+    .activity-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-right: 6px;
+      background: rgba(100, 200, 255, 0.5);
+      animation: none;
+    }
+    .activity-dot.active {
+      animation: pulse-dot 1s ease-in-out infinite;
+    }
+    .activity-dot.thinking { background: rgba(0, 200, 255, 1); }
+    .activity-dot.responding { background: rgba(255, 200, 0, 1); }
+    
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.7; }
+    }
+    
     .controls-hint {
       position: fixed;
       bottom: 20px;
@@ -61,6 +117,247 @@
       color: rgba(255,255,255,0.3);
       font-size: 11px;
       text-align: center;
+    }
+    
+    /* Sound controls */
+    .sound-indicator {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 100;
+      display: flex;
+      gap: 8px;
+    }
+    .sound-btn {
+      background: rgba(10, 10, 20, 0.8);
+      border: 1px solid rgba(100, 200, 255, 0.3);
+      border-radius: 6px;
+      color: rgba(100, 200, 255, 0.7);
+      font-size: 11px;
+      padding: 6px 10px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s;
+      pointer-events: auto;
+    }
+    .sound-btn:hover {
+      border-color: rgba(100, 200, 255, 0.6);
+      color: rgba(100, 200, 255, 1);
+    }
+    .sound-btn.active {
+      background: rgba(0, 255, 255, 0.15);
+      border-color: rgba(0, 255, 255, 0.5);
+    }
+    .sound-btn.muted {
+      opacity: 0.5;
+    }
+    
+    .weather-indicator {
+      position: fixed;
+      top: 60px;
+      right: 20px;
+      z-index: 100;
+      color: rgba(255,255,255,0.5);
+      font-size: 11px;
+      text-align: right;
+    }
+    .weather-indicator .weather-state {
+      color: rgba(100, 200, 255, 0.8);
+      font-weight: 500;
+    }
+    
+    /* ═══════════════════════════════════════════════════════════════════════
+       INTERACTIVE UI ELEMENTS
+       ═══════════════════════════════════════════════════════════════════════ */
+    
+    /* Tooltip for hover */
+    .tooltip {
+      position: fixed;
+      padding: 8px 12px;
+      background: rgba(10, 15, 25, 0.95);
+      border: 1px solid rgba(100, 200, 255, 0.4);
+      border-radius: 6px;
+      color: rgba(100, 200, 255, 1);
+      font-size: 12px;
+      font-weight: 500;
+      pointer-events: none;
+      z-index: 200;
+      opacity: 0;
+      transform: translateY(5px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      backdrop-filter: blur(10px);
+      white-space: nowrap;
+      max-width: 200px;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .tooltip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .tooltip .district-tag {
+      font-size: 10px;
+      opacity: 0.6;
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    /* Info Panel */
+    .info-panel {
+      position: fixed;
+      top: 50%;
+      right: -320px;
+      transform: translateY(-50%);
+      width: 280px;
+      background: rgba(10, 15, 25, 0.95);
+      border: 1px solid rgba(100, 200, 255, 0.3);
+      border-right: none;
+      border-radius: 12px 0 0 12px;
+      padding: 20px;
+      z-index: 150;
+      transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(15px);
+      box-shadow: -5px 0 30px rgba(0, 0, 0, 0.5);
+    }
+    .info-panel.visible {
+      right: 0;
+    }
+    .info-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+    .info-panel-title {
+      color: rgba(100, 200, 255, 1);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.3;
+      flex: 1;
+      margin-right: 10px;
+    }
+    .info-panel-close {
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(100, 200, 255, 0.3);
+      border-radius: 50%;
+      background: transparent;
+      color: rgba(100, 200, 255, 0.7);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+    .info-panel-close:hover {
+      background: rgba(100, 200, 255, 0.1);
+      color: rgba(100, 200, 255, 1);
+      border-color: rgba(100, 200, 255, 0.5);
+    }
+    .info-panel-district {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+    .info-panel-section {
+      margin-bottom: 14px;
+    }
+    .info-panel-label {
+      color: rgba(100, 200, 255, 0.5);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .info-panel-value {
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 13px;
+    }
+    .info-panel-sources {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .info-panel-source {
+      padding: 4px 8px;
+      background: rgba(100, 200, 255, 0.1);
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      border-radius: 4px;
+      font-size: 10px;
+      color: rgba(100, 200, 255, 0.8);
+    }
+    .info-panel-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(100, 200, 255, 0.3), transparent);
+      margin: 16px 0;
+    }
+    
+    /* Focus mode indicator */
+    .focus-indicator {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 16px;
+      background: rgba(10, 15, 25, 0.9);
+      border: 1px solid rgba(100, 200, 255, 0.4);
+      border-radius: 20px;
+      color: rgba(100, 200, 255, 1);
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+    .focus-indicator.visible {
+      opacity: 1;
+    }
+    .focus-indicator span {
+      opacity: 0.6;
+      margin-left: 8px;
+    }
+    
+    /* Pause indicator */
+    .pause-indicator {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 16px 32px;
+      background: rgba(10, 15, 25, 0.95);
+      border: 2px solid rgba(100, 200, 255, 0.5);
+      border-radius: 12px;
+      color: rgba(100, 200, 255, 1);
+      font-size: 18px;
+      font-weight: 600;
+      z-index: 300;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .pause-indicator.visible {
+      opacity: 1;
+    }
+    
+    /* Interactive cursor states */
+    canvas.interactive-hover {
+      cursor: pointer;
+    }
+    canvas.interactive-grabbing {
+      cursor: grabbing;
     }
   </style>
 </head>
@@ -91,8 +388,58 @@
   </div>
   
   <div class="controls-hint">
-    drag to orbit · scroll to zoom · shift+drag to pan
+    drag to orbit · scroll to zoom · shift+drag to pan · R/F/A/C weather · S sound · M mute
   </div>
+  
+  <div class="cognitive-indicator" id="cognitiveIndicator">
+    <div class="cognitive-mode" id="cognitiveMode">
+      <span class="activity-dot" id="activityDot"></span>idle
+    </div>
+    <div class="cognitive-district" id="cognitiveDistrict">—</div>
+  </div>
+  
+  <div class="weather-indicator">
+    <div>weather: <span class="weather-state" id="weatherState">clear</span></div>
+  </div>
+  
+  <div class="sound-indicator">
+    <button class="sound-btn" id="soundToggle" title="Toggle Sound (S)">🔇 Off</button>
+    <button class="sound-btn" id="muteToggle" title="Mute (M)" style="display:none;">🔊</button>
+  </div>
+  
+  <!-- Interactive UI Elements -->
+  <div class="tooltip" id="tooltip">
+    <div class="tooltip-name"></div>
+    <div class="district-tag"></div>
+  </div>
+  
+  <div class="info-panel" id="infoPanel">
+    <div class="info-panel-header">
+      <div class="info-panel-title" id="infoPanelTitle">Building Name</div>
+      <button class="info-panel-close" id="infoPanelClose">×</button>
+    </div>
+    <div class="info-panel-district" id="infoPanelDistrict">DISTRICT</div>
+    <div class="info-panel-divider"></div>
+    <div class="info-panel-section">
+      <div class="info-panel-label">Type</div>
+      <div class="info-panel-value" id="infoPanelType">Structure</div>
+    </div>
+    <div class="info-panel-section">
+      <div class="info-panel-label">Dimensions</div>
+      <div class="info-panel-value" id="infoPanelDimensions">--</div>
+    </div>
+    <div class="info-panel-section">
+      <div class="info-panel-label">Memory Sources</div>
+      <div class="info-panel-sources" id="infoPanelSources"></div>
+    </div>
+  </div>
+  
+  <div class="focus-indicator" id="focusIndicator">
+    <span id="focusDistrictName">DISTRICT</span>
+    <span>(0 or ESC to exit)</span>
+  </div>
+  
+  <div class="pause-indicator" id="pauseIndicator">⏸ PAUSED</div>
 
   <!-- Three.js with post-processing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -227,7 +574,750 @@
       realTime: new Date(),
       sunPosition: new THREE.Vector3(),
       nightIntensity: 0,
+      // Ambient life systems
+      trafficLights: [],
+      elevators: [],
+      fireflies: null,
+      dustMotes: null,
+      dataStreams: [],
+      aircraft: [],
+      shootingStars: [],
+      windowStates: new Map(), // Track individual window states
+      // Weather system
+      weather: 'clear', // 'clear' | 'rain' | 'fog' | 'aurora'
+      weatherTransition: 0, // 0-1 transition progress
+      targetWeather: 'clear',
+      rainSystem: null,
+      puddles: [],
+      fogPlanes: [],
+      aurora: null,
+      weatherIntensity: 0, // Current effect intensity (for transitions)
     };
+    
+    const weatherStateEl = document.getElementById('weatherState');
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // DISTRICT RHYTHM PROFILES - Each district has its own "personality"
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const DISTRICT_RHYTHMS = {
+      core: {
+        baseSpeed: 1.0,
+        pulseFrequency: 2.0,
+        activityLevel: 0.8,
+        burstChance: 0.02,
+        color: 0x00ffff
+      },
+      trading: {
+        baseSpeed: 1.8,        // Fastest, most frenetic
+        pulseFrequency: 4.0,   // Rapid pulses like stock tickers
+        activityLevel: 0.95,   // Almost always active
+        burstChance: 0.08,     // Frequent bursts of activity
+        color: 0xffd700
+      },
+      infrastructure: {
+        baseSpeed: 0.7,        // Steady, reliable
+        pulseFrequency: 1.2,   // Slow, consistent rhythm
+        activityLevel: 0.6,    // Moderate, always-on servers
+        burstChance: 0.01,     // Rare spikes
+        color: 0xff6b9d
+      },
+      projects: {
+        baseSpeed: 1.2,        // Creative bursts
+        pulseFrequency: 2.5,
+        activityLevel: 0.7,
+        burstChance: 0.05,     // Occasional creative sparks
+        color: 0x9d6bff
+      },
+      memory: {
+        baseSpeed: 0.5,        // Slowest, contemplative
+        pulseFrequency: 0.8,   // Gentle breathing rhythm
+        activityLevel: 0.4,    // Quiet, archival
+        burstChance: 0.005,    // Very rare recalls
+        color: 0x6bff9d
+      }
+    };
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AMBIENT LIFE: TRAFFIC LIGHTS (vehicles/data packets on roads)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createTrafficLights() {
+      const trafficCount = isMobile ? 20 : 50;
+      const trafficGeometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(trafficCount * 3);
+      const colors = new Float32Array(trafficCount * 3);
+      const velocities = [];
+      const paths = [];
+      
+      // Define road paths between districts
+      const districtPositions = Object.values(DISTRICTS).map(d => d.position);
+      const roadPaths = [];
+      
+      // Core to each district
+      districtPositions.forEach(pos => {
+        if (pos.x !== 0 || pos.z !== 0) {
+          roadPaths.push({ start: { x: 0, z: 0 }, end: { x: pos.x, z: pos.z } });
+        }
+      });
+      
+      // Between adjacent districts
+      for (let i = 1; i < districtPositions.length; i++) {
+        const curr = districtPositions[i];
+        const next = districtPositions[(i % (districtPositions.length - 1)) + 1];
+        if (curr && next) {
+          roadPaths.push({ start: { x: curr.x, z: curr.z }, end: { x: next.x, z: next.z } });
+        }
+      }
+      
+      for (let i = 0; i < trafficCount; i++) {
+        const path = roadPaths[i % roadPaths.length];
+        const progress = Math.random();
+        
+        // Position along path
+        const x = path.start.x + (path.end.x - path.start.x) * progress;
+        const z = path.start.z + (path.end.z - path.start.z) * progress;
+        
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = 0.3 + Math.random() * 0.3; // Slightly above ground
+        positions[i * 3 + 2] = z;
+        
+        // Color based on direction (cyan going out, warm coming in)
+        const outbound = Math.random() > 0.5;
+        const color = outbound ? new THREE.Color(0x00ffff) : new THREE.Color(0xffaa44);
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+        
+        velocities.push({
+          progress: progress,
+          speed: 0.002 + Math.random() * 0.004,
+          direction: outbound ? 1 : -1,
+          pathIndex: i % roadPaths.length
+        });
+        paths.push(path);
+      }
+      
+      trafficGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      trafficGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      
+      const trafficMaterial = new THREE.PointsMaterial({
+        size: isMobile ? 0.4 : 0.5,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.9,
+        sizeAttenuation: true,
+      });
+      
+      city.trafficLights = new THREE.Points(trafficGeometry, trafficMaterial);
+      city.trafficLights.userData = { velocities, paths, roadPaths };
+      scene.add(city.trafficLights);
+    }
+    
+    function updateTrafficLights(dt) {
+      if (!city.trafficLights) return;
+      
+      const positions = city.trafficLights.geometry.attributes.position.array;
+      const { velocities, roadPaths } = city.trafficLights.userData;
+      
+      for (let i = 0; i < velocities.length; i++) {
+        const v = velocities[i];
+        const path = roadPaths[v.pathIndex];
+        
+        // Move along path
+        v.progress += v.speed * v.direction;
+        
+        // Loop back when reaching end
+        if (v.progress > 1) {
+          v.progress = 0;
+          v.pathIndex = Math.floor(Math.random() * roadPaths.length);
+        } else if (v.progress < 0) {
+          v.progress = 1;
+          v.pathIndex = Math.floor(Math.random() * roadPaths.length);
+        }
+        
+        const newPath = roadPaths[v.pathIndex];
+        positions[i * 3] = newPath.start.x + (newPath.end.x - newPath.start.x) * v.progress;
+        positions[i * 3 + 1] = 0.3 + Math.sin(dt * 3 + i) * 0.1; // Gentle bobbing
+        positions[i * 3 + 2] = newPath.start.z + (newPath.end.z - newPath.start.z) * v.progress;
+      }
+      
+      city.trafficLights.geometry.attributes.position.needsUpdate = true;
+      
+      // Brighter at night
+      city.trafficLights.material.opacity = 0.6 + city.nightIntensity * 0.4;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AMBIENT LIFE: ELEVATORS (visible in tall buildings)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function addElevatorToBuilding(building) {
+      if (building.height < 15) return; // Only tall buildings
+      
+      const elevatorCount = Math.floor(building.height / 20) + 1;
+      
+      for (let e = 0; e < elevatorCount; e++) {
+        const elevatorGeo = new THREE.BoxGeometry(0.15, 0.4, 0.15);
+        const elevatorMat = new THREE.MeshBasicMaterial({
+          color: 0xffffcc,
+          transparent: true,
+          opacity: 0.8
+        });
+        const elevator = new THREE.Mesh(elevatorGeo, elevatorMat);
+        
+        // Position on building edge
+        const side = e % 4;
+        const offset = building.width / 2 + 0.1;
+        switch (side) {
+          case 0: elevator.position.set(offset, 0, 0); break;
+          case 1: elevator.position.set(-offset, 0, 0); break;
+          case 2: elevator.position.set(0, 0, offset); break;
+          case 3: elevator.position.set(0, 0, -offset); break;
+        }
+        
+        elevator.userData = {
+          isElevator: true,
+          floor: Math.random(),
+          targetFloor: Math.random(),
+          speed: 0.005 + Math.random() * 0.01,
+          waitTime: 0,
+          maxWait: 50 + Math.random() * 150,
+          buildingHeight: building.height
+        };
+        
+        building.mesh.add(elevator);
+        city.elevators.push(elevator);
+      }
+    }
+    
+    function updateElevators(dt) {
+      city.elevators.forEach(elevator => {
+        const data = elevator.userData;
+        
+        if (data.waitTime > 0) {
+          data.waitTime--;
+          // Blink while waiting (doors opening)
+          elevator.material.opacity = Math.sin(dt * 10) > 0 ? 0.9 : 0.4;
+          return;
+        }
+        
+        elevator.material.opacity = 0.7 + city.nightIntensity * 0.3;
+        
+        // Move toward target
+        const diff = data.targetFloor - data.floor;
+        if (Math.abs(diff) < 0.01) {
+          // Arrived - wait then pick new target
+          data.waitTime = data.maxWait;
+          data.targetFloor = Math.random();
+        } else {
+          data.floor += Math.sign(diff) * data.speed;
+        }
+        
+        // Position elevator
+        const yPos = -data.buildingHeight / 2 + data.floor * data.buildingHeight;
+        elevator.position.y = yPos;
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AMBIENT LIFE: FIREFLIES (night) & DUST MOTES (day)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createFirefliesAndDust() {
+      const count = isMobile ? 80 : 200;
+      
+      // Fireflies (visible at night)
+      const fireflyGeometry = new THREE.BufferGeometry();
+      const fireflyPositions = new Float32Array(count * 3);
+      const fireflyPhases = new Float32Array(count); // For twinkling
+      
+      for (let i = 0; i < count; i++) {
+        fireflyPositions[i * 3] = (Math.random() - 0.5) * 120;
+        fireflyPositions[i * 3 + 1] = 2 + Math.random() * 30;
+        fireflyPositions[i * 3 + 2] = (Math.random() - 0.5) * 120;
+        fireflyPhases[i] = Math.random() * Math.PI * 2;
+      }
+      
+      fireflyGeometry.setAttribute('position', new THREE.BufferAttribute(fireflyPositions, 3));
+      fireflyGeometry.setAttribute('phase', new THREE.BufferAttribute(fireflyPhases, 1));
+      
+      const fireflyMaterial = new THREE.PointsMaterial({
+        color: 0xccff66,
+        size: 0.4,
+        transparent: true,
+        opacity: 0,
+        sizeAttenuation: true,
+      });
+      
+      city.fireflies = new THREE.Points(fireflyGeometry, fireflyMaterial);
+      city.fireflies.userData = { phases: fireflyPhases, velocities: [] };
+      
+      // Initialize velocities for wandering
+      for (let i = 0; i < count; i++) {
+        city.fireflies.userData.velocities.push({
+          x: (Math.random() - 0.5) * 0.02,
+          y: (Math.random() - 0.5) * 0.01,
+          z: (Math.random() - 0.5) * 0.02
+        });
+      }
+      
+      scene.add(city.fireflies);
+      
+      // Dust motes (visible during day, especially in light shafts)
+      const dustGeometry = new THREE.BufferGeometry();
+      const dustPositions = new Float32Array(count * 3);
+      
+      for (let i = 0; i < count; i++) {
+        dustPositions[i * 3] = (Math.random() - 0.5) * 80;
+        dustPositions[i * 3 + 1] = 5 + Math.random() * 40;
+        dustPositions[i * 3 + 2] = (Math.random() - 0.5) * 80;
+      }
+      
+      dustGeometry.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+      
+      const dustMaterial = new THREE.PointsMaterial({
+        color: 0xffffee,
+        size: 0.15,
+        transparent: true,
+        opacity: 0,
+        sizeAttenuation: true,
+      });
+      
+      city.dustMotes = new THREE.Points(dustGeometry, dustMaterial);
+      scene.add(city.dustMotes);
+    }
+    
+    function updateFirefliesAndDust(dt) {
+      // Fireflies - only visible at night, twinkle randomly
+      if (city.fireflies) {
+        const positions = city.fireflies.geometry.attributes.position.array;
+        const phases = city.fireflies.userData.phases;
+        const velocities = city.fireflies.userData.velocities;
+        
+        city.fireflies.material.opacity = city.nightIntensity * 0.8;
+        
+        // Only update positions if visible
+        if (city.nightIntensity > 0.2) {
+          for (let i = 0; i < phases.length; i++) {
+            // Gentle wandering motion
+            const v = velocities[i];
+            positions[i * 3] += v.x + Math.sin(dt + phases[i]) * 0.01;
+            positions[i * 3 + 1] += v.y + Math.cos(dt * 0.7 + phases[i]) * 0.005;
+            positions[i * 3 + 2] += v.z + Math.sin(dt * 0.8 + phases[i]) * 0.01;
+            
+            // Boundary check - keep in city area
+            if (Math.abs(positions[i * 3]) > 60) v.x *= -1;
+            if (positions[i * 3 + 1] < 2 || positions[i * 3 + 1] > 35) v.y *= -1;
+            if (Math.abs(positions[i * 3 + 2]) > 60) v.z *= -1;
+            
+            // Occasionally change direction
+            if (Math.random() < 0.002) {
+              v.x = (Math.random() - 0.5) * 0.02;
+              v.y = (Math.random() - 0.5) * 0.01;
+              v.z = (Math.random() - 0.5) * 0.02;
+            }
+          }
+          city.fireflies.geometry.attributes.position.needsUpdate = true;
+        }
+        
+        // Twinkle effect - vary size
+        city.fireflies.material.size = 0.3 + Math.sin(dt * 3) * 0.15;
+      }
+      
+      // Dust motes - visible during day, drift slowly
+      if (city.dustMotes) {
+        const dayIntensity = 1 - city.nightIntensity;
+        // More visible during golden hour (dramatic light shafts)
+        const goldenBoost = lighting.goldenHourIntensity * 0.5;
+        city.dustMotes.material.opacity = dayIntensity * 0.25 + goldenBoost;
+        
+        // Warm color during golden hour
+        if (lighting.goldenHourIntensity > 0) {
+          city.dustMotes.material.color.setHex(0xffddaa);
+        } else {
+          city.dustMotes.material.color.setHex(0xffffee);
+        }
+        
+        // Gentle drift
+        const positions = city.dustMotes.geometry.attributes.position.array;
+        for (let i = 0; i < positions.length / 3; i++) {
+          positions[i * 3] += Math.sin(dt * 0.2 + i * 0.5) * 0.005;
+          positions[i * 3 + 1] += 0.002 + Math.sin(dt * 0.3 + i) * 0.002;
+          positions[i * 3 + 2] += Math.cos(dt * 0.15 + i * 0.3) * 0.005;
+          
+          // Reset when too high
+          if (positions[i * 3 + 1] > 50) {
+            positions[i * 3 + 1] = 5;
+            positions[i * 3] = (Math.random() - 0.5) * 80;
+            positions[i * 3 + 2] = (Math.random() - 0.5) * 80;
+          }
+        }
+        city.dustMotes.geometry.attributes.position.needsUpdate = true;
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AMBIENT LIFE: DATA STREAMS (flowing between connected buildings)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createDataStream(connection) {
+      const particleCount = isMobile ? 8 : 15;
+      const streamGeometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      const progresses = new Float32Array(particleCount);
+      
+      for (let i = 0; i < particleCount; i++) {
+        progresses[i] = i / particleCount;
+        // Initial positions will be updated in animation
+        positions[i * 3] = 0;
+        positions[i * 3 + 1] = 0;
+        positions[i * 3 + 2] = 0;
+      }
+      
+      streamGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      
+      const streamMaterial = new THREE.PointsMaterial({
+        color: connection.line.material.color,
+        size: 0.25,
+        transparent: true,
+        opacity: 0.7,
+        sizeAttenuation: true,
+      });
+      
+      const stream = new THREE.Points(streamGeometry, streamMaterial);
+      stream.userData = {
+        connection,
+        progresses,
+        speed: 0.01 + Math.random() * 0.02,
+        active: Math.random() > 0.3 // Some connections more active than others
+      };
+      
+      scene.add(stream);
+      city.dataStreams.push(stream);
+    }
+    
+    function updateDataStreams(dt) {
+      city.dataStreams.forEach(stream => {
+        if (!stream.userData.active) {
+          // Occasionally activate
+          if (Math.random() < 0.001) stream.userData.active = true;
+          stream.material.opacity = 0;
+          return;
+        }
+        
+        const { connection, progresses, speed } = stream.userData;
+        const from = connection.from;
+        const to = connection.to;
+        const positions = stream.geometry.attributes.position.array;
+        
+        // Bezier curve midpoint (same as connection)
+        const midX = (from.x + to.x) / 2;
+        const midY = 2 + Math.random() * 2;
+        const midZ = (from.z + to.z) / 2;
+        
+        for (let i = 0; i < progresses.length; i++) {
+          progresses[i] += speed;
+          if (progresses[i] > 1) progresses[i] -= 1;
+          
+          // Quadratic bezier interpolation
+          const t = progresses[i];
+          const mt = 1 - t;
+          
+          positions[i * 3] = mt * mt * from.x + 2 * mt * t * midX + t * t * to.x;
+          positions[i * 3 + 1] = mt * mt * 0.5 + 2 * mt * t * midY + t * t * 0.5 + Math.sin(t * Math.PI) * 1.5;
+          positions[i * 3 + 2] = mt * mt * from.z + 2 * mt * t * midZ + t * t * to.z;
+        }
+        
+        stream.geometry.attributes.position.needsUpdate = true;
+        stream.material.opacity = 0.4 + city.nightIntensity * 0.4;
+        
+        // Occasionally deactivate
+        if (Math.random() < 0.0005) stream.userData.active = false;
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AMBIENT LIFE: AIRCRAFT & SATELLITES (distant sky movement)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createAircraft() {
+      const aircraftCount = isMobile ? 3 : 6;
+      
+      for (let i = 0; i < aircraftCount; i++) {
+        const aircraftGroup = new THREE.Group();
+        
+        // Main light
+        const lightGeo = new THREE.SphereGeometry(0.3, 6, 6);
+        const lightMat = new THREE.MeshBasicMaterial({
+          color: i < aircraftCount / 2 ? 0xffffff : 0xff3333, // White for planes, red for others
+          transparent: true,
+          opacity: 0.9
+        });
+        const mainLight = new THREE.Mesh(lightGeo, lightMat);
+        aircraftGroup.add(mainLight);
+        
+        // Blinking nav light
+        const navGeo = new THREE.SphereGeometry(0.15, 4, 4);
+        const navMat = new THREE.MeshBasicMaterial({
+          color: 0x00ff00,
+          transparent: true,
+          opacity: 0.8
+        });
+        const navLight = new THREE.Mesh(navGeo, navMat);
+        navLight.position.x = 0.5;
+        navLight.userData.blink = true;
+        aircraftGroup.add(navLight);
+        
+        // Trail (for satellites)
+        if (i >= aircraftCount / 2) {
+          const trailGeo = new THREE.CylinderGeometry(0.05, 0.15, 2, 4);
+          const trailMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.2
+          });
+          const trail = new THREE.Mesh(trailGeo, trailMat);
+          trail.rotation.z = Math.PI / 2;
+          trail.position.x = -1.2;
+          aircraftGroup.add(trail);
+        }
+        
+        // Random path across sky
+        const isHighAltitude = i >= aircraftCount / 2; // Satellites higher
+        aircraftGroup.userData = {
+          startAngle: Math.random() * Math.PI * 2,
+          speed: isHighAltitude ? 0.0003 : 0.0008,
+          altitude: isHighAltitude ? 200 + Math.random() * 100 : 80 + Math.random() * 40,
+          radius: 250 + Math.random() * 100,
+          progress: Math.random(),
+          isPlane: !isHighAltitude
+        };
+        
+        scene.add(aircraftGroup);
+        city.aircraft.push(aircraftGroup);
+      }
+    }
+    
+    function updateAircraft(dt) {
+      city.aircraft.forEach(aircraft => {
+        const data = aircraft.userData;
+        
+        // Move along arc
+        data.progress += data.speed;
+        if (data.progress > 1) {
+          data.progress = 0;
+          data.startAngle = Math.random() * Math.PI * 2;
+        }
+        
+        const angle = data.startAngle + data.progress * Math.PI;
+        aircraft.position.x = Math.cos(angle) * data.radius;
+        aircraft.position.y = data.altitude + Math.sin(data.progress * Math.PI) * 20;
+        aircraft.position.z = Math.sin(angle) * data.radius * 0.6;
+        
+        // Face direction of movement
+        aircraft.lookAt(
+          aircraft.position.x + Math.cos(angle + 0.1) * 10,
+          aircraft.position.y,
+          aircraft.position.z + Math.sin(angle + 0.1) * 10
+        );
+        
+        // Blinking nav lights
+        aircraft.children.forEach(child => {
+          if (child.userData.blink) {
+            child.material.opacity = Math.sin(dt * 5) > 0.5 ? 0.9 : 0;
+          }
+        });
+        
+        // Less visible during bright day, more at night
+        const visibility = 0.3 + city.nightIntensity * 0.7;
+        aircraft.children[0].material.opacity = visibility;
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AMBIENT LIFE: SHOOTING STARS (occasional at night)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createShootingStar() {
+      if (city.nightIntensity < 0.5) return; // Only at night
+      if (city.shootingStars.length > 2) return; // Limit concurrent
+      
+      const starGroup = new THREE.Group();
+      
+      // Star head
+      const headGeo = new THREE.SphereGeometry(0.5, 6, 6);
+      const headMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 1
+      });
+      const head = new THREE.Mesh(headGeo, headMat);
+      starGroup.add(head);
+      
+      // Trail
+      const trailLength = 8 + Math.random() * 12;
+      const trailGeo = new THREE.ConeGeometry(0.4, trailLength, 6);
+      const trailMat = new THREE.MeshBasicMaterial({
+        color: 0xaaddff,
+        transparent: true,
+        opacity: 0.6
+      });
+      const trail = new THREE.Mesh(trailGeo, trailMat);
+      trail.rotation.x = Math.PI / 2;
+      trail.position.z = trailLength / 2;
+      starGroup.add(trail);
+      
+      // Random start position (high in sky)
+      const startAngle = Math.random() * Math.PI * 2;
+      starGroup.position.set(
+        Math.cos(startAngle) * 300,
+        150 + Math.random() * 100,
+        Math.sin(startAngle) * 200
+      );
+      
+      // Direction (generally downward and inward)
+      const endAngle = startAngle + (Math.random() - 0.5) * 1;
+      starGroup.userData = {
+        velocity: new THREE.Vector3(
+          (Math.cos(endAngle) * 100 - starGroup.position.x) * 0.02,
+          -2 - Math.random() * 2,
+          (Math.sin(endAngle) * 100 - starGroup.position.z) * 0.02
+        ),
+        life: 1.0,
+        decay: 0.015 + Math.random() * 0.01
+      };
+      
+      // Face direction of travel
+      starGroup.lookAt(
+        starGroup.position.x + starGroup.userData.velocity.x * 10,
+        starGroup.position.y + starGroup.userData.velocity.y * 10,
+        starGroup.position.z + starGroup.userData.velocity.z * 10
+      );
+      
+      scene.add(starGroup);
+      city.shootingStars.push(starGroup);
+    }
+    
+    function updateShootingStars() {
+      // Occasionally spawn new ones at night
+      if (city.nightIntensity > 0.5 && Math.random() < 0.002) {
+        createShootingStar();
+      }
+      
+      for (let i = city.shootingStars.length - 1; i >= 0; i--) {
+        const star = city.shootingStars[i];
+        const data = star.userData;
+        
+        // Move
+        star.position.add(data.velocity);
+        
+        // Fade
+        data.life -= data.decay;
+        star.children.forEach(child => {
+          child.material.opacity = data.life;
+        });
+        
+        // Remove when faded
+        if (data.life <= 0) {
+          scene.remove(star);
+          city.shootingStars.splice(i, 1);
+        }
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AMBIENT LIFE: WINDOW ACTIVITY SYSTEM (turning on/off, TV flicker)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function initializeWindowStates(building) {
+      const windowStates = [];
+      building.mesh.children.forEach((child, index) => {
+        if (child.geometry && (child.geometry.type === 'BoxGeometry' || child.geometry.type === 'TorusGeometry')) {
+          const state = {
+            isOn: Math.random() > 0.4,
+            isTV: Math.random() < 0.15, // 15% chance it's a TV
+            targetOpacity: Math.random() * 0.5 + 0.3,
+            transitionSpeed: 0.01 + Math.random() * 0.02,
+            nextToggle: 100 + Math.random() * 500, // Frames until next state change
+            tvFlickerPhase: Math.random() * Math.PI * 2
+          };
+          windowStates.push({ child, state, index });
+        }
+      });
+      city.windowStates.set(building, windowStates);
+    }
+    
+    function updateWindowActivity(dt) {
+      city.windowStates.forEach((windows, building) => {
+        const districtRhythm = DISTRICT_RHYTHMS[building.district] || DISTRICT_RHYTHMS.core;
+        
+        windows.forEach(({ child, state }) => {
+          // Count down to next toggle
+          state.nextToggle--;
+          
+          // Occasionally toggle window state
+          if (state.nextToggle <= 0) {
+            // More likely to be on at night
+            const onChance = 0.3 + city.nightIntensity * 0.4 + districtRhythm.activityLevel * 0.2;
+            state.isOn = Math.random() < onChance;
+            state.targetOpacity = state.isOn ? (0.3 + Math.random() * 0.5) : 0.05;
+            state.nextToggle = 200 + Math.random() * 800 / districtRhythm.baseSpeed;
+          }
+          
+          // TV flicker effect
+          if (state.isTV && state.isOn && city.nightIntensity > 0.3) {
+            const flicker = Math.sin(dt * 15 + state.tvFlickerPhase) * 0.2;
+            const colorShift = Math.sin(dt * 7 + state.tvFlickerPhase) > 0;
+            child.material.opacity = state.targetOpacity + flicker;
+            child.material.color.setHex(colorShift ? 0x8888ff : 0xaaffaa); // Blue/green TV glow
+          } else {
+            // Smooth transition to target
+            const current = child.material.opacity;
+            const diff = state.targetOpacity - current;
+            child.material.opacity = current + diff * state.transitionSpeed;
+            
+            // Reset color for non-TV windows
+            if (!state.isTV) {
+              const warmth = city.nightIntensity * 0.2;
+              child.material.color.setRGB(1, 0.9 - warmth * 0.1, 0.7 - warmth * 0.3);
+            }
+          }
+        });
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AMBIENT LIFE: DISTRICT-SPECIFIC BUILDING PULSE
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function updateDistrictPulses(dt) {
+      city.buildings.forEach(building => {
+        const rhythm = DISTRICT_RHYTHMS[building.district] || DISTRICT_RHYTHMS.core;
+        
+        // Base pulse
+        const pulse = Math.sin(dt * rhythm.pulseFrequency) * 0.5 + 0.5;
+        
+        // Activity burst (random chance based on district)
+        const burst = Math.random() < rhythm.burstChance ? 0.5 : 0;
+        
+        // Apply to building emissive
+        if (building.mesh.material && building.mesh.material.emissiveIntensity !== undefined) {
+          const baseIntensity = 0.3 + city.nightIntensity * 0.4;
+          const rhythmIntensity = pulse * rhythm.activityLevel * 0.3;
+          building.mesh.material.emissiveIntensity = baseIntensity + rhythmIntensity + burst;
+        }
+        
+        // Beacon pulse also follows district rhythm
+        building.mesh.children.forEach(child => {
+          if (child.userData.pulse) {
+            const beaconPulse = Math.sin(dt * rhythm.pulseFrequency * 1.5 + child.userData.pulsePhase);
+            const scale = 1 + beaconPulse * 0.3 * rhythm.activityLevel;
+            child.scale.set(scale, scale, scale);
+          }
+        });
+      });
+    }
     
     // ═══════════════════════════════════════════════════════════════════════
     // SKY DOME WITH DYNAMIC GRADIENT
@@ -1423,6 +2513,10 @@
       }
       city.districts.get(district).push(building);
       
+      // Initialize ambient life for this building
+      addElevatorToBuilding(building);
+      initializeWindowStates(building);
+      
       updateStats();
       return building;
     }
@@ -1453,7 +2547,12 @@
       const line = new THREE.Line(geometry, material);
       scene.add(line);
       
-      city.connections.push({ line, from: building1, to: building2 });
+      const connection = { line, from: building1, to: building2 };
+      city.connections.push(connection);
+      
+      // Create data stream particles for this connection
+      createDataStream(connection);
+      
       updateStats();
     }
     
@@ -1909,6 +3008,429 @@
     }
     
     // ═══════════════════════════════════════════════════════════════════════
+    // WEATHER SYSTEM - Rain, Fog, Aurora
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const WEATHER_CONFIG = {
+      rain: {
+        particleCount: isMobile ? 800 : 2000,
+        speed: 0.8,
+        spread: 120,
+        height: 80,
+      },
+      fog: {
+        layers: isMobile ? 3 : 6,
+        baseOpacity: 0.15,
+        nightMultiplier: 1.5,
+      },
+      aurora: {
+        ribbonCount: isMobile ? 3 : 5,
+        waveSpeed: 0.3,
+        colors: [0x00ff88, 0x00ffaa, 0x88ffaa, 0xaa88ff, 0x6644ff],
+      }
+    };
+    
+    /**
+     * Create rain particle system
+     */
+    function createRainSystem() {
+      if (city.rainSystem) return;
+      
+      const config = WEATHER_CONFIG.rain;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(config.particleCount * 3);
+      const velocities = new Float32Array(config.particleCount);
+      
+      for (let i = 0; i < config.particleCount; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * config.spread;
+        positions[i * 3 + 1] = Math.random() * config.height;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * config.spread;
+        velocities[i] = 0.5 + Math.random() * 0.5; // Individual speed variation
+      }
+      
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.userData = { velocities };
+      
+      // Rain drop material - elongated points
+      const material = new THREE.PointsMaterial({
+        color: 0x8899aa,
+        size: isMobile ? 0.08 : 0.12,
+        transparent: true,
+        opacity: 0,
+        sizeAttenuation: true,
+        blending: THREE.AdditiveBlending,
+      });
+      
+      city.rainSystem = new THREE.Points(geometry, material);
+      scene.add(city.rainSystem);
+      
+      // Create puddles on ground
+      createPuddles();
+    }
+    
+    /**
+     * Create puddle reflections on ground
+     */
+    function createPuddles() {
+      const puddleCount = isMobile ? 8 : 15;
+      
+      for (let i = 0; i < puddleCount; i++) {
+        const size = 2 + Math.random() * 4;
+        const geometry = new THREE.CircleGeometry(size, 16);
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x2a3a4a,
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide,
+        });
+        
+        const puddle = new THREE.Mesh(geometry, material);
+        puddle.rotation.x = -Math.PI / 2;
+        puddle.position.set(
+          (Math.random() - 0.5) * 80,
+          0.02,
+          (Math.random() - 0.5) * 80
+        );
+        puddle.userData.baseOpacity = 0.2 + Math.random() * 0.2;
+        puddle.userData.ripplePhase = Math.random() * Math.PI * 2;
+        
+        scene.add(puddle);
+        city.puddles.push(puddle);
+      }
+    }
+    
+    /**
+     * Update rain system
+     */
+    function updateRain(dt, intensity) {
+      if (!city.rainSystem) return;
+      
+      const config = WEATHER_CONFIG.rain;
+      const positions = city.rainSystem.geometry.attributes.position.array;
+      const velocities = city.rainSystem.geometry.userData.velocities;
+      
+      // Update rain drop positions
+      for (let i = 0; i < positions.length / 3; i++) {
+        positions[i * 3 + 1] -= config.speed * velocities[i] * intensity;
+        
+        // Add slight horizontal drift
+        positions[i * 3] += Math.sin(dt + i) * 0.01;
+        
+        // Reset drops that hit ground
+        if (positions[i * 3 + 1] < 0) {
+          positions[i * 3] = (Math.random() - 0.5) * config.spread;
+          positions[i * 3 + 1] = config.height;
+          positions[i * 3 + 2] = (Math.random() - 0.5) * config.spread;
+        }
+      }
+      
+      city.rainSystem.geometry.attributes.position.needsUpdate = true;
+      city.rainSystem.material.opacity = intensity * 0.6;
+      
+      // Update puddles with ripple effect
+      city.puddles.forEach(puddle => {
+        const ripple = Math.sin(dt * 3 + puddle.userData.ripplePhase) * 0.05;
+        puddle.material.opacity = puddle.userData.baseOpacity * intensity + ripple * intensity;
+        
+        // Slight color variation based on sky reflection
+        if (city.nightIntensity > 0.5) {
+          puddle.material.color.setHex(0x1a2a3a);
+        } else {
+          puddle.material.color.setHex(0x3a4a5a);
+        }
+      });
+    }
+    
+    /**
+     * Create fog/mist layers
+     */
+    function createFogSystem() {
+      if (city.fogPlanes.length > 0) return;
+      
+      const config = WEATHER_CONFIG.fog;
+      
+      for (let i = 0; i < config.layers; i++) {
+        const size = 200 + i * 50;
+        const geometry = new THREE.PlaneGeometry(size, size);
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x445566,
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+        
+        const fogPlane = new THREE.Mesh(geometry, material);
+        fogPlane.rotation.x = -Math.PI / 2;
+        fogPlane.position.y = 0.5 + i * 3;
+        fogPlane.userData.baseY = fogPlane.position.y;
+        fogPlane.userData.driftPhase = Math.random() * Math.PI * 2;
+        fogPlane.userData.layerIndex = i;
+        
+        scene.add(fogPlane);
+        city.fogPlanes.push(fogPlane);
+      }
+    }
+    
+    /**
+     * Update fog system
+     */
+    function updateFog(dt, intensity) {
+      const config = WEATHER_CONFIG.fog;
+      const nightBoost = 1 + city.nightIntensity * (config.nightMultiplier - 1);
+      
+      city.fogPlanes.forEach((fogPlane, i) => {
+        // Gentle vertical drift
+        fogPlane.position.y = fogPlane.userData.baseY + 
+          Math.sin(dt * 0.2 + fogPlane.userData.driftPhase) * 1;
+        
+        // Horizontal drift
+        fogPlane.position.x = Math.sin(dt * 0.1 + i) * 5;
+        fogPlane.position.z = Math.cos(dt * 0.15 + i) * 5;
+        
+        // Opacity based on layer (lower = denser)
+        const layerFactor = 1 - (fogPlane.userData.layerIndex / config.layers) * 0.5;
+        fogPlane.material.opacity = config.baseOpacity * layerFactor * intensity * nightBoost;
+        
+        // Fog color shifts with time of day
+        if (city.nightIntensity > 0.5) {
+          fogPlane.material.color.setHex(0x1a2233); // Darker, bluer at night
+        } else if (lighting.goldenHourIntensity > 0) {
+          fogPlane.material.color.setHex(0x665544); // Warm during golden hour
+        } else {
+          fogPlane.material.color.setHex(0x445566); // Neutral gray-blue
+        }
+      });
+      
+      // Increase scene fog density when fog weather is active
+      if (intensity > 0) {
+        scene.fog.density = 0.004 + intensity * 0.008;
+      }
+    }
+    
+    /**
+     * Create aurora borealis system
+     */
+    function createAuroraSystem() {
+      if (city.aurora) return;
+      
+      const config = WEATHER_CONFIG.aurora;
+      const auroraGroup = new THREE.Group();
+      auroraGroup.ribbons = [];
+      
+      for (let i = 0; i < config.ribbonCount; i++) {
+        // Create flowing ribbon geometry
+        const width = 80 + Math.random() * 40;
+        const segments = 32;
+        const geometry = new THREE.PlaneGeometry(width, 30, segments, 1);
+        
+        const material = new THREE.MeshBasicMaterial({
+          color: config.colors[i % config.colors.length],
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        
+        const ribbon = new THREE.Mesh(geometry, material);
+        ribbon.position.set(
+          (Math.random() - 0.5) * 100,
+          150 + Math.random() * 50,
+          -100 - Math.random() * 100
+        );
+        ribbon.rotation.x = Math.PI / 6 + Math.random() * 0.2;
+        ribbon.userData.phaseOffset = Math.random() * Math.PI * 2;
+        ribbon.userData.waveScale = 0.5 + Math.random() * 0.5;
+        ribbon.userData.colorIndex = i % config.colors.length;
+        
+        auroraGroup.add(ribbon);
+        auroraGroup.ribbons.push(ribbon);
+      }
+      
+      city.aurora = auroraGroup;
+      scene.add(auroraGroup);
+    }
+    
+    /**
+     * Update aurora effect
+     */
+    function updateAurora(dt, intensity) {
+      if (!city.aurora) return;
+      
+      const config = WEATHER_CONFIG.aurora;
+      
+      // Aurora only visible at night
+      const nightFactor = Math.max(0, city.nightIntensity - 0.3) / 0.7;
+      const effectiveIntensity = intensity * nightFactor;
+      
+      city.aurora.ribbons.forEach((ribbon, i) => {
+        // Animate vertex positions for flowing effect
+        const positions = ribbon.geometry.attributes.position.array;
+        const segmentCount = 33; // segments + 1
+        
+        for (let j = 0; j < segmentCount; j++) {
+          const waveOffset = dt * config.waveSpeed + j * 0.3 + ribbon.userData.phaseOffset;
+          const wave = Math.sin(waveOffset) * 8 * ribbon.userData.waveScale;
+          
+          // Top and bottom vertices
+          positions[j * 6 + 1] = 15 + wave; // Top y
+          positions[j * 6 + 4] = -15 + wave * 0.5; // Bottom y
+        }
+        
+        ribbon.geometry.attributes.position.needsUpdate = true;
+        
+        // Pulsing opacity
+        const pulse = Math.sin(dt * 0.5 + i) * 0.1 + 0.9;
+        ribbon.material.opacity = effectiveIntensity * 0.35 * pulse;
+        
+        // Gentle color cycling
+        const colorPhase = (dt * 0.1 + i * 0.5) % config.colors.length;
+        const colorIndex = Math.floor(colorPhase);
+        const nextIndex = (colorIndex + 1) % config.colors.length;
+        const colorBlend = colorPhase - colorIndex;
+        
+        const color1 = new THREE.Color(config.colors[colorIndex]);
+        const color2 = new THREE.Color(config.colors[nextIndex]);
+        ribbon.material.color.lerpColors(color1, color2, colorBlend);
+        
+        // Slow drift movement
+        ribbon.position.x += Math.sin(dt * 0.1 + i) * 0.02;
+      });
+      
+      // Subtle aurora reflection on buildings at night
+      if (effectiveIntensity > 0.1) {
+        city.buildings.forEach(b => {
+          if (b.mesh.material && b.mesh.material.emissive) {
+            const auroraGlow = new THREE.Color(0x004422).multiplyScalar(effectiveIntensity * 0.1);
+            b.mesh.material.emissive.add(auroraGlow);
+          }
+        });
+      }
+    }
+    
+    /**
+     * Set weather state with smooth transition
+     */
+    function setWeather(weather) {
+      if (weather === city.weather && weather === city.targetWeather) return;
+      
+      city.targetWeather = weather;
+      console.log(`[Weather] Transitioning to: ${weather}`);
+      
+      // Initialize systems if needed
+      if (weather === 'rain' && !city.rainSystem) createRainSystem();
+      if (weather === 'fog' && city.fogPlanes.length === 0) createFogSystem();
+      if (weather === 'aurora' && !city.aurora) createAuroraSystem();
+      
+      // Update UI
+      if (weatherStateEl) {
+        weatherStateEl.textContent = weather;
+        weatherStateEl.style.color = {
+          clear: 'rgba(100, 200, 255, 0.8)',
+          rain: 'rgba(100, 150, 200, 0.9)',
+          fog: 'rgba(150, 150, 170, 0.9)',
+          aurora: 'rgba(100, 255, 150, 0.9)',
+        }[weather] || 'rgba(100, 200, 255, 0.8)';
+      }
+    }
+    
+    /**
+     * Update weather system with transitions
+     */
+    function updateWeather(dt) {
+      // Smooth transition to target weather
+      const transitionSpeed = 0.01;
+      
+      if (city.weather !== city.targetWeather) {
+        // Fade out current weather
+        city.weatherIntensity -= transitionSpeed;
+        if (city.weatherIntensity <= 0) {
+          city.weatherIntensity = 0;
+          city.weather = city.targetWeather;
+        }
+      } else if (city.weatherIntensity < 1 && city.weather !== 'clear') {
+        // Fade in new weather
+        city.weatherIntensity += transitionSpeed;
+        if (city.weatherIntensity > 1) city.weatherIntensity = 1;
+      } else if (city.weather === 'clear') {
+        city.weatherIntensity = Math.max(0, city.weatherIntensity - transitionSpeed);
+      }
+      
+      // Update active weather effects
+      const intensity = city.weatherIntensity;
+      
+      // Rain
+      if (city.rainSystem) {
+        const rainActive = city.weather === 'rain' || (city.targetWeather === 'rain' && intensity > 0);
+        updateRain(dt, rainActive ? intensity : Math.max(0, intensity - 0.5) * 2);
+      }
+      
+      // Fog
+      if (city.fogPlanes.length > 0) {
+        const fogActive = city.weather === 'fog' || (city.targetWeather === 'fog' && intensity > 0);
+        updateFog(dt, fogActive ? intensity : 0);
+      }
+      
+      // Aurora
+      if (city.aurora) {
+        const auroraActive = city.weather === 'aurora' || (city.targetWeather === 'aurora' && intensity > 0);
+        updateAurora(dt, auroraActive ? intensity : 0);
+      }
+      
+      // Wet building effect during rain
+      if (city.weather === 'rain' && intensity > 0.3) {
+        city.buildings.forEach(b => {
+          if (b.mesh.material) {
+            // Increase specularity/metalness for wet look
+            if (b.mesh.material.metalness !== undefined) {
+              b.mesh.material.metalness = 0.4 + intensity * 0.3;
+            }
+            if (b.mesh.material.roughness !== undefined) {
+              b.mesh.material.roughness = 0.6 - intensity * 0.2;
+            }
+          }
+        });
+      } else {
+        // Reset to normal
+        city.buildings.forEach(b => {
+          if (b.mesh.material) {
+            if (b.mesh.material.metalness !== undefined) {
+              b.mesh.material.metalness = 0.4;
+            }
+            if (b.mesh.material.roughness !== undefined) {
+              b.mesh.material.roughness = 0.6;
+            }
+          }
+        });
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // WEATHER KEYBOARD CONTROLS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    document.addEventListener('keydown', (e) => {
+      // Don't trigger if user is typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      
+      switch (e.key.toLowerCase()) {
+        case 'r':
+          setWeather('rain');
+          break;
+        case 'f':
+          setWeather('fog');
+          break;
+        case 'a':
+          setWeather('aurora');
+          break;
+        case 'c':
+          setWeather('clear');
+          break;
+      }
+    });
+    
+    // ═══════════════════════════════════════════════════════════════════════
     // GROWTH SYSTEM
     // ═══════════════════════════════════════════════════════════════════════
     
@@ -1986,6 +3508,7 @@
       
       controls.update();
       updateLighting();
+      updateWeather(dt);
       
       // Core animations - more vibrant at night
       if (city.coreRings) {
@@ -2146,6 +3669,25 @@
       // Environment animations
       updateEnvironment(dt);
       
+      // ═══════════════════════════════════════════════════════════════════════
+      // ACTIVITY VISUALIZATION UPDATES
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      // Update district glow intensities (smooth transitions + heat map)
+      updateDistrictGlows(dt);
+      
+      // Update core spire activity response
+      updateCoreActivity(dt);
+      
+      // Update connection line activity (brightness + color)
+      updateConnectionActivity(dt);
+      
+      // Update ripple effects
+      updateActivityRipples();
+      
+      // Update data packets traveling on connections
+      updateDataPackets(dt);
+      
       // City growth
       growCity();
       
@@ -2173,7 +3715,396 @@
     let districtGlowIntensities = {};
     let cityLoadedFromServer = false;
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // ACTIVITY VISUALIZATION STATE
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const activityState = {
+      mode: 'idle',                    // 'idle', 'thinking', 'responding'
+      activeDistrict: null,            // Currently active district key
+      activityStartTime: 0,            // When current activity started
+      
+      // Per-district activity tracking
+      districtActivity: {},            // { district: { intensity: 0-1, lastActive: timestamp } }
+      
+      // Visual effect pools
+      ripples: [],                     // Active ripple effects
+      dataPackets: [],                 // Data packets traveling on connections
+      
+      // Core spire state
+      corePulseRate: 1.0,              // Multiplier for core pulse speed
+      coreEnergyDirection: 0,          // -1 inward, 0 neutral, 1 outward
+      
+      // Color themes by mode
+      modeColors: {
+        idle: { primary: 0x00ffff, secondary: 0x0088aa, glow: 0.3 },
+        thinking: { primary: 0x00ddff, secondary: 0x0066cc, glow: 0.8 },
+        responding: { primary: 0xffdd44, secondary: 0xffaa00, glow: 1.0 }
+      }
+    };
+    
+    // Initialize district activity tracking
+    Object.keys(DISTRICTS).forEach(key => {
+      activityState.districtActivity[key] = {
+        intensity: 0.3,
+        targetIntensity: 0.3,
+        lastActive: 0,
+        heatLevel: 0,          // Accumulates over time for "warmth map"
+        pulsePhase: Math.random() * Math.PI * 2
+      };
+    });
+    
     const API_URL = 'https://itself-partners-integrate-memories.trycloudflare.com';
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // ACTIVITY RIPPLE EFFECTS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createActivityRipple(districtKey) {
+      const district = DISTRICTS[districtKey];
+      if (!district) return;
+      
+      const rippleCount = 3;
+      for (let i = 0; i < rippleCount; i++) {
+        setTimeout(() => {
+          const rippleGeo = new THREE.RingGeometry(0.5, 1, 32);
+          const rippleMat = new THREE.MeshBasicMaterial({
+            color: district.color.clone(),
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+          });
+          const ripple = new THREE.Mesh(rippleGeo, rippleMat);
+          ripple.rotation.x = -Math.PI / 2;
+          ripple.position.set(district.position.x, 0.2, district.position.z);
+          
+          ripple.userData = {
+            startTime: performance.now(),
+            duration: 2000,
+            maxRadius: 25,
+            districtColor: district.color.clone()
+          };
+          
+          scene.add(ripple);
+          activityState.ripples.push(ripple);
+        }, i * 300);
+      }
+    }
+    
+    function updateActivityRipples() {
+      const now = performance.now();
+      
+      for (let i = activityState.ripples.length - 1; i >= 0; i--) {
+        const ripple = activityState.ripples[i];
+        const elapsed = now - ripple.userData.startTime;
+        const progress = elapsed / ripple.userData.duration;
+        
+        if (progress >= 1) {
+          scene.remove(ripple);
+          ripple.geometry.dispose();
+          ripple.material.dispose();
+          activityState.ripples.splice(i, 1);
+          continue;
+        }
+        
+        // Expand ring
+        const radius = ripple.userData.maxRadius * progress;
+        const thickness = Math.max(0.3, 2 - progress * 1.5);
+        
+        // Update geometry (create new for size change)
+        ripple.geometry.dispose();
+        ripple.geometry = new THREE.RingGeometry(
+          Math.max(0.1, radius - thickness),
+          radius,
+          32
+        );
+        
+        // Fade out
+        ripple.material.opacity = 0.8 * (1 - progress * progress);
+        
+        // Pulse effect
+        const pulse = 1 + Math.sin(elapsed * 0.01) * 0.1;
+        ripple.scale.set(pulse, pulse, 1);
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // DATA PACKETS ON CONNECTION LINES
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createDataPacket(fromBuilding, toBuilding, color) {
+      const packetGeo = new THREE.SphereGeometry(0.15, 6, 6);
+      const packetMat = new THREE.MeshBasicMaterial({
+        color: color || 0x00ffff,
+        transparent: true,
+        opacity: 0.9
+      });
+      const packet = new THREE.Mesh(packetGeo, packetMat);
+      
+      // Glow layer
+      const glowGeo = new THREE.SphereGeometry(0.3, 6, 6);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: color || 0x00ffff,
+        transparent: true,
+        opacity: 0.4
+      });
+      const glow = new THREE.Mesh(glowGeo, glowMat);
+      packet.add(glow);
+      
+      packet.userData = {
+        fromPos: new THREE.Vector3(fromBuilding.x, 1, fromBuilding.z),
+        toPos: new THREE.Vector3(toBuilding.x, 1, toBuilding.z),
+        progress: 0,
+        speed: 0.5 + Math.random() * 0.3,
+        startTime: performance.now()
+      };
+      
+      // Calculate control point for curve
+      const midX = (fromBuilding.x + toBuilding.x) / 2;
+      const midZ = (fromBuilding.z + toBuilding.z) / 2;
+      packet.userData.controlPoint = new THREE.Vector3(midX, 4 + Math.random() * 3, midZ);
+      
+      scene.add(packet);
+      activityState.dataPackets.push(packet);
+    }
+    
+    function spawnDataPacketsToDistrict(targetDistrict) {
+      // Send packets from other districts toward the active one
+      const targetPos = DISTRICTS[targetDistrict]?.position;
+      if (!targetPos) return;
+      
+      city.connections.forEach(conn => {
+        const fromDistrict = conn.from.district;
+        const toDistrict = conn.to.district;
+        
+        // If connection involves target district, send packets toward it
+        if (toDistrict === targetDistrict || fromDistrict === targetDistrict) {
+          const color = DISTRICTS[targetDistrict].color.clone();
+          
+          // Direction toward target
+          if (toDistrict === targetDistrict) {
+            createDataPacket(conn.from, conn.to, color);
+          } else {
+            createDataPacket(conn.to, conn.from, color);
+          }
+        }
+      });
+    }
+    
+    function updateDataPackets(dt) {
+      for (let i = activityState.dataPackets.length - 1; i >= 0; i--) {
+        const packet = activityState.dataPackets[i];
+        packet.userData.progress += 0.015 * packet.userData.speed;
+        
+        if (packet.userData.progress >= 1) {
+          scene.remove(packet);
+          packet.geometry.dispose();
+          packet.material.dispose();
+          activityState.dataPackets.splice(i, 1);
+          continue;
+        }
+        
+        // Quadratic bezier interpolation
+        const t = packet.userData.progress;
+        const t1 = 1 - t;
+        const fromPos = packet.userData.fromPos;
+        const toPos = packet.userData.toPos;
+        const ctrlPos = packet.userData.controlPoint;
+        
+        packet.position.x = t1 * t1 * fromPos.x + 2 * t1 * t * ctrlPos.x + t * t * toPos.x;
+        packet.position.y = t1 * t1 * fromPos.y + 2 * t1 * t * ctrlPos.y + t * t * toPos.y;
+        packet.position.z = t1 * t1 * fromPos.z + 2 * t1 * t * ctrlPos.z + t * t * toPos.z;
+        
+        // Pulse effect
+        const pulse = 1 + Math.sin(dt * 10 + i) * 0.2;
+        packet.scale.setScalar(pulse);
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // DISTRICT GLOW SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function updateDistrictGlows(dt) {
+      const now = Date.now();
+      
+      Object.entries(activityState.districtActivity).forEach(([key, activity]) => {
+        // Smooth intensity transitions
+        const diff = activity.targetIntensity - activity.intensity;
+        activity.intensity += diff * 0.05;
+        
+        // Decay heat level over time (warmth map)
+        const timeSinceActive = (now - activity.lastActive) / 1000;
+        if (timeSinceActive > 5) {
+          activity.heatLevel = Math.max(0, activity.heatLevel - 0.001);
+        }
+        
+        // Calculate effective glow (base + activity + heat)
+        const baseGlow = 0.3;
+        const activityGlow = activity.intensity * 0.7;
+        const heatGlow = activity.heatLevel * 0.2;
+        const effectiveGlow = baseGlow + activityGlow + heatGlow;
+        
+        // Update buildings in this district
+        const districtBuildings = city.districts.get(key) || [];
+        districtBuildings.forEach((building, idx) => {
+          if (!building.mesh.material) return;
+          
+          const districtData = DISTRICTS[key];
+          
+          // Pulsing effect when active
+          let pulseMultiplier = 1;
+          if (activity.intensity > 0.5) {
+            const pulseSpeed = 2 + activity.intensity * 2;
+            pulseMultiplier = 1 + Math.sin(dt * pulseSpeed + activity.pulsePhase + idx * 0.3) * 0.15;
+          }
+          
+          // Apply emissive intensity
+          building.mesh.material.emissiveIntensity = effectiveGlow * pulseMultiplier * (1 + city.nightIntensity * 0.5);
+          
+          // Color saturation boost when highly active
+          if (activity.intensity > 0.7) {
+            const satBoost = (activity.intensity - 0.7) * 3;
+            const boostedColor = districtData.emissive.clone();
+            boostedColor.multiplyScalar(1 + satBoost);
+            building.mesh.material.emissive.copy(boostedColor);
+          }
+          
+          // Update window children to glow brighter
+          building.mesh.children.forEach(child => {
+            if (child.material && child.material.opacity !== undefined) {
+              if (!child.userData.hologram && !child.userData.blink) {
+                const windowBoost = activity.intensity > 0.5 ? 0.3 : 0;
+                child.material.opacity = Math.min(1, child.material.opacity + windowBoost * pulseMultiplier);
+              }
+            }
+          });
+        });
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // CORE SPIRE ACTIVITY RESPONSE
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function updateCoreActivity(dt) {
+      const mode = activityState.mode;
+      const modeColor = activityState.modeColors[mode] || activityState.modeColors.idle;
+      
+      // Target states based on mode
+      let targetPulseRate, targetEnergyDirection;
+      
+      switch (mode) {
+        case 'thinking':
+          targetPulseRate = 2.5;       // Faster pulse
+          targetEnergyDirection = -1;  // Energy gathering inward
+          break;
+        case 'responding':
+          targetPulseRate = 1.5;
+          targetEnergyDirection = 1;   // Energy radiating outward
+          break;
+        default: // idle
+          targetPulseRate = 1.0;
+          targetEnergyDirection = 0;   // Neutral breathing
+      }
+      
+      // Smooth transitions
+      activityState.corePulseRate += (targetPulseRate - activityState.corePulseRate) * 0.02;
+      activityState.coreEnergyDirection += (targetEnergyDirection - activityState.coreEnergyDirection) * 0.03;
+      
+      // Update core glow
+      if (city.coreGlow) {
+        const basePulse = 1 + Math.sin(dt * 2 * activityState.corePulseRate) * 0.3;
+        const modeBoost = mode !== 'idle' ? 0.3 : 0;
+        
+        city.coreGlow.scale.setScalar(basePulse * (1 + modeBoost));
+        city.coreGlow.material.opacity = 0.5 + modeBoost + Math.sin(dt * 3 * activityState.corePulseRate) * 0.2;
+        
+        // Color based on mode
+        const targetColor = new THREE.Color(modeColor.primary);
+        city.coreGlow.material.color.lerp(targetColor, 0.05);
+      }
+      
+      // Update core rings
+      city.coreRings.forEach((ring, i) => {
+        if (ring.userData.rotationAxis) {
+          // Rotation rings spin faster when active
+          const speedMult = activityState.corePulseRate;
+          if (ring.userData.rotationAxis === 'z') {
+            ring.rotation.z += ring.userData.rotationSpeed * 0.01 * speedMult;
+          } else if (ring.userData.rotationAxis === 'y') {
+            ring.rotation.y += ring.userData.rotationSpeed * 0.01 * speedMult;
+          }
+          
+          // Opacity based on activity
+          const baseOpacity = 0.4 + (mode !== 'idle' ? 0.3 : 0);
+          ring.material.opacity = baseOpacity + city.nightIntensity * 0.2;
+          
+          // Color shift
+          ring.material.color.lerp(new THREE.Color(modeColor.primary), 0.03);
+        }
+        
+        // Energy beams respond to direction
+        if (ring.userData.beamPhase !== undefined) {
+          const beamSpeed = 2 * activityState.corePulseRate;
+          const directionOffset = activityState.coreEnergyDirection * dt * 2;
+          const beamPulse = Math.sin(dt * beamSpeed + ring.userData.beamPhase + directionOffset) * 0.2;
+          
+          ring.material.opacity = 0.2 + beamPulse + (mode !== 'idle' ? 0.2 : 0);
+          ring.material.color.lerp(new THREE.Color(modeColor.primary), 0.03);
+          
+          // Scale beams based on energy direction
+          const scaleY = 1 + activityState.coreEnergyDirection * 0.3;
+          ring.scale.y = scaleY;
+        }
+        
+        // Floor pulse rings
+        if (ring.userData.pulseRing) {
+          const pulseSpeed = 1.5 * activityState.corePulseRate;
+          const scale = 1 + Math.sin(dt * pulseSpeed + ring.userData.pulsePhase) * 0.15;
+          
+          // Expand outward when responding, contract when thinking
+          const directionScale = 1 + activityState.coreEnergyDirection * 0.1 * Math.sin(dt * 2);
+          ring.scale.set(scale * directionScale, scale * directionScale, 1);
+          
+          ring.material.opacity = 0.25 + (mode !== 'idle' ? 0.15 : 0);
+          ring.material.color.lerp(new THREE.Color(modeColor.primary), 0.03);
+        }
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // CONNECTION LINE ACTIVITY
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function updateConnectionActivity(dt) {
+      const activeDistrict = activityState.activeDistrict;
+      const mode = activityState.mode;
+      
+      city.connections.forEach((conn, i) => {
+        const involvesActive = activeDistrict && 
+          (conn.from.district === activeDistrict || conn.to.district === activeDistrict);
+        
+        // Base pulse
+        const baseSpeed = 2 + (i % 3) * 0.3;
+        let basePulse = Math.sin(dt * baseSpeed + i * 0.5) * 0.1 + 0.2;
+        
+        if (involvesActive && mode !== 'idle') {
+          // Bright active connection
+          basePulse += 0.4;
+          
+          // Color matches active district
+          const districtColor = DISTRICTS[activeDistrict]?.color || new THREE.Color(0x00ffff);
+          conn.line.material.color.lerp(districtColor, 0.1);
+        } else {
+          // Return to default cyan
+          conn.line.material.color.lerp(new THREE.Color(0x00ffff), 0.02);
+        }
+        
+        const nightBoost = 1 + city.nightIntensity * 0.8;
+        conn.line.material.opacity = basePulse * nightBoost;
+      });
+    }
     
     // Try HTTP first (more reliable), then WebSocket for live updates
     async function loadCityFromAPI() {
@@ -2313,44 +4244,129 @@
     }
     
     /**
-     * Handle cognitive state changes - district glow mapping
+     * Handle cognitive state changes - district glow mapping with full visual feedback
      */
     function handleCognitiveState(mode, message = '') {
+      const prevMode = activityState.mode;
+      const prevDistrict = activityState.activeDistrict;
+      
+      // Update mode
+      activityState.mode = mode || 'idle';
+      activityState.activityStartTime = Date.now();
+      
       const districtKeywords = {
-        trading: ['stock', 'trading', 'market', 'ticker', 'price', 'portfolio', 'scan', 'asymmetry'],
-        infrastructure: ['server', 'deploy', 'api', 'docker', 'tunnel', 'pm2', 'cloudflare'],
-        projects: ['project', 'build', 'app', 'visualization', 'face', 'city', 'mind'],
-        memory: ['memory', 'remember', 'decision', 'note', 'log', 'history'],
-        core: ['self', 'absalom', 'knowledge', 'engine', 'think', 'process']
+        trading: ['stock', 'trading', 'market', 'ticker', 'price', 'portfolio', 'scan', 'asymmetry', 'options', 'calls', 'puts'],
+        infrastructure: ['server', 'deploy', 'api', 'docker', 'tunnel', 'pm2', 'cloudflare', 'coolify', 'tailscale', 'ssh'],
+        projects: ['project', 'build', 'app', 'visualization', 'face', 'city', 'mind', 'code', 'create', 'develop'],
+        memory: ['memory', 'remember', 'decision', 'note', 'log', 'history', 'learned', 'preference'],
+        core: ['self', 'absalom', 'knowledge', 'engine', 'think', 'process', 'identity', 'soul']
       };
       
       const lower = (message || '').toLowerCase();
+      let detectedDistrict = null;
+      let highestScore = 0;
       
-      // Reset all to base
-      for (const district of Object.keys(DISTRICTS)) {
-        districtGlowIntensities[district] = 0.3;
+      // Score each district based on keyword matches
+      for (const [district, keywords] of Object.entries(districtKeywords)) {
+        let score = 0;
+        for (const kw of keywords) {
+          if (lower.includes(kw)) {
+            score += 1;
+            // Bonus for exact word match
+            const regex = new RegExp(`\\b${kw}\\b`, 'i');
+            if (regex.test(lower)) score += 0.5;
+          }
+        }
+        if (score > highestScore) {
+          highestScore = score;
+          detectedDistrict = district;
+        }
       }
       
-      // Boost matching districts based on cognitive state
+      // Default to core if thinking/responding with no clear district
+      if (!detectedDistrict && (mode === 'thinking' || mode === 'responding')) {
+        detectedDistrict = 'core';
+      }
+      
+      activityState.activeDistrict = detectedDistrict;
+      
+      // Reset target intensities
+      Object.keys(activityState.districtActivity).forEach(key => {
+        activityState.districtActivity[key].targetIntensity = 0.3;
+      });
+      
+      // Set activity levels based on mode
       if (mode === 'thinking' || mode === 'responding') {
-        districtGlowIntensities['core'] = 0.8;
+        // Core always active when processing
+        activityState.districtActivity['core'].targetIntensity = 0.8;
+        activityState.districtActivity['core'].lastActive = Date.now();
+        activityState.districtActivity['core'].heatLevel = Math.min(1, 
+          activityState.districtActivity['core'].heatLevel + 0.1);
         
-        for (const [district, keywords] of Object.entries(districtKeywords)) {
-          for (const kw of keywords) {
-            if (lower.includes(kw)) {
-              districtGlowIntensities[district] = 1.0;
-              break;
+        // Primary active district gets full intensity
+        if (detectedDistrict) {
+          activityState.districtActivity[detectedDistrict].targetIntensity = 1.0;
+          activityState.districtActivity[detectedDistrict].lastActive = Date.now();
+          activityState.districtActivity[detectedDistrict].heatLevel = Math.min(1,
+            activityState.districtActivity[detectedDistrict].heatLevel + 0.15);
+          
+          // Secondary districts get partial boost based on keyword matches
+          for (const [district, keywords] of Object.entries(districtKeywords)) {
+            if (district === detectedDistrict) continue;
+            for (const kw of keywords) {
+              if (lower.includes(kw)) {
+                activityState.districtActivity[district].targetIntensity = 
+                  Math.max(activityState.districtActivity[district].targetIntensity, 0.5);
+                activityState.districtActivity[district].heatLevel = Math.min(1,
+                  activityState.districtActivity[district].heatLevel + 0.05);
+                break;
+              }
             }
           }
         }
       }
       
-      // Apply glow to buildings
-      city.buildings.forEach(b => {
-        const intensity = districtGlowIntensities[b.district] || 0.3;
-        if (b.mesh.material && b.mesh.material.emissiveIntensity !== undefined) {
-          b.mesh.material.emissiveIntensity = 0.3 + intensity * 0.7;
+      // ═══════════════════════════════════════════════════════════════════════
+      // TRIGGER VISUAL EFFECTS ON STATE CHANGE
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      // Ripple effect when entering active state
+      if (mode !== 'idle' && (prevMode === 'idle' || detectedDistrict !== prevDistrict)) {
+        if (detectedDistrict) {
+          createActivityRipple(detectedDistrict);
         }
+        // Always ripple from core when becoming active
+        if (detectedDistrict !== 'core') {
+          createActivityRipple('core');
+        }
+      }
+      
+      // Spawn data packets flowing toward active district
+      if (mode !== 'idle' && detectedDistrict) {
+        spawnDataPacketsToDistrict(detectedDistrict);
+        
+        // Periodic packet spawning during activity
+        if (!activityState.packetInterval) {
+          activityState.packetInterval = setInterval(() => {
+            if (activityState.mode !== 'idle' && activityState.activeDistrict) {
+              spawnDataPacketsToDistrict(activityState.activeDistrict);
+            }
+          }, 1500);
+        }
+      }
+      
+      // Clear packet interval when going idle
+      if (mode === 'idle' && activityState.packetInterval) {
+        clearInterval(activityState.packetInterval);
+        activityState.packetInterval = null;
+      }
+      
+      // Log state change for debugging
+      console.log(`[Cognitive] Mode: ${mode} | District: ${detectedDistrict || 'none'} | Message preview: "${(message || '').slice(0, 50)}..."`);
+      
+      // Legacy compatibility - update old districtGlowIntensities
+      Object.keys(DISTRICTS).forEach(key => {
+        districtGlowIntensities[key] = activityState.districtActivity[key].targetIntensity;
       });
     }
     
