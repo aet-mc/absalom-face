@@ -637,14 +637,14 @@
           for (int i = 0; i < 60; i++) {
             if (i >= samples) break;
             coord -= deltaTextCoord;
-            vec4 sample = texture2D(tDiffuse, coord);
+            vec4 texSample = texture2D(tDiffuse, coord);
             
             // Extract bright areas only
-            float luminance = dot(sample.rgb, vec3(0.299, 0.587, 0.114));
-            sample *= smoothstep(0.6, 1.0, luminance);
+            float luminance = dot(texSample.rgb, vec3(0.299, 0.587, 0.114));
+            texSample *= smoothstep(0.6, 1.0, luminance);
             
-            sample *= illuminationDecay * weight;
-            color += sample;
+            texSample *= illuminationDecay * weight;
+            color += texSample;
             illuminationDecay *= decay;
           }
           
@@ -9203,6 +9203,33 @@
           if (msg.type === 'graph:full') {
             console.log('[WS] Received knowledge graph:', msg.graph?.nodes?.length, 'nodes');
           }
+          
+          // Building activation commands (brain-scan effects)
+          if (msg.type === 'activate:building') {
+            console.log('[WS] Building activation:', msg.building);
+            activateBuilding(msg.building, {
+              duration: msg.duration || 5000,
+              intensity: msg.intensity || 1.0
+            });
+          }
+          
+          if (msg.type === 'activate:district') {
+            console.log('[WS] District activation:', msg.district);
+            activateDistrictBuildings(msg.district, {
+              stagger: msg.stagger || 100,
+              duration: msg.duration || 4000,
+              intensity: msg.intensity || 0.8
+            });
+            createActivityRipple(msg.district);
+          }
+          
+          if (msg.type === 'activate:topic') {
+            console.log('[WS] Topic activation:', msg.topic);
+            activateBuildingsByTopic(msg.topic, {
+              duration: msg.duration || 4000,
+              intensity: msg.intensity || 0.7
+            });
+          }
         } catch (err) {
           console.error('[WS] Parse error:', err);
         }
@@ -9479,6 +9506,37 @@
       }
       
       // ═══════════════════════════════════════════════════════════════════════
+      // BUILDING-SPECIFIC ACTIVATION (fMRI-like individual building glow)
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      if (mode !== 'idle' && message) {
+        // Activate district buildings with stagger effect
+        if (detectedDistrict) {
+          activateDistrictBuildings(detectedDistrict, {
+            stagger: 80,
+            duration: 4000,
+            intensity: mode === 'thinking' ? 0.7 : 0.9
+          });
+        }
+        
+        // Also activate buildings matching specific keywords in the message
+        const buildingKeywords = [
+          'trading', 'scanner', 'portfolio', 'memory', 'decision', 'analysis',
+          'execution', 'tool', 'skill', 'perception', 'growth', 'learning',
+          'emotion', 'relationship', 'identity', 'core'
+        ];
+        
+        buildingKeywords.forEach(keyword => {
+          if (lower.includes(keyword)) {
+            activateBuildingsByTopic(keyword, {
+              duration: 3000,
+              intensity: 0.6
+            });
+          }
+        });
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════
       // SOUND INTEGRATION
       // ═══════════════════════════════════════════════════════════════════════
       soundManager.updateCognitiveState(mode, message);
@@ -9610,6 +9668,70 @@
       
       updateStats();
     }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // GLOBAL API FOR TESTING BRAIN-SCAN EFFECTS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    window.AbsalomCity = {
+      // Cognitive state control
+      setState: (mode, message) => handleCognitiveState(mode, message),
+      think: (message) => handleCognitiveState('thinking', message),
+      respond: (message) => handleCognitiveState('responding', message),
+      idle: () => handleCognitiveState('idle'),
+      
+      // Building activation (fMRI-style)
+      activateBuilding,
+      activateBuildingsByTopic,
+      activateDistrictBuildings,
+      
+      // District effects
+      activateDistrict: (districtKey) => {
+        activityState.districtActivity[districtKey].targetIntensity = 1.0;
+        activityState.districtActivity[districtKey].lastActive = Date.now();
+        createActivityRipple(districtKey);
+        activateDistrictBuildings(districtKey);
+      },
+      
+      // Weather
+      setWeather,
+      triggerLightning: triggerLightningFlash,
+      meteorShower: triggerMeteorShower,
+      
+      // City data access
+      getBuildings: () => city.buildings,
+      getDistricts: () => DISTRICTS,
+      getActivityState: () => activityState,
+      
+      // Test demos
+      demo: {
+        // Simulate thinking about trading
+        thinkTrading: () => {
+          handleCognitiveState('thinking', 'Analyzing AAPL stock price movement and portfolio allocation');
+        },
+        // Simulate responding about memory
+        respondMemory: () => {
+          handleCognitiveState('responding', 'Here is what I remember about your preferences and past decisions');
+        },
+        // Activate all districts in sequence
+        brainScan: async () => {
+          const districts = ['core', 'memory', 'cognition', 'trading', 'execution', 'perception', 'growth', 'relationship', 'emotion'];
+          for (const d of districts) {
+            window.AbsalomCity.activateDistrict(d);
+            await new Promise(r => setTimeout(r, 800));
+          }
+        },
+        // Quick pulse from core
+        corePulse: () => {
+          handleCognitiveState('thinking', 'Core processing...');
+          setTimeout(() => handleCognitiveState('responding', 'Output ready'), 2000);
+          setTimeout(() => handleCognitiveState('idle'), 4000);
+        }
+      }
+    };
+    
+    console.log('🧠 Brain-scan API available: window.AbsalomCity');
+    console.log('   Try: AbsalomCity.demo.brainScan() or AbsalomCity.think("analyzing stock data")');
   </script>
 </body>
 </html>
