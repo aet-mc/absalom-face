@@ -7246,7 +7246,8 @@
     // WEBSOCKET (Live Knowledge Connection)
     // ═══════════════════════════════════════════════════════════════════════
     
-    const WS_URL = 'wss://itself-partners-integrate-memories.trycloudflare.com';
+    // WebSocket URL derived from API_URL
+    const WS_URL = API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
     let cityWebSocket = null;
     let districtGlowIntensities = {};
     let cityLoadedFromServer = false;
@@ -7290,7 +7291,17 @@
       };
     });
     
-    const API_URL = 'https://dental-hammer-thereby-physics.trycloudflare.com';
+    // Dynamic API URL - try localhost first, tunnel URLs change frequently
+    const API_URL = (() => {
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        return 'http://localhost:3847';
+      }
+      // For external access, try same-origin or fallback
+      // Note: tunnel URLs change on restart, update CLOUDFLARE_API if needed
+      const CLOUDFLARE_API = 'https://dental-hammer-thereby-physics.trycloudflare.com';
+      return CLOUDFLARE_API;
+    })();
     
     // ═══════════════════════════════════════════════════════════════════════
     // BRAIN-LIKE ACTIVATION SYSTEM - Energy flows, district glows, cognitive visuals
