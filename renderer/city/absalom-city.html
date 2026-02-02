@@ -7291,12 +7291,8 @@
       };
     });
     
-    // API URL - cloudflare tunnel to knowledge engine on port 3847
-    // UPDATE THIS when cloudflare tunnel restarts (check /tmp/cloudflared.log)
-    const CLOUDFLARE_API = 'https://specifications-interactive-tactics-father.trycloudflare.com';
-    const API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-      ? 'http://localhost:3847'
-      : CLOUDFLARE_API;
+    // API URL - same origin (knowledge engine serves both API and static files)
+    const API_URL = window.location.origin;
     
     // ═══════════════════════════════════════════════════════════════════════
     // BRAIN-LIKE ACTIVATION SYSTEM - Energy flows, district glows, cognitive visuals

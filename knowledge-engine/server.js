@@ -563,6 +563,39 @@ class KnowledgeServer {
       return;
     }
 
+    // Static file serving for visualization (fallback for all other routes)
+    const STATIC_ROOT = path.join(__dirname, '../renderer');
+    let filePath = req.url === '/' ? '/city/absalom-city.html' : req.url;
+    
+    // Security: prevent directory traversal
+    filePath = filePath.replace(/\.\./g, '');
+    const fullPath = path.join(STATIC_ROOT, filePath);
+    
+    // Check if file exists within STATIC_ROOT
+    if (fullPath.startsWith(STATIC_ROOT) && fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+      const ext = path.extname(fullPath).toLowerCase();
+      const mimeTypes = {
+        '.html': 'text/html',
+        '.js': 'application/javascript',
+        '.css': 'text/css',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2'
+      };
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      
+      res.writeHead(200, { 
+        'Content-Type': contentType,
+        'Cache-Control': 'no-cache'
+      });
+      fs.createReadStream(fullPath).pipe(res);
+      return;
+    }
+    
     res.writeHead(404);
     res.end('Not found');
   }
