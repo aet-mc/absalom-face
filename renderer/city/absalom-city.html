@@ -7291,17 +7291,12 @@
       };
     });
     
-    // Dynamic API URL - try localhost first, tunnel URLs change frequently
-    const API_URL = (() => {
-      const host = window.location.hostname;
-      if (host === 'localhost' || host === '127.0.0.1') {
-        return 'http://localhost:3847';
-      }
-      // For external access, try same-origin or fallback
-      // Note: tunnel URLs change on restart, update CLOUDFLARE_API if needed
-      const CLOUDFLARE_API = 'https://dental-hammer-thereby-physics.trycloudflare.com';
-      return CLOUDFLARE_API;
-    })();
+    // API URL - cloudflare tunnel to knowledge engine on port 3847
+    // UPDATE THIS when cloudflare tunnel restarts (check /tmp/cloudflared.log)
+    const CLOUDFLARE_API = 'https://types-federation-model-aaa.trycloudflare.com';
+    const API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? 'http://localhost:3847'
+      : CLOUDFLARE_API;
     
     // ═══════════════════════════════════════════════════════════════════════
     // BRAIN-LIKE ACTIVATION SYSTEM - Energy flows, district glows, cognitive visuals
