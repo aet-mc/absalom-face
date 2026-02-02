@@ -543,6 +543,11 @@ function generateBuildings(entities, cooccurrence) {
       height *= 1.4;
     }
     
+    // Cap ticker heights - tickers should never dominate core concepts
+    if (entity.type === 'ticker') {
+      height = Math.min(height, 25);
+    }
+    
     // Width scales with importance
     const typeWidths = { ticker: 2.5, tool: 3, project: 4, topic: 3, concept: 2.5 };
     const baseWidth = typeWidths[entity.type] || 2.5;
