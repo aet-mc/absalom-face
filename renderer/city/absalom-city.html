@@ -6766,6 +6766,9 @@
       // Update brain-like activation effects (energy particles, beams, road glows)
       updateBrainActivation(dt);
       
+      // Update individual building activations (fMRI-style)
+      updateBuildingActivations(dt);
+      
       // Update agent entities
       updateAgents(dt);
       
