@@ -378,6 +378,10 @@
         <span class="stat-label">connections</span>
         <span class="stat-value" id="connectionCount">0</span>
       </div>
+      <div class="stat-row" id="agentRow" style="display: none;">
+        <span class="stat-label">agents</span>
+        <span class="stat-value" id="agentCount">0</span>
+      </div>
       <div id="fps"></div>
     </div>
   </div>
@@ -388,7 +392,8 @@
   </div>
   
   <div class="controls-hint">
-    drag to orbit · scroll to zoom · click to select · 1-5 districts · 0/ESC reset · SPACE pause · arrows rotate
+    drag to orbit · scroll to zoom · click to select · 1-5 districts · 0/ESC reset · SPACE pause · arrows rotate<br>
+    <span style="opacity: 0.6">weather: R rain · F fog · A aurora · C clear · W auto-cycle · L lightning</span>
   </div>
   
   <div class="cognitive-indicator" id="cognitiveIndicator">
@@ -476,7 +481,7 @@
     scene.fog = new THREE.FogExp2(0x0a0a15, 0.006);
     
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(30, 40, 50);
+    camera.position.set(50, 60, 80); // Pulled back for wider city view
     camera.lookAt(0, 0, 0);
     
     const renderer = new THREE.WebGLRenderer({ 
@@ -491,18 +496,219 @@
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     
-    // Post-processing: Bloom
+    // Post-processing: Full AAA Pipeline
     const composer = new THREE.EffectComposer(renderer);
     const renderPass = new THREE.RenderPass(scene, camera);
     composer.addPass(renderPass);
     
+    // 1. BLOOM - Enhanced for that cyberpunk glow
     const bloomPass = new THREE.UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      isMobile ? 0.8 : 1.2,  // strength
-      0.4,                    // radius
-      0.85                    // threshold
+      isMobile ? 1.0 : 1.5,  // strength - INCREASED for more glow
+      0.5,                    // radius - slightly wider
+      0.7                     // threshold - lower = more things glow
     );
     composer.addPass(bloomPass);
+    
+    // 2. CHROMATIC ABERRATION - Subtle color fringing at edges (cyberpunk look)
+    const ChromaticAberrationShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        amount: { value: isMobile ? 0.0015 : 0.002 },
+        angle: { value: 0.0 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float amount;
+        uniform float angle;
+        varying vec2 vUv;
+        
+        void main() {
+          vec2 offset = amount * vec2(cos(angle), sin(angle));
+          vec2 center = vec2(0.5);
+          vec2 dir = vUv - center;
+          float dist = length(dir);
+          
+          // Increase aberration toward edges
+          vec2 aberration = offset * dist * dist;
+          
+          vec4 cr = texture2D(tDiffuse, vUv + aberration);
+          vec4 cg = texture2D(tDiffuse, vUv);
+          vec4 cb = texture2D(tDiffuse, vUv - aberration);
+          
+          gl_FragColor = vec4(cr.r, cg.g, cb.b, cg.a);
+        }
+      `
+    };
+    const chromaPass = new THREE.ShaderPass(ChromaticAberrationShader);
+    if (!isMobile) composer.addPass(chromaPass);
+    
+    // 3. VIGNETTE - Cinematic darkening at edges
+    const VignetteShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        darkness: { value: isMobile ? 0.4 : 0.6 },
+        offset: { value: 1.2 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float darkness;
+        uniform float offset;
+        varying vec2 vUv;
+        
+        void main() {
+          vec4 texel = texture2D(tDiffuse, vUv);
+          
+          // Vignette calculation
+          vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
+          float vignette = 1.0 - dot(uv, uv);
+          vignette = clamp(pow(vignette, darkness), 0.0, 1.0);
+          
+          // Subtle blue tint in dark areas (night feel)
+          vec3 vignetteColor = mix(vec3(0.02, 0.04, 0.08), texel.rgb, vignette);
+          
+          gl_FragColor = vec4(vignetteColor, texel.a);
+        }
+      `
+    };
+    const vignettePass = new THREE.ShaderPass(VignetteShader);
+    composer.addPass(vignettePass);
+    
+    // 4. GOD RAYS (Volumetric Light Scattering) - AAA quality light beams
+    const GodRaysShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        tDepth: { value: null },
+        lightPosition: { value: new THREE.Vector2(0.5, 0.5) },
+        exposure: { value: 0.3 },
+        decay: { value: 0.95 },
+        density: { value: 0.8 },
+        weight: { value: 0.4 },
+        samples: { value: isMobile ? 30 : 60 },
+        lightIntensity: { value: 0.0 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec2 lightPosition;
+        uniform float exposure;
+        uniform float decay;
+        uniform float density;
+        uniform float weight;
+        uniform int samples;
+        uniform float lightIntensity;
+        varying vec2 vUv;
+        
+        void main() {
+          vec4 texColor = texture2D(tDiffuse, vUv);
+          
+          if (lightIntensity < 0.01) {
+            gl_FragColor = texColor;
+            return;
+          }
+          
+          vec2 deltaTextCoord = vUv - lightPosition;
+          deltaTextCoord *= 1.0 / float(samples) * density;
+          
+          vec2 coord = vUv;
+          float illuminationDecay = 1.0;
+          vec4 color = vec4(0.0);
+          
+          for (int i = 0; i < 60; i++) {
+            if (i >= samples) break;
+            coord -= deltaTextCoord;
+            vec4 sample = texture2D(tDiffuse, coord);
+            
+            // Extract bright areas only
+            float luminance = dot(sample.rgb, vec3(0.299, 0.587, 0.114));
+            sample *= smoothstep(0.6, 1.0, luminance);
+            
+            sample *= illuminationDecay * weight;
+            color += sample;
+            illuminationDecay *= decay;
+          }
+          
+          color *= exposure * lightIntensity;
+          color = clamp(color, 0.0, 1.0);
+          
+          gl_FragColor = texColor + color;
+        }
+      `
+    };
+    const godRaysPass = new THREE.ShaderPass(GodRaysShader);
+    if (!isMobile) composer.addPass(godRaysPass);
+    
+    // 5. FILM GRAIN - Subtle noise for cinematic quality
+    const FilmGrainShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        time: { value: 0 },
+        intensity: { value: isMobile ? 0.02 : 0.035 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float time;
+        uniform float intensity;
+        varying vec2 vUv;
+        
+        float random(vec2 co) {
+          return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+        
+        void main() {
+          vec4 color = texture2D(tDiffuse, vUv);
+          
+          // Animated film grain
+          float grain = random(vUv + time * 0.001) * intensity;
+          
+          // Apply grain more in darker areas, less in highlights
+          float luminance = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+          grain *= (1.0 - luminance * 0.5);
+          
+          color.rgb += grain - intensity * 0.5;
+          
+          gl_FragColor = color;
+        }
+      `
+    };
+    const filmGrainPass = new THREE.ShaderPass(FilmGrainShader);
+    if (!isMobile) composer.addPass(filmGrainPass);
+    
+    // Store passes for dynamic updates
+    const postProcessing = {
+      chromaPass: isMobile ? null : chromaPass,
+      vignettePass,
+      filmGrainPass: isMobile ? null : filmGrainPass,
+      bloomPass,
+      godRaysPass: isMobile ? null : godRaysPass
+    };
     
     // Orbit controls
     const controls = new THREE.OrbitControls(camera, canvas);
@@ -510,7 +716,7 @@
     controls.dampingFactor = 0.05;
     controls.maxPolarAngle = Math.PI / 2.1;
     controls.minDistance = 10;
-    controls.maxDistance = 150;
+    controls.maxDistance = 250; // Increased for wider city layout
     controls.target.set(0, 5, 0);
     
     // Zoom sound trigger
@@ -543,32 +749,60 @@
         keywords: ['self', 'identity', 'soul', 'absalom']
       },
       trading: { 
-        name: 'MARKET SPIRES', 
+        name: 'TRADING MIND', 
         color: new THREE.Color(0xffd700),
         emissive: new THREE.Color(0x332200),
-        position: new THREE.Vector3(25, 0, 10),
-        keywords: ['stock', 'trading', 'market', 'options', 'scanner', 'asymmetry']
+        position: new THREE.Vector3(50, 0, 25),
+        keywords: ['stock', 'trading', 'market', 'options', 'scanner', 'asymmetry', 'portfolio']
       },
-      infrastructure: { 
-        name: 'DATAFORGE', 
+      execution: { 
+        name: 'EXECUTION', 
         color: new THREE.Color(0xff6b9d),
         emissive: new THREE.Color(0x331122),
-        position: new THREE.Vector3(-20, 0, 15),
-        keywords: ['server', 'deploy', 'docker', 'tailscale', 'coolify', 'pm2']
+        position: new THREE.Vector3(-45, 0, 35),
+        keywords: ['tool', 'skill', 'deploy', 'action', 'execute', 'integration']
       },
-      projects: { 
-        name: 'CREATION LABS', 
+      cognition: { 
+        name: 'COGNITION', 
         color: new THREE.Color(0x9d6bff),
         emissive: new THREE.Color(0x220033),
-        position: new THREE.Vector3(10, 0, -25),
-        keywords: ['project', 'build', 'create', 'app', 'visualization']
+        position: new THREE.Vector3(25, 0, -50),
+        keywords: ['think', 'decide', 'analyze', 'reason', 'logic', 'model']
       },
       memory: { 
-        name: 'MEMORY BANKS', 
+        name: 'MEMORY', 
         color: new THREE.Color(0x6bff9d),
         emissive: new THREE.Color(0x113322),
-        position: new THREE.Vector3(-15, 0, -20),
-        keywords: ['memory', 'remember', 'decision', 'learned', 'preference']
+        position: new THREE.Vector3(-35, 0, -45),
+        keywords: ['memory', 'remember', 'decision', 'learned', 'preference', 'history']
+      },
+      perception: {
+        name: 'PERCEPTION',
+        color: new THREE.Color(0x00ddff),
+        emissive: new THREE.Color(0x002233),
+        position: new THREE.Vector3(55, 0, -20),
+        keywords: ['sense', 'observe', 'market', 'signal', 'news', 'external']
+      },
+      growth: {
+        name: 'GROWTH',
+        color: new THREE.Color(0x00ff88),
+        emissive: new THREE.Color(0x003322),
+        position: new THREE.Vector3(-20, 0, 55),
+        keywords: ['learn', 'improve', 'adapt', 'evolve', 'error', 'feedback']
+      },
+      relationship: {
+        name: 'RELATIONSHIP',
+        color: new THREE.Color(0xff8800),
+        emissive: new THREE.Color(0x332200),
+        position: new THREE.Vector3(-55, 0, -10),
+        keywords: ['anton', 'bond', 'trust', 'protect', 'communicate', 'loyalty']
+      },
+      emotion: {
+        name: 'EMOTION',
+        color: new THREE.Color(0xff4466),
+        emissive: new THREE.Color(0x331122),
+        position: new THREE.Vector3(10, 0, 55),
+        keywords: ['feel', 'humor', 'empathy', 'mood', 'personality']
       },
     };
     
@@ -607,6 +841,21 @@
       fogPlanes: [],
       aurora: null,
       weatherIntensity: 0, // Current effect intensity (for transitions)
+      // Lightning system (during rain)
+      lightning: {
+        active: false,
+        flashIntensity: 0,
+        bolts: [],
+        nextFlashTime: 0,
+        flashHoldTime: 0,
+      },
+      // Auto weather cycling
+      weatherCycleEnabled: true,
+      nextWeatherChange: 0,
+      // Thought bubbles (floating text)
+      thoughts: [],
+      thoughtsGroup: null,
+      lastThoughtTime: 0,
     };
     
     const weatherStateEl = document.getElementById('weatherState');
@@ -848,6 +1097,137 @@
     // ═══════════════════════════════════════════════════════════════════════
     // AMBIENT LIFE: FIREFLIES (night) & DUST MOTES (day)
     // ═══════════════════════════════════════════════════════════════════════
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // ENERGY MOTES - Floating holographic particles for AAA atmosphere
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createEnergyMotes() {
+      const moteCount = isMobile ? 100 : 300;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(moteCount * 3);
+      const colors = new Float32Array(moteCount * 3);
+      const sizes = new Float32Array(moteCount);
+      const phases = new Float32Array(moteCount);
+      
+      // District colors for energy motes
+      const districtColors = [
+        new THREE.Color(0x00ffff), // Core - cyan
+        new THREE.Color(0xffd700), // Trading - gold
+        new THREE.Color(0xff6b9d), // Execution - pink
+        new THREE.Color(0x9d6bff), // Cognition - purple
+        new THREE.Color(0x6bff9d), // Memory - green
+      ];
+      
+      for (let i = 0; i < moteCount; i++) {
+        // Position in district areas
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 60;
+        positions[i * 3] = Math.cos(angle) * radius;
+        positions[i * 3 + 1] = 2 + Math.random() * 45; // Varied heights
+        positions[i * 3 + 2] = Math.sin(angle) * radius;
+        
+        // Color based on nearest district
+        const districtIdx = Math.floor(Math.random() * districtColors.length);
+        const color = districtColors[districtIdx];
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+        
+        // Varied sizes
+        sizes[i] = 0.2 + Math.random() * 0.6;
+        phases[i] = Math.random() * Math.PI * 2;
+      }
+      
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+      
+      // Custom shader material for glowing motes
+      const moteMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          time: { value: 0 },
+          nightIntensity: { value: 0 }
+        },
+        vertexShader: `
+          attribute float size;
+          varying vec3 vColor;
+          uniform float time;
+          uniform float nightIntensity;
+          
+          void main() {
+            vColor = color;
+            vec3 pos = position;
+            
+            // Gentle floating motion
+            float uniquePhase = position.x * 0.1 + position.z * 0.1;
+            pos.y += sin(time * 0.5 + uniquePhase) * 1.5;
+            pos.x += sin(time * 0.3 + uniquePhase * 2.0) * 0.5;
+            pos.z += cos(time * 0.4 + uniquePhase * 1.5) * 0.5;
+            
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            
+            // Pulsing size
+            float pulse = 0.8 + 0.4 * sin(time * 2.0 + uniquePhase * 3.0);
+            float nightBoost = 1.0 + nightIntensity * 0.8;
+            
+            gl_PointSize = size * pulse * nightBoost * (300.0 / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vColor;
+          uniform float nightIntensity;
+          
+          void main() {
+            // Soft circular gradient
+            vec2 center = gl_PointCoord - vec2(0.5);
+            float dist = length(center);
+            if (dist > 0.5) discard;
+            
+            // Glowing core
+            float glow = 1.0 - smoothstep(0.0, 0.5, dist);
+            glow = pow(glow, 1.5);
+            
+            // Brighter at night
+            float alpha = glow * (0.4 + nightIntensity * 0.5);
+            
+            gl_FragColor = vec4(vColor * (1.0 + glow * 0.5), alpha);
+          }
+        `,
+        transparent: true,
+        vertexColors: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      
+      city.energyMotes = new THREE.Points(geometry, moteMaterial);
+      city.energyMotes.userData = { phases };
+      scene.add(city.energyMotes);
+    }
+    
+    function updateEnergyMotes(dt) {
+      if (!city.energyMotes) return;
+      
+      // Update shader uniforms
+      city.energyMotes.material.uniforms.time.value = dt;
+      city.energyMotes.material.uniforms.nightIntensity.value = city.nightIntensity;
+      
+      // Respawn motes that drift too far
+      const positions = city.energyMotes.geometry.attributes.position.array;
+      for (let i = 0; i < positions.length / 3; i++) {
+        const y = positions[i * 3 + 1];
+        if (y > 55 || y < 1) {
+          // Reset to random position
+          const angle = Math.random() * Math.PI * 2;
+          const radius = 10 + Math.random() * 60;
+          positions[i * 3] = Math.cos(angle) * radius;
+          positions[i * 3 + 1] = 5 + Math.random() * 30;
+          positions[i * 3 + 2] = Math.sin(angle) * radius;
+        }
+      }
+      city.energyMotes.geometry.attributes.position.needsUpdate = true;
+    }
     
     function createFirefliesAndDust() {
       const count = isMobile ? 80 : 200;
@@ -1224,8 +1604,46 @@
       city.shootingStars.push(starGroup);
     }
     
+    // Meteor shower state
+    let meteorShowerActive = false;
+    let meteorShowerEndTime = 0;
+    
+    /**
+     * Trigger a meteor shower event (many shooting stars at once)
+     */
+    function triggerMeteorShower(durationSeconds = 30) {
+      if (city.nightIntensity < 0.3) {
+        console.log('[MeteorShower] Can only trigger at night');
+        return false;
+      }
+      
+      meteorShowerActive = true;
+      meteorShowerEndTime = Date.now() + durationSeconds * 1000;
+      console.log(`[MeteorShower] Started! Duration: ${durationSeconds}s`);
+      
+      // Initial burst
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => createShootingStar(), i * 200);
+      }
+      
+      return true;
+    }
+    
     function updateShootingStars() {
-      // Occasionally spawn new ones at night
+      // Check if meteor shower is active
+      if (meteorShowerActive) {
+        if (Date.now() > meteorShowerEndTime) {
+          meteorShowerActive = false;
+          console.log('[MeteorShower] Ended');
+        } else {
+          // Spawn many more shooting stars during shower
+          if (Math.random() < 0.15) { // 15% chance per frame
+            createShootingStar();
+          }
+        }
+      }
+      
+      // Occasionally spawn new ones at night (normal rate)
       if (city.nightIntensity > 0.5 && Math.random() < 0.002) {
         createShootingStar();
       }
@@ -1307,8 +1725,10 @@
             // Windows almost always stay on (95%+), especially at night
             const onChance = 0.92 + city.nightIntensity * 0.06;
             state.isOn = Math.random() < onChance;
+            // Windows are BRIGHTER at night (like real cities)
+            const nightBrightness = 1 + city.nightIntensity * 0.6;
             state.targetOpacity = state.isOn ? 
-              (state.baseOpacity * 0.8 + Math.random() * state.baseOpacity * 0.4) : 
+              (state.baseOpacity * 0.8 + Math.random() * state.baseOpacity * 0.4) * nightBrightness : 
               0.08;
             // Very long intervals: 8-20 seconds before next possible change
             state.nextToggle = 500 + Math.random() * 700;
@@ -2222,6 +2642,302 @@
       
       city.stars = new THREE.Points(starGeometry, starMaterial);
       scene.add(city.stars);
+      
+      // Create constellations using some of the star positions
+      createConstellations(positions);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // CONSTELLATION PATTERNS (visible at night, connecting stars)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function createConstellations(starPositions) {
+      city.constellations = [];
+      
+      // Define constellation patterns (indices into star positions would be random, so we use fixed sky positions)
+      const constellationData = [
+        { // Orion-like
+          name: 'The Shepherd',
+          stars: [
+            { x: 200, y: 280, z: -100 },
+            { x: 210, y: 300, z: -95 },
+            { x: 190, y: 310, z: -105 },
+            { x: 205, y: 320, z: -90 },
+            { x: 180, y: 295, z: -110 },
+            { x: 220, y: 295, z: -85 },
+            { x: 200, y: 260, z: -100 },
+          ],
+          connections: [[0, 1], [1, 2], [1, 3], [0, 4], [0, 5], [0, 6]]
+        },
+        { // Big Dipper-like
+          name: 'The Vessel',
+          stars: [
+            { x: -150, y: 320, z: 80 },
+            { x: -180, y: 310, z: 100 },
+            { x: -200, y: 330, z: 120 },
+            { x: -170, y: 350, z: 90 },
+            { x: -130, y: 340, z: 70 },
+            { x: -100, y: 360, z: 50 },
+            { x: -70, y: 340, z: 40 },
+          ],
+          connections: [[0, 1], [1, 2], [2, 3], [3, 0], [3, 4], [4, 5], [5, 6]]
+        },
+        { // Triangle
+          name: 'The Core',
+          stars: [
+            { x: 50, y: 350, z: 180 },
+            { x: 80, y: 380, z: 160 },
+            { x: 30, y: 370, z: 200 },
+          ],
+          connections: [[0, 1], [1, 2], [2, 0]]
+        },
+        { // Cassiopeia-like W
+          name: 'The Wave',
+          stars: [
+            { x: -80, y: 300, z: -200 },
+            { x: -50, y: 320, z: -190 },
+            { x: -30, y: 290, z: -180 },
+            { x: 0, y: 330, z: -170 },
+            { x: 30, y: 300, z: -160 },
+          ],
+          connections: [[0, 1], [1, 2], [2, 3], [3, 4]]
+        },
+        { // Cross
+          name: 'The Node',
+          stars: [
+            { x: 280, y: 340, z: 50 },
+            { x: 280, y: 380, z: 50 },
+            { x: 260, y: 360, z: 60 },
+            { x: 300, y: 360, z: 40 },
+            { x: 280, y: 320, z: 50 },
+          ],
+          connections: [[0, 1], [2, 3], [0, 4]]
+        },
+      ];
+      
+      const constellationGroup = new THREE.Group();
+      constellationGroup.visible = false; // Hidden until night
+      
+      constellationData.forEach(constellation => {
+        const group = new THREE.Group();
+        group.userData = { name: constellation.name };
+        
+        // Add star points
+        const starGeo = new THREE.BufferGeometry();
+        const positions = new Float32Array(constellation.stars.length * 3);
+        constellation.stars.forEach((star, i) => {
+          positions[i * 3] = star.x;
+          positions[i * 3 + 1] = star.y;
+          positions[i * 3 + 2] = star.z;
+        });
+        starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        
+        const starMat = new THREE.PointsMaterial({
+          color: 0xffffee,
+          size: 3,
+          transparent: true,
+          opacity: 0.9,
+          sizeAttenuation: false,
+        });
+        const stars = new THREE.Points(starGeo, starMat);
+        group.add(stars);
+        
+        // Add connection lines
+        constellation.connections.forEach(([a, b]) => {
+          const lineGeo = new THREE.BufferGeometry();
+          const linePositions = new Float32Array([
+            constellation.stars[a].x, constellation.stars[a].y, constellation.stars[a].z,
+            constellation.stars[b].x, constellation.stars[b].y, constellation.stars[b].z,
+          ]);
+          lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+          
+          const lineMat = new THREE.LineBasicMaterial({
+            color: 0x4488aa,
+            transparent: true,
+            opacity: 0.3,
+          });
+          const line = new THREE.Line(lineGeo, lineMat);
+          group.add(line);
+        });
+        
+        constellationGroup.add(group);
+      });
+      
+      scene.add(constellationGroup);
+      city.constellations = constellationGroup;
+    }
+    
+    /**
+     * Update constellation visibility based on night intensity
+     */
+    function updateConstellations() {
+      if (!city.constellations) return;
+      
+      // Only visible at night
+      const visibility = Math.max(0, city.nightIntensity - 0.4) / 0.6;
+      city.constellations.visible = visibility > 0.1;
+      
+      if (city.constellations.visible) {
+        city.constellations.children.forEach(group => {
+          group.children.forEach(child => {
+            if (child.material) {
+              if (child.type === 'Points') {
+                child.material.opacity = visibility * 0.9;
+              } else {
+                child.material.opacity = visibility * 0.4;
+              }
+            }
+          });
+        });
+        
+        // Gentle rotation with the stars
+        city.constellations.rotation.y += 0.00002;
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // THOUGHT BUBBLES (floating text/ideas above the city)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    // Sample thoughts that can appear (pulled from memory, decisions, ideas)
+    const SAMPLE_THOUGHTS = [
+      'Optimizing memory...',
+      'Analyzing patterns',
+      'Processing request',
+      'Learning adaptation',
+      'Strategic planning',
+      'Data synthesis',
+      'Context building',
+      'Evaluating options',
+      'Pattern recognition',
+      'Neural pathway',
+    ];
+    
+    /**
+     * Initialize thought bubble system
+     */
+    function initThoughtBubbles() {
+      city.thoughtsGroup = new THREE.Group();
+      scene.add(city.thoughtsGroup);
+    }
+    
+    /**
+     * Create a floating thought bubble with CSS2D or sprite
+     */
+    function createThought(text) {
+      // Use canvas texture for the text
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 256;
+      canvas.height = 64;
+      
+      // Draw background
+      ctx.fillStyle = 'rgba(10, 20, 40, 0.7)';
+      ctx.roundRect(0, 0, canvas.width, canvas.height, 8);
+      ctx.fill();
+      
+      // Draw border
+      ctx.strokeStyle = 'rgba(100, 200, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.roundRect(0, 0, canvas.width, canvas.height, 8);
+      ctx.stroke();
+      
+      // Draw text
+      ctx.fillStyle = 'rgba(100, 200, 255, 0.9)';
+      ctx.font = '18px SF Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text.substring(0, 25), canvas.width / 2, canvas.height / 2);
+      
+      // Create texture and sprite
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0,
+      });
+      
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(12, 3, 1);
+      
+      // Random position above the city
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 20 + Math.random() * 40;
+      sprite.position.set(
+        Math.cos(angle) * radius,
+        50 + Math.random() * 30,
+        Math.sin(angle) * radius
+      );
+      
+      sprite.userData = {
+        life: 1,
+        fadeIn: true,
+        driftSpeed: 0.01 + Math.random() * 0.02,
+        driftAngle: Math.random() * Math.PI * 2,
+      };
+      
+      city.thoughtsGroup.add(sprite);
+      city.thoughts.push(sprite);
+      
+      return sprite;
+    }
+    
+    /**
+     * Update thought bubbles
+     */
+    function updateThoughts(dt) {
+      if (!city.thoughtsGroup) return;
+      
+      const now = Date.now();
+      
+      // Occasionally spawn new thoughts (but not too many)
+      if (city.thoughts.length < 3 && now - city.lastThoughtTime > 15000) {
+        if (Math.random() < 0.3) {
+          const text = SAMPLE_THOUGHTS[Math.floor(Math.random() * SAMPLE_THOUGHTS.length)];
+          createThought(text);
+          city.lastThoughtTime = now;
+        }
+      }
+      
+      // Update existing thoughts
+      for (let i = city.thoughts.length - 1; i >= 0; i--) {
+        const thought = city.thoughts[i];
+        const data = thought.userData;
+        
+        // Fade in
+        if (data.fadeIn) {
+          thought.material.opacity = Math.min(1, thought.material.opacity + 0.02);
+          if (thought.material.opacity >= 1) {
+            data.fadeIn = false;
+          }
+        }
+        
+        // Drift upward and sideways
+        thought.position.y += data.driftSpeed;
+        thought.position.x += Math.sin(data.driftAngle) * 0.01;
+        thought.position.z += Math.cos(data.driftAngle) * 0.01;
+        
+        // Fade out and remove when high
+        if (thought.position.y > 85) {
+          data.life -= 0.02;
+          thought.material.opacity = data.life;
+        }
+        
+        if (data.life <= 0 || thought.position.y > 100) {
+          city.thoughtsGroup.remove(thought);
+          thought.material.map.dispose();
+          thought.material.dispose();
+          city.thoughts.splice(i, 1);
+        }
+      }
+    }
+    
+    /**
+     * Add a custom thought (can be called from external API)
+     */
+    function addThought(text) {
+      createThought(text);
+      city.lastThoughtTime = Date.now();
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -2232,9 +2948,9 @@
       // Dark base plane
       const groundGeo = new THREE.PlaneGeometry(250, 250);
       const groundMat = new THREE.MeshStandardMaterial({
-        color: 0x050510,
-        roughness: 0.95,
-        metalness: 0.1,
+        color: 0x1a1a2e,
+        roughness: 0.85,
+        metalness: 0.15,
       });
       const ground = new THREE.Mesh(groundGeo, groundMat);
       ground.rotation.x = -Math.PI / 2;
@@ -2265,9 +2981,9 @@
       
       const hexLineGeo = new THREE.EdgesGeometry(new THREE.ShapeGeometry(hexShape));
       const hexLineMat = new THREE.LineBasicMaterial({
-        color: 0x1a2a3a,
+        color: 0x4a6a8a,
         transparent: true,
-        opacity: 0.4,
+        opacity: 0.6,
       });
       
       // Instanced hex outlines
@@ -2585,12 +3301,18 @@
       scene.add(moonLight);
       
       // Ambient light - fills shadows
-      ambientLight = new THREE.AmbientLight(0x111122, 0.5);
+      ambientLight = new THREE.AmbientLight(0x334455, 0.8);
       scene.add(ambientLight);
       
       // Hemisphere light - sky/ground color influence
       hemiLight = new THREE.HemisphereLight(0x2244aa, 0x221100, 0.2);
       scene.add(hemiLight);
+      
+      // City glow light - warm light from below to simulate street lights at night
+      // This light will be controlled by nightIntensity
+      lighting.cityGlowLight = new THREE.PointLight(0xffaa66, 0, 150);
+      lighting.cityGlowLight.position.set(0, -10, 0);
+      scene.add(lighting.cityGlowLight);
     }
     
     // Smooth interpolation helper
@@ -2657,6 +3379,29 @@
       const sunZ = 40;
       sunLight.position.set(sunX, sunY, sunZ);
       
+      // Update GOD RAYS based on sun position (project sun to screen space)
+      if (postProcessing.godRaysPass && !isMobile) {
+        const sunVector = new THREE.Vector3(sunX, sunY, sunZ);
+        sunVector.project(camera);
+        
+        // Convert to 0-1 UV space
+        const screenX = (sunVector.x + 1) / 2;
+        const screenY = (sunVector.y + 1) / 2;
+        
+        postProcessing.godRaysPass.uniforms.lightPosition.value.set(screenX, screenY);
+        
+        // Only show god rays when sun is visible and above horizon
+        const sunVisible = sunHeight > 0 && sunVector.z < 1;
+        const inFrame = screenX > -0.2 && screenX < 1.2 && screenY > -0.2 && screenY < 1.2;
+        
+        // Stronger during golden hour for dramatic effect
+        const baseIntensity = sunVisible && inFrame ? Math.max(0, sunHeight) : 0;
+        const isNearGoldenHour = (hours >= 6 && hours <= 7.5) || (hours >= 17 && hours <= 19);
+        const goldenBoost = isNearGoldenHour ? 0.4 : 0;
+        postProcessing.godRaysPass.uniforms.lightIntensity.value = 
+          Math.min(1, baseIntensity * 0.6 + goldenBoost);
+      }
+      
       // Moon opposite to sun, slightly offset
       moonLight.position.set(-sunX * 0.8, -sunY + 60, -sunZ * 0.7);
       
@@ -2693,11 +3438,26 @@
       const twilightIntensity = (1 - Math.abs(sunHeight)) * (sunHeight < 0.3 ? 1 : 0);
       
       // Moon intensity - stronger when sun is down
-      moonLight.intensity = city.nightIntensity * 0.5;
-      moonLight.color.setHSL(0.6, 0.5, 0.5 + city.nightIntensity * 0.2);
+      moonLight.intensity = city.nightIntensity * 0.7;
+      moonLight.color.setHSL(0.6, 0.5, 0.6 + city.nightIntensity * 0.2);
       
-      // Ambient intensity - never fully dark
-      ambientLight.intensity = 0.4 + dayProgress * 0.5 + city.nightIntensity * 0.1;
+      // Ambient intensity - never fully dark, boosted at night for city glow
+      ambientLight.intensity = 0.7 + dayProgress * 0.5 + city.nightIntensity * 0.5;
+      
+      // City glow effect at night - warm light from below simulating street lights
+      if (city.nightIntensity > 0.2) {
+        const cityGlow = city.nightIntensity * 0.4;
+        hemiLight.groundColor.setHSL(0.08, 0.6, 0.15 + cityGlow);
+        
+        // Activate the city glow point light
+        if (lighting.cityGlowLight) {
+          lighting.cityGlowLight.intensity = city.nightIntensity * 1.5;
+        }
+      } else {
+        if (lighting.cityGlowLight) {
+          lighting.cityGlowLight.intensity = 0;
+        }
+      }
       
       // Hemisphere light adapts to time
       const skyBlend = blend;
@@ -2706,7 +3466,7 @@
       const skyLight_l = fromPreset.skyLight + (toPreset.skyLight - fromPreset.skyLight) * skyBlend;
       
       hemiLight.color.setHSL(skyHue, skySat, skyLight_l + 0.1);
-      hemiLight.groundColor.setHSL(0.08, 0.4, 0.02 + dayProgress * 0.03);
+      hemiLight.groundColor.setHSL(0.08, 0.4, 0.08 + dayProgress * 0.06);
       hemiLight.intensity = 0.15 + dayProgress * 0.15;
       
       // Shadow softness varies with sun angle (lower sun = softer shadows)
@@ -2729,6 +3489,9 @@
         city.stars.material.opacity = Math.min(0.9, starVisibility);
       }
       
+      // Constellation visibility
+      updateConstellations();
+      
       // Golden hour detection (1 hour before/after sunset/sunrise)
       const isGoldenHour = (hours >= 6 && hours <= 7.5) || (hours >= 17 && hours <= 19);
       lighting.goldenHourIntensity = isGoldenHour ? 
@@ -2744,15 +3507,16 @@
         Math.min(1, (city.nightIntensity - 0.1) / 0.5) : 0;
       lighting.windowLightProgress += (targetWindowLight - lighting.windowLightProgress) * 0.01;
       
-      // Bloom: stronger at night for neon pop, softer during day
-      const baseBloom = isMobile ? 0.5 : 0.7;
-      const nightBloom = city.nightIntensity * (isMobile ? 0.8 : 1.2);
-      const goldenBloom = lighting.goldenHourIntensity * 0.3;
+      // Bloom: AAA-quality vibrant city lights (enhanced for cyberpunk feel)
+      const baseBloom = isMobile ? 0.6 : 1.0;
+      const nightBloom = city.nightIntensity * (isMobile ? 1.5 : 2.2);
+      const goldenBloom = lighting.goldenHourIntensity * 0.5;
       bloomPass.strength = baseBloom + nightBloom + goldenBloom;
-      bloomPass.threshold = 0.9 - city.nightIntensity * 0.2; // Lower threshold at night
+      bloomPass.threshold = 0.75 - city.nightIntensity * 0.4; // Lower threshold = more glow
+      bloomPass.radius = 0.5 + city.nightIntensity * 0.4; // Wider bloom at night for soft city glow
       
-      // Tone mapping exposure - brighter during day
-      renderer.toneMappingExposure = 0.8 + dayProgress * 0.4 - city.nightIntensity * 0.2;
+      // Tone mapping exposure - maintain brightness at night for city glow
+      renderer.toneMappingExposure = 0.9 + dayProgress * 0.3 + city.nightIntensity * 0.1;
       
       // ═══════════════════════════════════════════════════════════════════════
       // SKY DOME UPDATE - Dynamic gradient based on time of day
@@ -3231,7 +3995,7 @@
         const spireMat = new THREE.MeshStandardMaterial({
           color: new THREE.Color(styleData.colorTint).multiplyScalar(0.3),
           emissive: districtColor,
-          emissiveIntensity: 0.5,
+          emissiveIntensity: 0.8,
           metalness: 0.7,
           roughness: 0.3,
         });
@@ -3266,7 +4030,7 @@
           const ornMat = new THREE.MeshStandardMaterial({
             color: new THREE.Color(styleData.colorTint).multiplyScalar(0.35),
             emissive: districtColor,
-            emissiveIntensity: 0.2,
+            emissiveIntensity: 0.5,
           });
           const orn = new THREE.Mesh(ornGeo, ornMat);
           const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
@@ -3314,8 +4078,8 @@
       const bodyGeo = new THREE.BoxGeometry(setbackWidth, setbackHeight, setbackDepth);
       const bodyMat = new THREE.MeshStandardMaterial({
         color: new THREE.Color(styleData.colorTint).multiplyScalar(0.2),
-        emissive: new THREE.Color(styleData.colorTint).multiplyScalar(0.05),
-        emissiveIntensity: 0.3,
+        emissive: new THREE.Color(styleData.colorTint).multiplyScalar(0.1),
+        emissiveIntensity: 0.6,
         roughness: 0.5,
         metalness: 0.5,
       });
@@ -3618,6 +4382,7 @@
         district = 'core',
         label = '',
         type = getRandomBuildingShape(),
+        sources = [],
       } = config;
       
       const districtData = DISTRICTS[district] || DISTRICTS.core;
@@ -3643,7 +4408,7 @@
       const bodyMat = new THREE.MeshStandardMaterial({
         color: new THREE.Color(styleData.colorTint).multiplyScalar(0.18),
         emissive: districtData.emissive,
-        emissiveIntensity: 0.4,
+        emissiveIntensity: 0.7,
         roughness: 0.55 - styleData.glassReflectivity * 0.3,
         metalness: 0.3 + styleData.glassReflectivity * 0.4,
       });
@@ -3796,6 +4561,86 @@
         buildingGroup.add(beacon);
       }
       
+      // === EDGE GLOW - Cyberpunk neon outline effect ===
+      if (!isMobile && height > 8) {
+        // Vertical edge lines on corners
+        const edgeCount = type === 'cylinder' || type === 'octagon' || type === 'hex' ? 
+          (type === 'hex' ? 6 : 8) : 4;
+        const edgeRadius = type === 'tower' || type === 'lShape' ? 
+          Math.sqrt((width/2)**2 + (depth/2)**2) : width/2;
+        
+        for (let i = 0; i < edgeCount; i++) {
+          const angle = (i / edgeCount) * Math.PI * 2;
+          const isCorner = type === 'tower' || type === 'lShape';
+          const ex = isCorner ? 
+            (i % 2 === 0 ? width/2 : -width/2) * (i < 2 ? 1 : 1) :
+            Math.cos(angle) * edgeRadius;
+          const ez = isCorner ?
+            (i < 2 ? depth/2 : -depth/2) :
+            Math.sin(angle) * edgeRadius;
+          
+          // Vertical edge line
+          const edgeGeo = new THREE.CylinderGeometry(0.05, 0.05, height * 0.9, 4);
+          const edgeMat = new THREE.MeshBasicMaterial({
+            color: districtData.color,
+            transparent: true,
+            opacity: 0.3 + Math.random() * 0.2,
+          });
+          const edge = new THREE.Mesh(edgeGeo, edgeMat);
+          
+          if (isCorner) {
+            const cx = i === 0 || i === 3 ? width/2 : -width/2;
+            const cz = i < 2 ? depth/2 : -depth/2;
+            edge.position.set(cx * 0.98, baseHeight + height * 0.45, cz * 0.98);
+          } else {
+            edge.position.set(ex * 0.98, baseHeight + height * 0.45, ez * 0.98);
+          }
+          
+          edge.userData.edgeGlow = true;
+          edge.userData.glowPhase = Math.random() * Math.PI * 2;
+          buildingGroup.add(edge);
+        }
+        
+        // Horizontal trim lines at intervals
+        const trimCount = Math.floor(height / 12);
+        for (let t = 1; t <= trimCount; t++) {
+          const trimY = baseHeight + t * 12;
+          if (trimY > topY - 2) continue;
+          
+          // Simple box trim for tower types
+          if (type === 'tower' || type === 'lShape') {
+            const trimGeo = new THREE.BoxGeometry(width + 0.15, 0.08, depth + 0.15);
+            const trimMat = new THREE.MeshBasicMaterial({
+              color: districtData.color,
+              transparent: true,
+              opacity: 0.4,
+            });
+            const trim = new THREE.Mesh(trimGeo, trimMat);
+            trim.position.y = trimY;
+            trim.userData.edgeGlow = true;
+            trim.userData.glowPhase = t * 0.5;
+            buildingGroup.add(trim);
+          } else {
+            // Ring trim for cylindrical buildings
+            const trimRadius = type === 'tapered' ? 
+              width/2 * (1 - (trimY - baseHeight) / height * 0.3) : width/2;
+            const segments = type === 'hex' ? 6 : (type === 'octagon' ? 8 : 16);
+            const trimGeo = new THREE.TorusGeometry(trimRadius + 0.05, 0.04, 4, segments);
+            const trimMat = new THREE.MeshBasicMaterial({
+              color: districtData.color,
+              transparent: true,
+              opacity: 0.35,
+            });
+            const trim = new THREE.Mesh(trimGeo, trimMat);
+            trim.rotation.x = Math.PI / 2;
+            trim.position.y = trimY;
+            trim.userData.edgeGlow = true;
+            trim.userData.glowPhase = t * 0.5;
+            buildingGroup.add(trim);
+          }
+        }
+      }
+      
       // === HOLOGRAPHIC AD (occasional) ===
       if (height > 10 && Math.random() < 0.25) {
         addHolographicAd(buildingGroup, width, height, districtData.color);
@@ -3811,6 +4656,7 @@
         style,
         x, z,
         width, depth, height,
+        sources,
         createdAt: Date.now(),
       };
       
@@ -4671,6 +5517,272 @@
     // Weather keyboard controls are handled in the main keyboard handler below
     
     // ═══════════════════════════════════════════════════════════════════════
+    // LIGHTNING SYSTEM (during rain storms)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Create a lightning bolt using jagged line segments
+     */
+    function createLightningBolt(startPos, endPos) {
+      const points = [];
+      const segments = 8 + Math.floor(Math.random() * 6);
+      
+      points.push(startPos.clone());
+      
+      // Create jagged path from start to end
+      for (let i = 1; i < segments; i++) {
+        const t = i / segments;
+        const basePoint = new THREE.Vector3().lerpVectors(startPos, endPos, t);
+        
+        // Add random jitter (more at middle, less at ends)
+        const jitterAmount = Math.sin(t * Math.PI) * 15;
+        basePoint.x += (Math.random() - 0.5) * jitterAmount;
+        basePoint.y += (Math.random() - 0.5) * jitterAmount * 0.3;
+        basePoint.z += (Math.random() - 0.5) * jitterAmount;
+        
+        points.push(basePoint);
+        
+        // Occasionally create branches
+        if (Math.random() < 0.3 && i > 2 && i < segments - 2) {
+          const branchEnd = basePoint.clone();
+          branchEnd.x += (Math.random() - 0.5) * 30;
+          branchEnd.y -= 10 + Math.random() * 20;
+          branchEnd.z += (Math.random() - 0.5) * 30;
+          
+          // Create branch bolt
+          const branchPoints = [basePoint.clone()];
+          const branchSegs = 3 + Math.floor(Math.random() * 3);
+          for (let j = 1; j <= branchSegs; j++) {
+            const bt = j / branchSegs;
+            const bp = new THREE.Vector3().lerpVectors(basePoint, branchEnd, bt);
+            bp.x += (Math.random() - 0.5) * 5;
+            bp.z += (Math.random() - 0.5) * 5;
+            branchPoints.push(bp);
+          }
+          
+          const branchGeom = new THREE.BufferGeometry().setFromPoints(branchPoints);
+          const branchMat = new THREE.LineBasicMaterial({
+            color: 0xaaddff,
+            transparent: true,
+            opacity: 0.7,
+            linewidth: 1,
+          });
+          const branchLine = new THREE.Line(branchGeom, branchMat);
+          branchLine.userData = { life: 1, decay: 0.15 };
+          scene.add(branchLine);
+          city.lightning.bolts.push(branchLine);
+        }
+      }
+      
+      points.push(endPos.clone());
+      
+      // Create main bolt
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({
+        color: 0xeeffff,
+        transparent: true,
+        opacity: 1,
+        linewidth: 2,
+      });
+      
+      const bolt = new THREE.Line(geometry, material);
+      bolt.userData = { life: 1, decay: 0.12 };
+      
+      // Add glow effect with a wider, dimmer duplicate
+      const glowGeom = geometry.clone();
+      const glowMat = new THREE.LineBasicMaterial({
+        color: 0x6688ff,
+        transparent: true,
+        opacity: 0.4,
+        linewidth: 4,
+      });
+      const glow = new THREE.Line(glowGeom, glowMat);
+      glow.userData = { life: 1, decay: 0.12 };
+      
+      scene.add(bolt);
+      scene.add(glow);
+      city.lightning.bolts.push(bolt, glow);
+      
+      return bolt;
+    }
+    
+    /**
+     * Trigger a lightning flash (screen flash + optional bolt)
+     */
+    function triggerLightningFlash() {
+      // Bright flash
+      city.lightning.flashIntensity = 1;
+      city.lightning.flashHoldTime = 0.05 + Math.random() * 0.05; // 50-100ms hold
+      city.lightning.active = true;
+      
+      // 60% chance to create visible bolt
+      if (Math.random() < 0.6) {
+        // Bolt starts in sky, ends near a building or ground
+        const startX = (Math.random() - 0.5) * 150;
+        const startZ = (Math.random() - 0.5) * 100;
+        const startY = 120 + Math.random() * 40;
+        
+        // End near a random building or just ground
+        let endX, endY, endZ;
+        if (city.buildings.length > 0 && Math.random() < 0.7) {
+          const target = city.buildings[Math.floor(Math.random() * city.buildings.length)];
+          endX = target.x + (Math.random() - 0.5) * 5;
+          endY = target.height + Math.random() * 3;
+          endZ = target.z + (Math.random() - 0.5) * 5;
+        } else {
+          endX = startX + (Math.random() - 0.5) * 40;
+          endY = 0;
+          endZ = startZ + (Math.random() - 0.5) * 40;
+        }
+        
+        createLightningBolt(
+          new THREE.Vector3(startX, startY, startZ),
+          new THREE.Vector3(endX, endY, endZ)
+        );
+      }
+      
+      // Sometimes double-flash
+      if (Math.random() < 0.25) {
+        setTimeout(() => {
+          city.lightning.flashIntensity = 0.7;
+          city.lightning.flashHoldTime = 0.03;
+        }, 80 + Math.random() * 60);
+      }
+      
+      // Schedule next flash (during rain)
+      city.lightning.nextFlashTime = city.time + 3 + Math.random() * 12; // 3-15 seconds
+    }
+    
+    /**
+     * Update lightning system
+     */
+    function updateLightning(dt) {
+      // Only active during rain
+      if (city.weather !== 'rain' && city.targetWeather !== 'rain') {
+        city.lightning.flashIntensity *= 0.9;
+        return;
+      }
+      
+      const rainIntensity = city.weatherIntensity;
+      if (rainIntensity < 0.3) return; // Need decent rain for lightning
+      
+      // Check if time for next flash
+      if (city.time > city.lightning.nextFlashTime && Math.random() < 0.02) {
+        triggerLightningFlash();
+      }
+      
+      // Update flash intensity
+      if (city.lightning.flashHoldTime > 0) {
+        city.lightning.flashHoldTime -= 0.016; // ~60fps
+      } else {
+        city.lightning.flashIntensity *= 0.85; // Quick fade
+      }
+      
+      // Apply flash to ambient light
+      if (city.lightning.flashIntensity > 0.01) {
+        const flashBoost = city.lightning.flashIntensity * 2;
+        if (lighting.ambientLight) {
+          // Temporarily boost ambient during flash
+          lighting.ambientLight.intensity = Math.min(3, lighting.ambientLight.intensity + flashBoost);
+        }
+      }
+      
+      // Update and remove old bolts
+      for (let i = city.lightning.bolts.length - 1; i >= 0; i--) {
+        const bolt = city.lightning.bolts[i];
+        bolt.userData.life -= bolt.userData.decay;
+        bolt.material.opacity = bolt.userData.life;
+        
+        if (bolt.userData.life <= 0) {
+          scene.remove(bolt);
+          bolt.geometry.dispose();
+          bolt.material.dispose();
+          city.lightning.bolts.splice(i, 1);
+        }
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // AUTO WEATHER CYCLING (natural progression through weather states)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const WEATHER_CYCLE_CONFIG = {
+      minDuration: 180,  // Minimum 3 minutes per weather state
+      maxDuration: 600,  // Maximum 10 minutes per weather state
+      // Transition probabilities (weighted by time of day)
+      transitions: {
+        clear: { rain: 0.3, fog: 0.2, aurora: 0.2, clear: 0.3 },
+        rain: { clear: 0.5, fog: 0.3, rain: 0.2, aurora: 0 },
+        fog: { clear: 0.5, rain: 0.2, fog: 0.3, aurora: 0 },
+        aurora: { clear: 0.6, aurora: 0.4, rain: 0, fog: 0 },
+      }
+    };
+    
+    /**
+     * Choose next weather based on probabilities
+     */
+    function chooseNextWeather() {
+      const current = city.weather;
+      const probs = WEATHER_CYCLE_CONFIG.transitions[current] || WEATHER_CYCLE_CONFIG.transitions.clear;
+      
+      // Adjust for time of day
+      let adjustedProbs = { ...probs };
+      
+      // Aurora only at night
+      if (city.nightIntensity < 0.5) {
+        adjustedProbs.aurora = 0;
+      } else {
+        adjustedProbs.aurora *= 2; // More likely at night
+      }
+      
+      // Fog more likely at dawn/dusk
+      if (lighting.goldenHourIntensity > 0) {
+        adjustedProbs.fog *= 1.5;
+      }
+      
+      // Normalize probabilities
+      const total = Object.values(adjustedProbs).reduce((a, b) => a + b, 0);
+      if (total === 0) return 'clear';
+      
+      // Weighted random selection
+      let rand = Math.random() * total;
+      for (const [weather, prob] of Object.entries(adjustedProbs)) {
+        rand -= prob;
+        if (rand <= 0) return weather;
+      }
+      
+      return 'clear';
+    }
+    
+    /**
+     * Update auto weather cycling
+     */
+    function updateWeatherCycle(dt) {
+      if (!city.weatherCycleEnabled) return;
+      
+      // Initialize next change time if not set
+      if (city.nextWeatherChange === 0) {
+        city.nextWeatherChange = city.time + 
+          WEATHER_CYCLE_CONFIG.minDuration + 
+          Math.random() * (WEATHER_CYCLE_CONFIG.maxDuration - WEATHER_CYCLE_CONFIG.minDuration);
+      }
+      
+      // Check if time to change weather
+      if (city.time > city.nextWeatherChange) {
+        const nextWeather = chooseNextWeather();
+        if (nextWeather !== city.weather) {
+          setWeather(nextWeather);
+          console.log(`[WeatherCycle] Auto-transitioning to: ${nextWeather}`);
+        }
+        
+        // Schedule next change
+        city.nextWeatherChange = city.time + 
+          WEATHER_CYCLE_CONFIG.minDuration + 
+          Math.random() * (WEATHER_CYCLE_CONFIG.maxDuration - WEATHER_CYCLE_CONFIG.minDuration);
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
     // GROWTH SYSTEM
     // ═══════════════════════════════════════════════════════════════════════
     
@@ -4724,6 +5836,15 @@
       buildingCountEl.textContent = city.buildings.length;
       districtCountEl.textContent = city.districts.size;
       connectionCountEl.textContent = city.connections.length;
+      
+      // Update agent count (show row only when agents exist)
+      const agentCount = agentSystem?.agents?.size || 0;
+      const agentRow = document.getElementById('agentRow');
+      const agentCountEl = document.getElementById('agentCount');
+      if (agentRow && agentCountEl) {
+        agentCountEl.textContent = agentCount;
+        agentRow.style.display = agentCount > 0 ? 'flex' : 'none';
+      }
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -4762,7 +5883,7 @@
     const controlsHintEl = document.querySelector('.controls-hint');
     
     // District keys mapping for keyboard shortcuts
-    const DISTRICT_KEYS = ['core', 'trading', 'infrastructure', 'projects', 'memory'];
+    const DISTRICT_KEYS = ['core', 'trading', 'execution', 'cognition', 'memory', 'perception', 'growth', 'relationship', 'emotion'];
     
     // ─────────────────────────────────────────────────────────────────────────
     // RAYCASTING & SELECTION
@@ -4930,6 +6051,7 @@
     }
     
     function showInfoPanel(building) {
+      console.log('[showInfoPanel] Called with:', building?.label, 'panel element:', !!infoPanelEl);
       if (!building) return;
       
       const districtData = DISTRICTS[building.district] || DISTRICTS.core;
@@ -4964,6 +6086,7 @@
       }
       
       infoPanelEl.classList.add('visible');
+      console.log('[showInfoPanel] Panel should now be visible, classList:', infoPanelEl.classList.toString());
     }
     
     function hideInfoPanel() {
@@ -5141,6 +6264,8 @@
       }
     });
     
+    let lastClickHandled = 0;
+    
     canvas.addEventListener('mousedown', (event) => {
       mouseDownTime = Date.now();
       mouseDownPos = { x: event.clientX, y: event.clientY };
@@ -5152,7 +6277,33 @@
       
       // Only count as click if short duration and minimal movement
       if (elapsed < 300 && distance < 10) {
-        handleClick(event);
+        if (Date.now() - lastClickHandled > 100) {
+          lastClickHandled = Date.now();
+          handleClick(event);
+        }
+      }
+    });
+    
+    // Backup click handler - always fires, use simple click detection
+    canvas.addEventListener('click', (event) => {
+      // If mouseDownTime wasn't set (OrbitControls intercepted), just handle the click
+      const elapsed = mouseDownTime ? (Date.now() - mouseDownTime) : 0;
+      const distance = mouseDownPos ? Math.hypot(event.clientX - mouseDownPos.x, event.clientY - mouseDownPos.y) : 0;
+      
+      console.log('[ClickEvent] elapsed:', elapsed, 'distance:', distance.toFixed(1), 'hasDownTime:', !!mouseDownTime);
+      
+      // Accept click if: short duration, minimal movement, OR no mousedown recorded (OrbitControls ate it)
+      const isValidClick = (elapsed < 400 && distance < 15) || !mouseDownTime;
+      
+      if (isValidClick) {
+        if (Date.now() - lastClickHandled > 100) {
+          lastClickHandled = Date.now();
+          handleClick(event);
+        } else {
+          console.log('[ClickEvent] Debounced');
+        }
+      } else {
+        console.log('[ClickEvent] Rejected as drag');
       }
     });
     
@@ -5173,7 +6324,12 @@
       const clickedBuilding = raycastBuildings();
       const clickedDistrict = raycastDistrictLabels();
       
+      console.log('[Click] mouse:', interaction.mouse.x.toFixed(2), interaction.mouse.y.toFixed(2), 
+                  'building:', clickedBuilding?.label || 'none', 
+                  'district:', clickedDistrict || 'none');
+      
       if (clickedBuilding) {
+        console.log('[Click] Selecting building:', clickedBuilding.label);
         selectBuilding(clickedBuilding);
       } else if (clickedDistrict) {
         focusDistrict(clickedDistrict);
@@ -5322,6 +6478,23 @@
         setWeather('clear');
         return;
       }
+      // 'w' to toggle auto weather cycling
+      if (key === 'w') {
+        city.weatherCycleEnabled = !city.weatherCycleEnabled;
+        console.log(`[Weather] Auto-cycling: ${city.weatherCycleEnabled ? 'ON' : 'OFF'}`);
+        return;
+      }
+      // 'l' to trigger manual lightning (for testing/fun)
+      if (key === 'l') {
+        if (city.weather !== 'rain') setWeather('rain');
+        setTimeout(() => triggerLightningFlash(), 500);
+        return;
+      }
+      // 'm' to trigger meteor shower
+      if (key === 'm') {
+        triggerMeteorShower(30);
+        return;
+      }
       
       // Arrow keys for slow camera rotation
       const rotationSpeed = 0.02;
@@ -5387,11 +6560,14 @@
         fpsEl.textContent = `${frameCount} fps${interaction.isPaused ? ' (paused)' : ''}`;
         frameCount = 0;
         lastFpsTime = time;
+        updateStats(); // Update HUD stats including agent count
       }
       
       controls.update();
       updateLighting();
       updateWeather(dt);
+      updateLightning(dt);
+      updateWeatherCycle(dt);
       
       // Sound system updates
       if (soundManager.enabled) {
@@ -5463,12 +6639,17 @@
               b.mesh.material.emissive.copy(districtData.emissive);
             }
             
-            b.mesh.material.emissiveIntensity = 0.4 * nightBoost;
+            // Buildings glow more at night - city comes alive!
+            b.mesh.material.emissiveIntensity = 0.4 + city.nightIntensity * 0.8;
             
             // Moonlight blue tint at night
             if (city.nightIntensity > 0.3) {
-              const moonTint = new THREE.Color(0x2244aa).multiplyScalar(city.nightIntensity * 0.1);
+              const moonTint = new THREE.Color(0x2244aa).multiplyScalar(city.nightIntensity * 0.15);
               b.mesh.material.emissive.add(moonTint);
+              
+              // Additional warm window glow to simulate interior lights
+              const windowGlow = new THREE.Color(0xffaa66).multiplyScalar(city.nightIntensity * 0.1);
+              b.mesh.material.emissive.add(windowGlow);
             }
           }
           
@@ -5554,6 +6735,9 @@
       // Drones
       updateDrones(dt);
       
+      // Thought bubbles
+      updateThoughts(dt);
+      
       // Particles
       updateParticles();
       
@@ -5579,6 +6763,15 @@
       // Update data packets traveling on connections
       updateDataPackets(dt);
       
+      // Update brain-like activation effects (energy particles, beams, road glows)
+      updateBrainActivation(dt);
+      
+      // Update agent entities
+      updateAgents(dt);
+      
+      // Update City Planner patrol
+      updateCityPlanner(dt);
+      
       // ═══════════════════════════════════════════════════════════════════════
       // AMBIENT LIFE UPDATES - The city never sleeps (NYC vibes)
       // ═══════════════════════════════════════════════════════════════════════
@@ -5591,6 +6784,9 @@
       
       // Fireflies (night) and dust motes (day)
       updateFirefliesAndDust(dt);
+      
+      // Energy motes (AAA holographic particles)
+      updateEnergyMotes(dt);
       
       // Data streams between connected buildings
       updateDataStreams(dt);
@@ -5606,6 +6802,21 @@
       
       // District-specific building pulses
       updateDistrictPulses(dt);
+      
+      // Update building edge glow effects (cyberpunk neon)
+      if (!isMobile) {
+        city.buildings.forEach(building => {
+          if (!building.mesh) return;
+          building.mesh.children.forEach(child => {
+            if (child.userData && child.userData.edgeGlow) {
+              // Gentle pulse based on night intensity
+              const pulse = 0.25 + Math.sin(dt * 1.5 + child.userData.glowPhase) * 0.1;
+              const nightBoost = city.nightIntensity * 0.4;
+              child.material.opacity = pulse + nightBoost;
+            }
+          });
+        });
+      }
       
       // City growth
       growCity();
@@ -5673,7 +6884,669 @@
       };
     });
     
-    const API_URL = 'https://itself-partners-integrate-memories.trycloudflare.com';
+    const API_URL = 'https://dental-hammer-thereby-physics.trycloudflare.com';
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // BRAIN-LIKE ACTIVATION SYSTEM - Energy flows, district glows, cognitive visuals
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const brainActivation = {
+      // Energy flow particles
+      energyParticles: null,
+      particleCount: isMobile ? 150 : 400,
+      particleVelocities: [],
+      particleTargets: [],    // Where each particle is flowing to
+      particleSources: [],    // Where each particle came from
+      
+      // State
+      energyDirection: 0,     // -1 = inward (thinking), 0 = neutral, 1 = outward (responding)
+      breathPhase: 0,         // For idle breathing effect
+      pulseWave: 0,           // Expanding pulse wave from core during state changes
+      
+      // District activation beams (light pillars)
+      districtBeams: new Map(),
+      
+      // Active connection highlighting
+      activeConnections: new Set(),
+      
+      // Color palettes
+      colors: {
+        idle: {
+          energy: new THREE.Color(0x00ffff),
+          glow: new THREE.Color(0x003344),
+          intensity: 0.3
+        },
+        thinking: {
+          energy: new THREE.Color(0x00aaff),
+          glow: new THREE.Color(0x001155),
+          intensity: 0.9
+        },
+        responding: {
+          energy: new THREE.Color(0xffdd00),
+          glow: new THREE.Color(0x443300),
+          intensity: 1.0
+        }
+      }
+    };
+    
+    /**
+     * Initialize the brain activation energy particle system
+     */
+    function initBrainActivationSystem() {
+      const count = brainActivation.particleCount;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+      const sizes = new Float32Array(count);
+      
+      // Initialize particles distributed across the city
+      for (let i = 0; i < count; i++) {
+        // Start at random positions
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 5 + Math.random() * 60;
+        positions[i * 3] = Math.cos(angle) * radius;
+        positions[i * 3 + 1] = 1 + Math.random() * 20;
+        positions[i * 3 + 2] = Math.sin(angle) * radius;
+        
+        // Initial cyan color
+        colors[i * 3] = 0;
+        colors[i * 3 + 1] = 1;
+        colors[i * 3 + 2] = 1;
+        
+        sizes[i] = 0.3 + Math.random() * 0.4;
+        
+        // Initialize velocity and target data
+        brainActivation.particleVelocities.push({
+          x: (Math.random() - 0.5) * 0.1,
+          y: (Math.random() - 0.5) * 0.05,
+          z: (Math.random() - 0.5) * 0.1,
+          speed: 0.02 + Math.random() * 0.03
+        });
+        brainActivation.particleTargets.push(null);
+        brainActivation.particleSources.push(null);
+      }
+      
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+      
+      // Custom shader for size attenuation and glow
+      const material = new THREE.PointsMaterial({
+        size: 0.5,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true,
+        depthWrite: false
+      });
+      
+      brainActivation.energyParticles = new THREE.Points(geometry, material);
+      scene.add(brainActivation.energyParticles);
+      
+      console.log('[BrainActivation] Energy particle system initialized with', count, 'particles');
+    }
+    
+    /**
+     * Create a light beam pillar for an active district
+     */
+    function createDistrictBeam(districtKey) {
+      if (brainActivation.districtBeams.has(districtKey)) return;
+      
+      const district = DISTRICTS[districtKey];
+      if (!district) return;
+      
+      const beamGroup = new THREE.Group();
+      beamGroup.position.set(district.position.x, 0, district.position.z);
+      
+      // Main beam cylinder
+      const beamHeight = 80;
+      const beamGeo = new THREE.CylinderGeometry(0.5, 2, beamHeight, 8, 1, true);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: district.color,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+      });
+      const beam = new THREE.Mesh(beamGeo, beamMat);
+      beam.position.y = beamHeight / 2;
+      beamGroup.add(beam);
+      
+      // Ground ring
+      const ringGeo = new THREE.RingGeometry(1, 4, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: district.color,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.1;
+      beamGroup.add(ring);
+      
+      // Inner glow core
+      const glowGeo = new THREE.SphereGeometry(2, 16, 16);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: district.color,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending
+      });
+      const glow = new THREE.Mesh(glowGeo, glowMat);
+      glow.position.y = 2;
+      beamGroup.add(glow);
+      
+      scene.add(beamGroup);
+      
+      brainActivation.districtBeams.set(districtKey, {
+        group: beamGroup,
+        beam: beam,
+        ring: ring,
+        glow: glow,
+        targetOpacity: 0,
+        currentOpacity: 0
+      });
+    }
+    
+    /**
+     * Update the brain activation system - called every frame
+     */
+    function updateBrainActivation(dt) {
+      const mode = activityState.mode;
+      const activeDistrict = activityState.activeDistrict;
+      const palette = brainActivation.colors[mode] || brainActivation.colors.idle;
+      
+      // Update energy direction based on mode
+      let targetDirection = 0;
+      if (mode === 'thinking') targetDirection = -1;      // Inward
+      else if (mode === 'responding') targetDirection = 1; // Outward
+      
+      brainActivation.energyDirection += (targetDirection - brainActivation.energyDirection) * 0.02;
+      
+      // Update breathing phase (always runs, more pronounced when idle)
+      const breathSpeed = mode === 'idle' ? 0.5 : 1.5;
+      brainActivation.breathPhase += breathSpeed * 0.016;
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // UPDATE ENERGY PARTICLES
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      if (brainActivation.energyParticles) {
+        const positions = brainActivation.energyParticles.geometry.attributes.position.array;
+        const colors = brainActivation.energyParticles.geometry.attributes.color.array;
+        const velocities = brainActivation.particleVelocities;
+        const targets = brainActivation.particleTargets;
+        
+        const corePos = DISTRICTS.core.position;
+        const activeDistrictPos = activeDistrict ? DISTRICTS[activeDistrict]?.position : null;
+        
+        for (let i = 0; i < velocities.length; i++) {
+          const v = velocities[i];
+          let px = positions[i * 3];
+          let py = positions[i * 3 + 1];
+          let pz = positions[i * 3 + 2];
+          
+          if (mode === 'idle') {
+            // IDLE: Gentle ambient drift with breathing
+            const breathEffect = Math.sin(brainActivation.breathPhase + i * 0.1) * 0.02;
+            px += v.x * 0.3 + breathEffect;
+            py += v.y * 0.3 + Math.sin(dt * 0.5 + i) * 0.01;
+            pz += v.z * 0.3;
+            
+            // Slow color fade to calm cyan
+            colors[i * 3] = colors[i * 3] * 0.99 + 0 * 0.01;
+            colors[i * 3 + 1] = colors[i * 3 + 1] * 0.99 + 0.8 * 0.01;
+            colors[i * 3 + 2] = colors[i * 3 + 2] * 0.99 + 0.9 * 0.01;
+            
+          } else if (mode === 'thinking') {
+            // THINKING: Blue energy gathering toward cognition center (core or active district)
+            const targetPos = activeDistrictPos || corePos;
+            const dx = targetPos.x - px;
+            const dy = 8 - py; // Converge at height 8
+            const dz = targetPos.z - pz;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            
+            if (dist > 1) {
+              // Accelerate toward target
+              const strength = 0.02 + (1 - dist / 80) * 0.03;
+              px += dx / dist * v.speed * 2 + v.x * 0.2;
+              py += dy / dist * v.speed * 1.5;
+              pz += dz / dist * v.speed * 2 + v.z * 0.2;
+              
+              // Spiral inward effect
+              const angle = Math.atan2(pz - targetPos.z, px - targetPos.x);
+              px += Math.cos(angle + Math.PI/2) * 0.05;
+              pz += Math.sin(angle + Math.PI/2) * 0.05;
+            } else {
+              // Respawn at edge when reaching center
+              const spawnAngle = Math.random() * Math.PI * 2;
+              const spawnRadius = 40 + Math.random() * 30;
+              px = corePos.x + Math.cos(spawnAngle) * spawnRadius;
+              py = 2 + Math.random() * 25;
+              pz = corePos.z + Math.sin(spawnAngle) * spawnRadius;
+            }
+            
+            // Blue color with pulse
+            const pulse = 0.7 + Math.sin(dt * 4 + i * 0.3) * 0.3;
+            colors[i * 3] = 0 * pulse;
+            colors[i * 3 + 1] = 0.6 * pulse;
+            colors[i * 3 + 2] = 1.0 * pulse;
+            
+          } else if (mode === 'responding') {
+            // RESPONDING: Golden energy radiating outward from core
+            const dx = px - corePos.x;
+            const dz = pz - corePos.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            
+            if (dist < 70) {
+              // Radiate outward
+              const angle = Math.atan2(dz, dx);
+              const outwardSpeed = v.speed * 2.5;
+              px += Math.cos(angle) * outwardSpeed + v.x * 0.3;
+              py += Math.sin(dt * 2 + i) * 0.02; // Gentle wave
+              pz += Math.sin(angle) * outwardSpeed + v.z * 0.3;
+              
+              // Rise slightly as they spread
+              py += 0.01;
+            } else {
+              // Respawn at core when reaching edge
+              const spawnAngle = Math.random() * Math.PI * 2;
+              px = corePos.x + Math.cos(spawnAngle) * 3;
+              py = 5 + Math.random() * 10;
+              pz = corePos.z + Math.sin(spawnAngle) * 3;
+            }
+            
+            // Golden color with warm pulse
+            const pulse = 0.8 + Math.sin(dt * 3 + i * 0.2) * 0.2;
+            colors[i * 3] = 1.0 * pulse;
+            colors[i * 3 + 1] = 0.85 * pulse;
+            colors[i * 3 + 2] = 0.2 * pulse;
+          }
+          
+          // Boundary enforcement
+          if (py < 0.5) py = 0.5 + Math.random() * 2;
+          if (py > 50) py = 5 + Math.random() * 10;
+          if (Math.abs(px) > 80 || Math.abs(pz) > 80) {
+            px = (Math.random() - 0.5) * 60;
+            pz = (Math.random() - 0.5) * 60;
+          }
+          
+          positions[i * 3] = px;
+          positions[i * 3 + 1] = py;
+          positions[i * 3 + 2] = pz;
+          
+          // Occasionally change drift direction
+          if (Math.random() < 0.002) {
+            v.x = (Math.random() - 0.5) * 0.1;
+            v.z = (Math.random() - 0.5) * 0.1;
+          }
+        }
+        
+        brainActivation.energyParticles.geometry.attributes.position.needsUpdate = true;
+        brainActivation.energyParticles.geometry.attributes.color.needsUpdate = true;
+        
+        // Adjust overall opacity based on mode
+        const targetOpacity = mode === 'idle' ? 0.3 : 0.85;
+        brainActivation.energyParticles.material.opacity += 
+          (targetOpacity - brainActivation.energyParticles.material.opacity) * 0.05;
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // UPDATE DISTRICT BEAMS
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      // Ensure beams exist for all districts
+      Object.keys(DISTRICTS).forEach(key => {
+        if (!brainActivation.districtBeams.has(key)) {
+          createDistrictBeam(key);
+        }
+      });
+      
+      // Update beam opacities
+      brainActivation.districtBeams.forEach((beamData, districtKey) => {
+        const activity = activityState.districtActivity[districtKey];
+        const isActive = activity && activity.intensity > 0.5;
+        const isPrimary = districtKey === activeDistrict;
+        
+        // Target opacity based on activity
+        let targetOpacity = 0;
+        if (mode !== 'idle') {
+          if (isPrimary) targetOpacity = 0.6;
+          else if (isActive) targetOpacity = 0.25;
+        }
+        
+        // Smooth transition
+        beamData.currentOpacity += (targetOpacity - beamData.currentOpacity) * 0.05;
+        
+        // Apply with pulse
+        const pulse = 1 + Math.sin(dt * 3 + districtKey.length) * 0.15;
+        const opacity = beamData.currentOpacity * pulse;
+        
+        beamData.beam.material.opacity = opacity * 0.5;
+        beamData.ring.material.opacity = opacity * 0.8;
+        beamData.glow.material.opacity = opacity * 0.6;
+        
+        // Scale ring pulse
+        const ringScale = 1 + beamData.currentOpacity * Math.sin(dt * 2) * 0.2;
+        beamData.ring.scale.set(ringScale, ringScale, 1);
+        
+        // Glow pulse
+        const glowScale = 1 + beamData.currentOpacity * 0.5 + Math.sin(dt * 4) * 0.1;
+        beamData.glow.scale.setScalar(glowScale);
+        
+        // Color shift based on mode
+        if (mode === 'thinking') {
+          beamData.beam.material.color.lerp(new THREE.Color(0x00aaff), 0.02);
+          beamData.glow.material.color.lerp(new THREE.Color(0x0066ff), 0.02);
+        } else if (mode === 'responding') {
+          beamData.beam.material.color.lerp(new THREE.Color(0xffdd00), 0.02);
+          beamData.glow.material.color.lerp(new THREE.Color(0xffaa00), 0.02);
+        } else {
+          // Return to district color
+          const districtColor = DISTRICTS[districtKey].color;
+          beamData.beam.material.color.lerp(districtColor, 0.02);
+          beamData.glow.material.color.lerp(districtColor, 0.02);
+        }
+      });
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // UPDATE CONNECTION ROAD GLOWS
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      city.connections.forEach((conn, i) => {
+        const fromActivity = activityState.districtActivity[conn.from.district];
+        const toActivity = activityState.districtActivity[conn.to.district];
+        
+        const fromActive = fromActivity && fromActivity.intensity > 0.5;
+        const toActive = toActivity && toActivity.intensity > 0.5;
+        const bothActive = fromActive && toActive;
+        const eitherActive = fromActive || toActive;
+        
+        // Base pulse
+        const baseSpeed = 2 + (i % 3) * 0.3;
+        let basePulse = Math.sin(dt * baseSpeed + i * 0.5) * 0.1;
+        
+        let targetOpacity = 0.15; // Idle base
+        let targetColor = new THREE.Color(0x00ffff);
+        
+        if (mode !== 'idle') {
+          if (bothActive) {
+            // Both endpoints active - BRIGHT glowing road
+            targetOpacity = 0.7 + basePulse;
+            // Color based on mode
+            if (mode === 'thinking') {
+              targetColor = new THREE.Color(0x00aaff);
+            } else if (mode === 'responding') {
+              targetColor = new THREE.Color(0xffdd00);
+            }
+            // Add traveling pulse effect
+            const travelPulse = Math.sin(dt * 5 - i * 0.8) * 0.15;
+            targetOpacity += travelPulse;
+          } else if (eitherActive) {
+            // One endpoint active - moderate glow
+            targetOpacity = 0.35 + basePulse * 0.5;
+            const activeDistrict = fromActive ? conn.from.district : conn.to.district;
+            targetColor = DISTRICTS[activeDistrict]?.color || new THREE.Color(0x00ffff);
+          }
+        }
+        
+        // Smooth transition
+        const currentOpacity = conn.line.material.opacity;
+        conn.line.material.opacity += (targetOpacity - currentOpacity) * 0.08;
+        conn.line.material.color.lerp(targetColor, 0.05);
+        
+        // Night boost
+        conn.line.material.opacity *= (1 + city.nightIntensity * 0.5);
+      });
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // BUILDING-SPECIFIC ACTIVATION SYSTEM (fMRI-like individual building glow)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const buildingActivation = {
+      activeBuildings: new Map(),  // buildingId -> { aura, intensity, startTime }
+      auraPool: [],                // Reusable aura meshes
+      maxAuras: 30,
+    };
+    
+    /**
+     * Activate a specific building with a glowing aura
+     * @param {string} buildingIdOrLabel - Building ID or label to match
+     * @param {object} options - { duration, color, intensity }
+     */
+    function activateBuilding(buildingIdOrLabel, options = {}) {
+      const {
+        duration = 5000,
+        color = null,
+        intensity = 1.0
+      } = options;
+      
+      // Find the building
+      const building = city.buildings.find(b => 
+        b.label === buildingIdOrLabel || 
+        (b.sources && b.sources.some(s => s.includes(buildingIdOrLabel)))
+      );
+      
+      if (!building) {
+        console.log('[BuildingActivation] Building not found:', buildingIdOrLabel);
+        return false;
+      }
+      
+      const key = building.label || `${building.x},${building.z}`;
+      
+      // Check if already active
+      if (buildingActivation.activeBuildings.has(key)) {
+        const existing = buildingActivation.activeBuildings.get(key);
+        existing.intensity = Math.max(existing.intensity, intensity);
+        existing.endTime = Date.now() + duration;
+        return true;
+      }
+      
+      // Create or reuse aura
+      let auraGroup;
+      if (buildingActivation.auraPool.length > 0) {
+        auraGroup = buildingActivation.auraPool.pop();
+        auraGroup.visible = true;
+      } else if (buildingActivation.activeBuildings.size >= buildingActivation.maxAuras) {
+        console.log('[BuildingActivation] Max auras reached');
+        return false;
+      } else {
+        auraGroup = createBuildingAura();
+      }
+      
+      // Position and configure aura
+      const districtColor = color || DISTRICTS[building.district]?.color || new THREE.Color(0x00ffff);
+      auraGroup.position.set(building.x, 0, building.z);
+      
+      // Scale to building size
+      const auraScale = Math.max(building.width, building.depth) * 1.5;
+      auraGroup.scale.set(auraScale, building.height * 1.2, auraScale);
+      
+      // Set color
+      auraGroup.children.forEach(child => {
+        if (child.material) {
+          child.material.color.copy(districtColor);
+        }
+      });
+      
+      buildingActivation.activeBuildings.set(key, {
+        building,
+        auraGroup,
+        intensity,
+        startTime: Date.now(),
+        endTime: Date.now() + duration,
+        districtColor
+      });
+      
+      console.log('[BuildingActivation] Activated:', building.label, 'in', building.district);
+      return true;
+    }
+    
+    /**
+     * Create a reusable building aura mesh
+     */
+    function createBuildingAura() {
+      const group = new THREE.Group();
+      
+      // Outer glow cylinder (soft edge)
+      const outerGeo = new THREE.CylinderGeometry(1, 1, 1, 16, 1, true);
+      const outerMat = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const outer = new THREE.Mesh(outerGeo, outerMat);
+      outer.userData.isOuter = true;
+      group.add(outer);
+      
+      // Inner glow (brighter core)
+      const innerGeo = new THREE.CylinderGeometry(0.6, 0.6, 1, 16, 1, true);
+      const innerMat = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const inner = new THREE.Mesh(innerGeo, innerMat);
+      inner.userData.isInner = true;
+      group.add(inner);
+      
+      // Ground ring
+      const ringGeo = new THREE.RingGeometry(0.8, 1.2, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.1;
+      ring.userData.isRing = true;
+      group.add(ring);
+      
+      scene.add(group);
+      return group;
+    }
+    
+    /**
+     * Update building activations (called every frame)
+     */
+    function updateBuildingActivations(dt) {
+      const now = Date.now();
+      const mode = activityState.mode;
+      
+      buildingActivation.activeBuildings.forEach((data, key) => {
+        const { building, auraGroup, intensity, startTime, endTime, districtColor } = data;
+        
+        // Check if expired
+        if (now > endTime) {
+          // Fade out
+          data.fadingOut = true;
+        }
+        
+        // Calculate opacity
+        let targetOpacity = intensity * 0.4;
+        
+        if (data.fadingOut) {
+          targetOpacity = 0;
+        }
+        
+        // Pulse effect
+        const elapsed = (now - startTime) / 1000;
+        const pulse = 1 + Math.sin(elapsed * 4) * 0.2;
+        
+        // Update aura children
+        auraGroup.children.forEach(child => {
+          if (child.userData.isOuter) {
+            const currentOpacity = child.material.opacity;
+            child.material.opacity += (targetOpacity * 0.5 * pulse - currentOpacity) * 0.1;
+          } else if (child.userData.isInner) {
+            const currentOpacity = child.material.opacity;
+            child.material.opacity += (targetOpacity * 0.8 * pulse - currentOpacity) * 0.1;
+          } else if (child.userData.isRing) {
+            const currentOpacity = child.material.opacity;
+            child.material.opacity += (targetOpacity * pulse - currentOpacity) * 0.1;
+            // Pulse ring scale
+            const ringPulse = 1 + Math.sin(elapsed * 3) * 0.15;
+            child.scale.set(ringPulse, ringPulse, 1);
+          }
+          
+          // Color shift based on mode
+          if (mode === 'thinking') {
+            child.material.color.lerp(new THREE.Color(0x00aaff), 0.02);
+          } else if (mode === 'responding') {
+            child.material.color.lerp(new THREE.Color(0xffdd00), 0.02);
+          } else {
+            child.material.color.lerp(districtColor, 0.02);
+          }
+        });
+        
+        // Remove if fully faded
+        if (data.fadingOut && auraGroup.children[0].material.opacity < 0.01) {
+          auraGroup.visible = false;
+          buildingActivation.auraPool.push(auraGroup);
+          buildingActivation.activeBuildings.delete(key);
+        }
+        
+        // Also boost the actual building's emissive
+        if (building.mesh && building.mesh.material) {
+          const boost = intensity * pulse * 0.5;
+          building.mesh.material.emissiveIntensity = Math.min(2, 
+            building.mesh.material.emissiveIntensity + boost * 0.05);
+        }
+      });
+    }
+    
+    /**
+     * Activate buildings by topic (matches keywords in label/sources)
+     * @param {string} topic - Topic to match
+     */
+    function activateBuildingsByTopic(topic, options = {}) {
+      const lowerTopic = topic.toLowerCase();
+      let activated = 0;
+      
+      city.buildings.forEach(building => {
+        const labelMatch = building.label?.toLowerCase().includes(lowerTopic);
+        const sourceMatch = building.sources?.some(s => s.toLowerCase().includes(lowerTopic));
+        
+        if (labelMatch || sourceMatch) {
+          if (activateBuilding(building.label, options)) {
+            activated++;
+          }
+        }
+      });
+      
+      console.log('[BuildingActivation] Activated', activated, 'buildings for topic:', topic);
+      return activated;
+    }
+    
+    /**
+     * Activate all buildings in a district with staggered timing
+     */
+    function activateDistrictBuildings(districtKey, options = {}) {
+      const { stagger = 100, duration = 3000, intensity = 0.8 } = options;
+      const districtBuildings = city.districts.get(districtKey) || [];
+      
+      districtBuildings.forEach((building, i) => {
+        setTimeout(() => {
+          activateBuilding(building.label, { duration, intensity });
+        }, i * stagger);
+      });
+      
+      console.log('[BuildingActivation] Activating', districtBuildings.length, 'buildings in', districtKey);
+    }
     
     // ═══════════════════════════════════════════════════════════════════════
     // ACTIVITY RIPPLE EFFECTS
@@ -5845,11 +7718,14 @@
     
     function updateDistrictGlows(dt) {
       const now = Date.now();
+      const mode = activityState.mode;
+      const isPrimary = (key) => key === activityState.activeDistrict;
       
       Object.entries(activityState.districtActivity).forEach(([key, activity]) => {
-        // Smooth intensity transitions
+        // Smooth intensity transitions - FASTER when activating, slower when deactivating
         const diff = activity.targetIntensity - activity.intensity;
-        activity.intensity += diff * 0.05;
+        const transitionSpeed = diff > 0 ? 0.1 : 0.03; // Fast on, slow off
+        activity.intensity += diff * transitionSpeed;
         
         // Decay heat level over time (warmth map)
         const timeSinceActive = (now - activity.lastActive) / 1000;
@@ -5857,11 +7733,16 @@
           activity.heatLevel = Math.max(0, activity.heatLevel - 0.001);
         }
         
-        // Calculate effective glow (base + activity + heat)
-        const baseGlow = 0.3;
-        const activityGlow = activity.intensity * 0.7;
-        const heatGlow = activity.heatLevel * 0.2;
-        const effectiveGlow = baseGlow + activityGlow + heatGlow;
+        // Calculate effective glow with MODE-BASED BOOST
+        const baseGlow = mode === 'idle' ? 0.2 : 0.3;
+        const activityGlow = activity.intensity * (mode === 'idle' ? 0.5 : 1.0);
+        const heatGlow = activity.heatLevel * 0.3;
+        let effectiveGlow = baseGlow + activityGlow + heatGlow;
+        
+        // PRIMARY DISTRICT gets extra dramatic boost
+        if (isPrimary(key) && mode !== 'idle') {
+          effectiveGlow *= 1.5;
+        }
         
         // Update buildings in this district
         const districtBuildings = city.districts.get(key) || [];
@@ -5870,30 +7751,75 @@
           
           const districtData = DISTRICTS[key];
           
-          // Pulsing effect when active
+          // ENHANCED PULSING - More dramatic when active
           let pulseMultiplier = 1;
-          if (activity.intensity > 0.5) {
-            const pulseSpeed = 2 + activity.intensity * 2;
-            pulseMultiplier = 1 + Math.sin(dt * pulseSpeed + activity.pulsePhase + idx * 0.3) * 0.15;
+          if (activity.intensity > 0.4) {
+            const pulseSpeed = mode === 'idle' ? 1.5 : (3 + activity.intensity * 3);
+            const pulseAmplitude = mode === 'idle' ? 0.08 : (0.2 + activity.intensity * 0.15);
+            pulseMultiplier = 1 + Math.sin(dt * pulseSpeed + activity.pulsePhase + idx * 0.3) * pulseAmplitude;
+            
+            // Staggered ripple effect through buildings when highly active
+            if (activity.intensity > 0.7) {
+              const rippleDelay = idx * 0.15;
+              const ripple = Math.sin(dt * 6 - rippleDelay) * 0.1;
+              pulseMultiplier += Math.max(0, ripple);
+            }
           }
           
-          // Apply emissive intensity
-          building.mesh.material.emissiveIntensity = effectiveGlow * pulseMultiplier * (1 + city.nightIntensity * 0.5);
+          // Apply emissive intensity with night boost
+          const nightBoost = 1 + city.nightIntensity * 0.7;
+          building.mesh.material.emissiveIntensity = effectiveGlow * pulseMultiplier * nightBoost;
+          
+          // COLOR SHIFT based on cognitive mode
+          let targetEmissive = districtData.emissive.clone();
+          if (mode === 'thinking' && activity.intensity > 0.5) {
+            // Shift toward blue when thinking
+            targetEmissive.lerp(new THREE.Color(0x002266), 0.3 * activity.intensity);
+          } else if (mode === 'responding' && activity.intensity > 0.5) {
+            // Shift toward gold when responding
+            targetEmissive.lerp(new THREE.Color(0x443300), 0.3 * activity.intensity);
+          }
           
           // Color saturation boost when highly active
-          if (activity.intensity > 0.7) {
-            const satBoost = (activity.intensity - 0.7) * 3;
-            const boostedColor = districtData.emissive.clone();
-            boostedColor.multiplyScalar(1 + satBoost);
-            building.mesh.material.emissive.copy(boostedColor);
+          if (activity.intensity > 0.6) {
+            const satBoost = (activity.intensity - 0.6) * 2.5;
+            targetEmissive.multiplyScalar(1 + satBoost);
           }
+          building.mesh.material.emissive.lerp(targetEmissive, 0.05);
           
-          // Update window children to glow brighter
-          building.mesh.children.forEach(child => {
+          // WINDOW ACTIVATION - More windows light up when district is active
+          building.mesh.children.forEach((child, childIdx) => {
             if (child.material && child.material.opacity !== undefined) {
               if (!child.userData.hologram && !child.userData.blink) {
-                const windowBoost = activity.intensity > 0.5 ? 0.3 : 0;
-                child.material.opacity = Math.min(1, child.material.opacity + windowBoost * pulseMultiplier);
+                // Base window brightness
+                let windowBrightness = 0.3;
+                
+                if (activity.intensity > 0.4) {
+                  // Windows progressively light up based on activity
+                  const activationThreshold = childIdx / building.mesh.children.length;
+                  if (activity.intensity > activationThreshold) {
+                    windowBrightness = 0.6 + activity.intensity * 0.4;
+                    
+                    // Individual window flicker
+                    const flicker = Math.sin(dt * (5 + childIdx % 3) + childIdx) * 0.1;
+                    windowBrightness += flicker;
+                  }
+                }
+                
+                // Pulse windows with building
+                windowBrightness *= pulseMultiplier;
+                
+                // Mode-based window color tint
+                if (child.material.color && mode !== 'idle' && activity.intensity > 0.5) {
+                  const tintStrength = activity.intensity * 0.3;
+                  if (mode === 'thinking') {
+                    child.material.color.lerp(new THREE.Color(0x88ccff), tintStrength * 0.1);
+                  } else if (mode === 'responding') {
+                    child.material.color.lerp(new THREE.Color(0xffffaa), tintStrength * 0.1);
+                  }
+                }
+                
+                child.material.opacity = Math.min(1, windowBrightness);
               }
             }
           });
@@ -6024,6 +7950,1169 @@
       });
     }
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // AGENT VISUALIZATION SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const agentSystem = {
+      agents: new Map(),           // sessionId -> agent object
+      maxAgents: 20,               // Performance limit
+      minDisplayTime: 3000,        // Minimum ms to show agent (even if task completes faster)
+      
+      // Visual configuration
+      config: {
+        mainAgent: {
+          coreRadius: 1.5,         // Bigger for visibility
+          eyeRadius: 0.5,
+          color: 0x00ffff,         // Cyan for main
+          trailLength: 40,
+          glowIntensity: 1.2
+        },
+        subAgent: {
+          coreRadius: 0.8,
+          eyeRadius: 0.3,
+          color: 0xff00ff,         // Magenta for sub-agents
+          trailLength: 25,
+          glowIntensity: 1.0
+        },
+        planner: {
+          coreRadius: 2.0,         // Larger, more prominent
+          eyeRadius: 0.6,
+          color: 0xffd700,         // Golden - the guardian
+          trailLength: 60,
+          glowIntensity: 1.5
+        }
+      }
+    };
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // CITY PLANNER - Permanent guardian that patrols and optimizes memory
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const cityPlanner = {
+      entity: null,                // The visual entity
+      active: false,
+      
+      // Patrol state
+      currentDistrict: 0,          // Index into DISTRICT_KEYS
+      targetBuilding: null,        // Building being examined
+      patrolProgress: 0,           // 0-1 progress to next waypoint
+      scanProgress: 0,             // 0-1 when scanning a building
+      isScanning: false,
+      lastScanTime: 0,
+      
+      // Patrol config
+      patrolSpeed: 0.002,          // How fast it moves between waypoints
+      scanDuration: 3000,          // ms to scan each building
+      scanInterval: 8000,          // ms between scans
+      patrolHeight: 30,            // Altitude
+      
+      // Visual elements (created on init)
+      scanBeam: null,              // Beam projected during scanning
+      scanRing: null,              // Ring around scanned building
+    };
+    
+    /**
+     * Initialize the City Planner - call after city loads
+     */
+    function initCityPlanner() {
+      if (cityPlanner.active) return;
+      
+      console.log('[Planner] Initializing City Planner...');
+      
+      const config = agentSystem.config.planner;
+      const baseColor = new THREE.Color(config.color);
+      
+      // Start above Core district
+      const startPos = new THREE.Vector3(
+        DISTRICTS.core.position.x,
+        cityPlanner.patrolHeight,
+        DISTRICTS.core.position.z
+      );
+      
+      const group = new THREE.Group();
+      group.position.copy(startPos);
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // PLANNER VISUAL: Golden ethereal figure with halo rings
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      const scale = config.coreRadius * 1.5;
+      
+      // Core: Glowing golden octahedron (diamond shape)
+      const coreGeo = new THREE.OctahedronGeometry(config.coreRadius, 0);
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: baseColor,
+        transparent: true,
+        opacity: 0.8
+      });
+      const core = new THREE.Mesh(coreGeo, coreMat);
+      group.add(core);
+      
+      // Outer glow
+      const glowGeo = new THREE.OctahedronGeometry(config.coreRadius * 1.5, 0);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: baseColor,
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.BackSide
+      });
+      const glow = new THREE.Mesh(glowGeo, glowMat);
+      group.add(glow);
+      
+      // Orbiting halo rings (3 rings at different angles)
+      const rings = [];
+      for (let i = 0; i < 3; i++) {
+        const ringGeo = new THREE.TorusGeometry(config.coreRadius * 2, 0.08, 8, 32);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: i === 0 ? 0xffffff : baseColor,
+          transparent: true,
+          opacity: 0.5
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2 + (i * Math.PI / 6);
+        ring.rotation.z = i * Math.PI / 4;
+        ring.userData = { orbitSpeed: 0.5 + i * 0.3, orbitAxis: i };
+        rings.push(ring);
+        group.add(ring);
+      }
+      
+      // Central eye (all-seeing)
+      const eyeGeo = new THREE.SphereGeometry(config.eyeRadius, 16, 16);
+      const eyeMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 1
+      });
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      group.add(eye);
+      
+      // Trail
+      const trailPositions = new Float32Array(config.trailLength * 3);
+      const trailColors = new Float32Array(config.trailLength * 3);
+      for (let i = 0; i < config.trailLength; i++) {
+        trailPositions[i * 3] = startPos.x;
+        trailPositions[i * 3 + 1] = startPos.y;
+        trailPositions[i * 3 + 2] = startPos.z;
+        const fade = 1 - i / config.trailLength;
+        trailColors[i * 3] = baseColor.r * fade;
+        trailColors[i * 3 + 1] = baseColor.g * fade;
+        trailColors[i * 3 + 2] = baseColor.b * fade;
+      }
+      
+      const trailGeo = new THREE.BufferGeometry();
+      trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+      trailGeo.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+      
+      const trailMat = new THREE.PointsMaterial({
+        size: 0.4,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.6,
+        sizeAttenuation: true,
+        blending: THREE.AdditiveBlending
+      });
+      const trail = new THREE.Points(trailGeo, trailMat);
+      scene.add(trail);
+      
+      // Scan beam (initially hidden)
+      const beamGeo = new THREE.CylinderGeometry(0.1, 1.5, 30, 8);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: baseColor,
+        transparent: true,
+        opacity: 0
+      });
+      const scanBeam = new THREE.Mesh(beamGeo, beamMat);
+      scanBeam.rotation.x = Math.PI; // Point downward
+      group.add(scanBeam);
+      
+      scene.add(group);
+      
+      // Store references
+      cityPlanner.entity = {
+        group,
+        core,
+        glow,
+        rings,
+        eye,
+        trail,
+        scanBeam,
+        baseColor
+      };
+      
+      cityPlanner.active = true;
+      console.log('[Planner] City Planner activated - patrolling districts');
+    }
+    
+    /**
+     * Update City Planner patrol and scanning
+     */
+    function updateCityPlanner(dt) {
+      if (!cityPlanner.active || !cityPlanner.entity) return;
+      
+      const { group, core, glow, rings, eye, trail, scanBeam, baseColor } = cityPlanner.entity;
+      const now = Date.now();
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // PATROL MOVEMENT - Drift between district centers
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      if (!cityPlanner.isScanning) {
+        cityPlanner.patrolProgress += cityPlanner.patrolSpeed;
+        
+        if (cityPlanner.patrolProgress >= 1) {
+          // Arrived at district - maybe scan a building
+          cityPlanner.patrolProgress = 0;
+          cityPlanner.currentDistrict = (cityPlanner.currentDistrict + 1) % DISTRICT_KEYS.length;
+          
+          // Chance to scan a random building in this district
+          if (now - cityPlanner.lastScanTime > cityPlanner.scanInterval) {
+            const districtKey = DISTRICT_KEYS[cityPlanner.currentDistrict];
+            const districtBuildings = city.districts.get(districtKey) || [];
+            if (districtBuildings.length > 0) {
+              cityPlanner.targetBuilding = districtBuildings[Math.floor(Math.random() * districtBuildings.length)];
+              cityPlanner.isScanning = true;
+              cityPlanner.scanProgress = 0;
+              cityPlanner.lastScanTime = now;
+              
+              const building = cityPlanner.targetBuilding;
+              console.log('[Planner] Scanning building:', building.label || 'unknown');
+              
+              // Report scan to Knowledge Engine
+              fetch(`${API_URL}/planner/scan`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  buildingId: building.id || 'unknown',
+                  district: building.district || districtKey,
+                  label: building.label || 'unnamed'
+                })
+              }).then(r => r.json()).then(data => {
+                if (data.finding) {
+                  console.log('[Planner] Finding:', data.finding.message);
+                  showPlannerFinding(data.finding);
+                }
+              }).catch(e => console.warn('[Planner] Scan report failed:', e.message));
+            }
+          }
+          
+          // Track patrol cycles - trigger optimization after visiting all districts
+          if (cityPlanner.currentDistrict === 0 && cityPlanner.patrolProgress < 0.01) {
+            if (!cityPlanner.patrolCycleReported) {
+              cityPlanner.patrolCycleReported = true;
+              cityPlanner.patrolCycles = (cityPlanner.patrolCycles || 0) + 1;
+              
+              console.log('[Planner] Patrol cycle', cityPlanner.patrolCycles, 'complete - running optimization');
+              
+              // Trigger optimization on Knowledge Engine
+              fetch(`${API_URL}/planner/patrol-complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cycle: cityPlanner.patrolCycles })
+              }).then(r => r.json()).then(data => {
+                console.log('[Planner] Optimization result:', data.result?.actions?.length || 0, 'actions');
+                if (data.result?.actions) {
+                  data.result.actions.forEach(a => {
+                    if (a.type === 'warning') showPlannerFinding({ type: 'warning', message: a.message });
+                  });
+                }
+              }).catch(e => console.warn('[Planner] Optimization failed:', e.message));
+            }
+          } else {
+            cityPlanner.patrolCycleReported = false;
+          }
+        }
+        
+        // Interpolate position between current and next district
+        const currentKey = DISTRICT_KEYS[cityPlanner.currentDistrict];
+        const nextKey = DISTRICT_KEYS[(cityPlanner.currentDistrict + 1) % DISTRICT_KEYS.length];
+        const currentDist = DISTRICTS[currentKey];
+        const nextDist = DISTRICTS[nextKey];
+        
+        // Smooth easing
+        const t = cityPlanner.patrolProgress;
+        const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        
+        group.position.x = currentDist.position.x + (nextDist.position.x - currentDist.position.x) * eased;
+        group.position.z = currentDist.position.z + (nextDist.position.z - currentDist.position.z) * eased;
+        group.position.y = cityPlanner.patrolHeight + Math.sin(dt * 0.5) * 2; // Gentle bob
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // SCANNING BEHAVIOR - Examine a building
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      if (cityPlanner.isScanning && cityPlanner.targetBuilding) {
+        cityPlanner.scanProgress += 1000 / 60 / cityPlanner.scanDuration; // ~60fps
+        
+        // Move toward building
+        const targetPos = cityPlanner.targetBuilding.mesh.position;
+        group.position.x += (targetPos.x - group.position.x) * 0.02;
+        group.position.z += (targetPos.z - group.position.z) * 0.02;
+        group.position.y = cityPlanner.patrolHeight * 0.7; // Lower when scanning
+        
+        // Show scan beam
+        scanBeam.material.opacity = 0.4 * Math.sin(cityPlanner.scanProgress * Math.PI);
+        scanBeam.position.y = -15;
+        
+        // Pulse the target building
+        if (cityPlanner.targetBuilding.mesh.material) {
+          const pulse = 1 + Math.sin(dt * 8) * 0.3;
+          cityPlanner.targetBuilding.mesh.material.emissiveIntensity = pulse;
+        }
+        
+        if (cityPlanner.scanProgress >= 1) {
+          // Scan complete
+          cityPlanner.isScanning = false;
+          cityPlanner.targetBuilding = null;
+          scanBeam.material.opacity = 0;
+          console.log('[Planner] Scan complete');
+        }
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // VISUAL ANIMATION - Always running
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      // Core rotation
+      core.rotation.y += 0.01;
+      core.rotation.x = Math.sin(dt * 0.3) * 0.2;
+      
+      // Glow pulse
+      const glowPulse = 1 + Math.sin(dt * 2) * 0.2;
+      glow.scale.setScalar(glowPulse);
+      
+      // Orbiting rings
+      rings.forEach((ring, i) => {
+        ring.rotation.z += ring.userData.orbitSpeed * 0.01;
+        ring.rotation.y += ring.userData.orbitSpeed * 0.005;
+      });
+      
+      // Eye looks around
+      eye.rotation.y = Math.sin(dt * 0.5) * 0.5;
+      eye.rotation.x = Math.cos(dt * 0.3) * 0.3;
+      
+      // Brightness boost when scanning
+      const scanBoost = cityPlanner.isScanning ? 0.3 : 0;
+      core.material.opacity = 0.8 + scanBoost;
+      eye.material.opacity = 1;
+      
+      // Update trail
+      const positions = trail.geometry.attributes.position.array;
+      for (let i = positions.length - 3; i >= 3; i -= 3) {
+        positions[i] = positions[i - 3];
+        positions[i + 1] = positions[i - 2];
+        positions[i + 2] = positions[i - 1];
+      }
+      positions[0] = group.position.x;
+      positions[1] = group.position.y;
+      positions[2] = group.position.z;
+      trail.geometry.attributes.position.needsUpdate = true;
+    }
+    
+    /**
+     * Display a Planner finding as floating text/effect
+     */
+    function showPlannerFinding(finding) {
+      // Create floating notification in 3D space near the planner
+      if (!cityPlanner.entity) return;
+      
+      const colors = {
+        stale: 0xff6600,      // Orange
+        warning: 0xffaa00,    // Yellow  
+        actionable: 0x00aaff, // Blue
+        cleanup: 0xff00aa,    // Pink
+        info: 0x00ff88        // Green
+      };
+      
+      const color = colors[finding.type] || 0xffffff;
+      const pos = cityPlanner.entity.group.position.clone();
+      
+      // Create pulsing ring at planner position
+      const ringGeo = new THREE.RingGeometry(2, 3, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.copy(pos);
+      ring.userData = { startTime: Date.now(), duration: 2000 };
+      scene.add(ring);
+      
+      // Animate and remove
+      function animateRing() {
+        const elapsed = Date.now() - ring.userData.startTime;
+        const progress = elapsed / ring.userData.duration;
+        
+        if (progress >= 1) {
+          scene.remove(ring);
+          ring.geometry.dispose();
+          ring.material.dispose();
+          return;
+        }
+        
+        ring.scale.setScalar(1 + progress * 3);
+        ring.material.opacity = 0.8 * (1 - progress);
+        ring.position.y += 0.05;
+        requestAnimationFrame(animateRing);
+      }
+      animateRing();
+      
+      // Also show in HUD/console
+      console.log(`[Planner Finding] ${finding.type.toUpperCase()}: ${finding.message}`);
+    }
+    
+    /**
+     * Create a new agent entity in the city
+     */
+    function createAgent(sessionId, options = {}) {
+      if (agentSystem.agents.has(sessionId)) {
+        console.log('[Agents] Agent already exists:', sessionId);
+        return agentSystem.agents.get(sessionId);
+      }
+      
+      if (agentSystem.agents.size >= agentSystem.maxAgents) {
+        console.warn('[Agents] Max agents reached, skipping:', sessionId);
+        return null;
+      }
+      
+      const isMain = !options.parentId;
+      const config = isMain ? agentSystem.config.mainAgent : agentSystem.config.subAgent;
+      const baseColor = new THREE.Color(options.color || config.color);
+      
+      // Determine target district from task keywords
+      const targetDistrict = options.district || classifyTaskToDistrict(options.task || '');
+      const districtData = DISTRICTS[targetDistrict] || DISTRICTS.core;
+      
+      // Spawn position: HIGH above Core for visibility
+      let spawnPos;
+      if (options.parentId && agentSystem.agents.has(options.parentId)) {
+        const parent = agentSystem.agents.get(options.parentId);
+        spawnPos = parent.group.position.clone();
+        spawnPos.y += 5; // Spawn above parent
+      } else {
+        spawnPos = new THREE.Vector3(
+          DISTRICTS.core.position.x + (Math.random() - 0.5) * 8,
+          35 + Math.random() * 10,  // HIGH spawn (35-45 units up)
+          DISTRICTS.core.position.z + (Math.random() - 0.5) * 8
+        );
+      }
+      
+      // Target position: HIGH above district for visibility
+      const targetPos = new THREE.Vector3(
+        districtData.position.x + (Math.random() - 0.5) * 20,
+        25 + Math.random() * 10,  // HIGH flight (25-35 units up)
+        districtData.position.z + (Math.random() - 0.5) * 20
+      );
+      
+      // Create agent group
+      const group = new THREE.Group();
+      group.position.copy(spawnPos);
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // CONSTELLATION SHEPHERD - Humanoid silhouette made of floating star points
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      const scale = config.coreRadius * 2; // Overall size multiplier
+      
+      // Define humanoid skeleton points (local coordinates)
+      const skeletonPoints = [
+        // Head (5 points)
+        [0, 2.2, 0], [0.15, 2.1, 0.1], [-0.15, 2.1, 0.1], [0.1, 2.0, -0.1], [-0.1, 2.0, -0.1],
+        // Neck/shoulders (4 points)  
+        [0, 1.8, 0], [0.5, 1.6, 0], [-0.5, 1.6, 0], [0, 1.6, 0.1],
+        // Torso (8 points)
+        [0.3, 1.3, 0.1], [-0.3, 1.3, 0.1], [0.25, 1.0, 0], [-0.25, 1.0, 0],
+        [0.2, 0.7, 0.05], [-0.2, 0.7, 0.05], [0.15, 0.5, 0], [-0.15, 0.5, 0],
+        // Arms (8 points)
+        [0.7, 1.4, 0], [0.9, 1.1, 0.1], [1.0, 0.8, 0], [1.1, 0.5, 0.1],
+        [-0.7, 1.4, 0], [-0.9, 1.1, 0.1], [-1.0, 0.8, 0], [-1.1, 0.5, 0.1],
+        // Legs (8 points)
+        [0.2, 0.3, 0], [0.25, 0, 0.05], [0.3, -0.4, 0], [0.25, -0.8, 0],
+        [-0.2, 0.3, 0], [-0.25, 0, 0.05], [-0.3, -0.4, 0], [-0.25, -0.8, 0],
+        // Extra detail points (scattered)
+        [0, 1.4, 0.15], [0.4, 1.5, -0.05], [-0.4, 1.5, -0.05], [0, 0.9, 0.1],
+      ];
+      
+      // Create points geometry
+      const starCount = skeletonPoints.length;
+      const starPositions = new Float32Array(starCount * 3);
+      const starSizes = new Float32Array(starCount);
+      const starOriginal = []; // Store original positions for drift animation
+      
+      for (let i = 0; i < starCount; i++) {
+        const [x, y, z] = skeletonPoints[i];
+        starPositions[i * 3] = x * scale;
+        starPositions[i * 3 + 1] = y * scale;
+        starPositions[i * 3 + 2] = z * scale;
+        starOriginal.push({ x: x * scale, y: y * scale, z: z * scale });
+        // Core points (head, chest) are bigger
+        starSizes[i] = (i < 5 || (i >= 9 && i < 13)) ? 0.4 : 0.25;
+      }
+      
+      const starsGeo = new THREE.BufferGeometry();
+      starsGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+      starsGeo.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
+      
+      const starsMat = new THREE.PointsMaterial({
+        color: baseColor,
+        size: 0.5,
+        transparent: true,
+        opacity: 0.9,
+        sizeAttenuation: true,
+        blending: THREE.AdditiveBlending
+      });
+      const core = new THREE.Points(starsGeo, starsMat);
+      core.userData.starOriginal = starOriginal;
+      core.userData.isConstellation = true;
+      group.add(core);
+      
+      // Create connecting lines between nearby points
+      const linePositions = [];
+      const connectionThreshold = 0.8 * scale; // Connect points within this distance
+      
+      for (let i = 0; i < starCount; i++) {
+        for (let j = i + 1; j < starCount; j++) {
+          const dx = starPositions[i * 3] - starPositions[j * 3];
+          const dy = starPositions[i * 3 + 1] - starPositions[j * 3 + 1];
+          const dz = starPositions[i * 3 + 2] - starPositions[j * 3 + 2];
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          
+          if (dist < connectionThreshold) {
+            linePositions.push(
+              starPositions[i * 3], starPositions[i * 3 + 1], starPositions[i * 3 + 2],
+              starPositions[j * 3], starPositions[j * 3 + 1], starPositions[j * 3 + 2]
+            );
+          }
+        }
+      }
+      
+      const linesGeo = new THREE.BufferGeometry();
+      linesGeo.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+      
+      const linesMat = new THREE.LineBasicMaterial({
+        color: baseColor,
+        transparent: true,
+        opacity: 0.3,
+        blending: THREE.AdditiveBlending
+      });
+      const glow = new THREE.LineSegments(linesGeo, linesMat); // Using 'glow' var for compatibility
+      glow.userData.isConstellationLines = true;
+      group.add(glow);
+      
+      // Bright "heart" star at chest center
+      const heartGeo = new THREE.SphereGeometry(0.15, 8, 8);
+      const heartMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 1
+      });
+      const eye = new THREE.Mesh(heartGeo, heartMat); // Using 'eye' var for compatibility
+      eye.position.set(0, 1.4 * scale, 0.1 * scale);
+      group.add(eye);
+      
+      // Trail particles (GPU-friendly point system)
+      const trailPositions = new Float32Array(config.trailLength * 3);
+      const trailColors = new Float32Array(config.trailLength * 3);
+      const trailSizes = new Float32Array(config.trailLength);
+      
+      for (let i = 0; i < config.trailLength; i++) {
+        trailPositions[i * 3] = spawnPos.x;
+        trailPositions[i * 3 + 1] = spawnPos.y;
+        trailPositions[i * 3 + 2] = spawnPos.z;
+        trailColors[i * 3] = baseColor.r;
+        trailColors[i * 3 + 1] = baseColor.g;
+        trailColors[i * 3 + 2] = baseColor.b;
+        trailSizes[i] = config.coreRadius * 0.3 * (1 - i / config.trailLength);
+      }
+      
+      const trailGeo = new THREE.BufferGeometry();
+      trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+      trailGeo.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+      trailGeo.setAttribute('size', new THREE.BufferAttribute(trailSizes, 1));
+      
+      const trailMat = new THREE.PointsMaterial({
+        size: config.coreRadius * 0.4,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.6,
+        sizeAttenuation: true
+      });
+      const trail = new THREE.Points(trailGeo, trailMat);
+      scene.add(trail); // Trail is in world space
+      
+      scene.add(group);
+      
+      const agent = {
+        sessionId,
+        isMain,
+        group,
+        core,
+        glow,
+        eye,
+        trail,
+        baseColor: baseColor.clone(),
+        
+        // State
+        state: 'spawning',           // spawning, working, completing, despawning
+        spawnProgress: 0,            // 0-1 for spawn animation
+        
+        // Movement
+        position: spawnPos.clone(),
+        targetPosition: targetPos.clone(),
+        velocity: new THREE.Vector3(),
+        
+        // Task info
+        task: options.task || '',
+        label: options.label || sessionId,
+        district: targetDistrict,
+        parentId: options.parentId || null,
+        
+        // Timing
+        createdAt: Date.now(),
+        lastActivity: Date.now(),
+        
+        // Visual state
+        pulsePhase: Math.random() * Math.PI * 2,
+        rotationSpeed: 0.5 + Math.random() * 0.5,
+        bobOffset: Math.random() * Math.PI * 2
+      };
+      
+      agentSystem.agents.set(sessionId, agent);
+      console.log('[Agents] Created:', sessionId, 'district:', targetDistrict, 'isMain:', isMain);
+      
+      // Trigger spawn effect
+      createAgentSpawnEffect(agent);
+      
+      return agent;
+    }
+    
+    /**
+     * Spawn effect: DRAMATIC materialization animation
+     */
+    function createAgentSpawnEffect(agent) {
+      const spawnPos = agent.position.clone();
+      
+      // 1. LARGE EXPANDING FLASH SPHERE
+      const flashGeo = new THREE.SphereGeometry(1, 16, 16);
+      const flashMat = new THREE.MeshBasicMaterial({
+        color: agent.baseColor,
+        transparent: true,
+        opacity: 1
+      });
+      const flash = new THREE.Mesh(flashGeo, flashMat);
+      flash.position.copy(spawnPos);
+      flash.userData = { startTime: Date.now(), duration: 800 };
+      scene.add(flash);
+      
+      function animateFlash() {
+        const elapsed = Date.now() - flash.userData.startTime;
+        const progress = elapsed / flash.userData.duration;
+        
+        if (progress >= 1) {
+          scene.remove(flash);
+          flash.geometry.dispose();
+          flash.material.dispose();
+          return;
+        }
+        
+        // Expand dramatically
+        flash.scale.setScalar(1 + progress * 8);
+        flash.material.opacity = (1 - progress) * 0.8;
+        requestAnimationFrame(animateFlash);
+      }
+      animateFlash();
+      
+      // 2. VERTICAL BEAM (descending from sky)
+      const beamGeo = new THREE.CylinderGeometry(0.3, 0.8, 50, 8);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: agent.baseColor,
+        transparent: true,
+        opacity: 0.6
+      });
+      const beam = new THREE.Mesh(beamGeo, beamMat);
+      beam.position.set(spawnPos.x, spawnPos.y + 25, spawnPos.z);
+      beam.userData = { startTime: Date.now(), duration: 1200 };
+      scene.add(beam);
+      
+      function animateBeam() {
+        const elapsed = Date.now() - beam.userData.startTime;
+        const progress = elapsed / beam.userData.duration;
+        
+        if (progress >= 1) {
+          scene.remove(beam);
+          beam.geometry.dispose();
+          beam.material.dispose();
+          return;
+        }
+        
+        // Shrink from top
+        const scaleY = 1 - progress;
+        beam.scale.set(1 - progress * 0.5, scaleY, 1 - progress * 0.5);
+        beam.position.y = spawnPos.y + 25 * scaleY;
+        beam.material.opacity = 0.6 * (1 - progress);
+        requestAnimationFrame(animateBeam);
+      }
+      animateBeam();
+      
+      // 3. MULTIPLE EXPANDING RINGS (ground level)
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => {
+          const ringGeo = new THREE.RingGeometry(0.5, 1.5, 32);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: agent.baseColor,
+            transparent: true,
+            opacity: 0.9,
+            side: THREE.DoubleSide
+          });
+          const ring = new THREE.Mesh(ringGeo, ringMat);
+          ring.rotation.x = -Math.PI / 2;
+          ring.position.set(spawnPos.x, 0.3, spawnPos.z);
+          ring.userData = { startTime: Date.now(), duration: 1500 };
+          scene.add(ring);
+          
+          function animateRing() {
+            const elapsed = Date.now() - ring.userData.startTime;
+            const progress = elapsed / ring.userData.duration;
+            
+            if (progress >= 1) {
+              scene.remove(ring);
+              ring.geometry.dispose();
+              ring.material.dispose();
+              return;
+            }
+            
+            const scale = 1 + progress * 20;
+            ring.scale.set(scale, scale, 1);
+            ring.material.opacity = 0.9 * (1 - progress * progress);
+            requestAnimationFrame(animateRing);
+          }
+          animateRing();
+        }, i * 200);
+      }
+      
+      // 4. PARTICLE BURST (scattered sparks)
+      const sparkCount = 20;
+      for (let i = 0; i < sparkCount; i++) {
+        const sparkGeo = new THREE.SphereGeometry(0.15, 4, 4);
+        const sparkMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 1
+        });
+        const spark = new THREE.Mesh(sparkGeo, sparkMat);
+        spark.position.copy(spawnPos);
+        
+        const velocity = new THREE.Vector3(
+          (Math.random() - 0.5) * 0.4,
+          Math.random() * 0.3 + 0.2,
+          (Math.random() - 0.5) * 0.4
+        );
+        
+        spark.userData = { velocity, startTime: Date.now(), duration: 1000 };
+        scene.add(spark);
+        
+        function animateSpark() {
+          const elapsed = Date.now() - spark.userData.startTime;
+          const progress = elapsed / spark.userData.duration;
+          
+          if (progress >= 1) {
+            scene.remove(spark);
+            spark.geometry.dispose();
+            spark.material.dispose();
+            return;
+          }
+          
+          spark.position.add(velocity);
+          velocity.y -= 0.01; // Gravity
+          spark.material.opacity = 1 - progress;
+          spark.scale.setScalar(1 - progress * 0.5);
+          requestAnimationFrame(animateSpark);
+        }
+        animateSpark();
+      }
+      
+      // 5. District ripples
+      createActivityRipple(agent.district);
+      setTimeout(() => createActivityRipple(agent.district), 300);
+    }
+    
+    /**
+     * Classify task text to a district
+     */
+    function classifyTaskToDistrict(task) {
+      const lower = task.toLowerCase();
+      
+      const districtKeywords = {
+        trading: ['stock', 'market', 'trade', 'price', 'ticker', 'scanner', 'options', 'portfolio'],
+        infrastructure: ['server', 'deploy', 'docker', 'api', 'tunnel', 'cloudflare', 'pm2', 'cron'],
+        projects: ['build', 'create', 'app', 'visualization', 'code', 'implement', 'design'],
+        memory: ['memory', 'remember', 'recall', 'note', 'log', 'history', 'context']
+      };
+      
+      for (const [district, keywords] of Object.entries(districtKeywords)) {
+        if (keywords.some(kw => lower.includes(kw))) {
+          return district;
+        }
+      }
+      
+      return 'core'; // Default to core
+    }
+    
+    /**
+     * Update agent activity state
+     */
+    function updateAgentState(sessionId, state, context = {}) {
+      const agent = agentSystem.agents.get(sessionId);
+      if (!agent) return;
+      
+      agent.lastActivity = Date.now();
+      
+      if (state === 'thinking' || state === 'working') {
+        agent.state = 'working';
+      } else if (state === 'complete' || state === 'done') {
+        agent.state = 'completing';
+        setTimeout(() => removeAgent(sessionId), 3000); // Remove after completion effect
+      }
+      
+      console.log('[Agents] State update:', sessionId, state);
+    }
+    
+    /**
+     * Remove an agent with despawn animation
+     * Enforces minimum display time for visibility
+     */
+    function removeAgent(sessionId) {
+      const agent = agentSystem.agents.get(sessionId);
+      if (!agent) return;
+      
+      // Already despawning? Skip
+      if (agent.state === 'despawning') return;
+      
+      // Enforce minimum display time
+      const timeAlive = Date.now() - agent.createdAt;
+      if (timeAlive < agentSystem.minDisplayTime) {
+        const remaining = agentSystem.minDisplayTime - timeAlive;
+        console.log('[Agents] Delaying removal by', remaining, 'ms for visibility');
+        setTimeout(() => removeAgent(sessionId), remaining);
+        return;
+      }
+      
+      agent.state = 'despawning';
+      
+      // Completion effect
+      createAgentCompletionEffect(agent);
+      
+      // Cleanup after animation
+      setTimeout(() => {
+        if (agent.group.parent) scene.remove(agent.group);
+        if (agent.trail.parent) scene.remove(agent.trail);
+        
+        // Dispose geometries
+        agent.core.geometry.dispose();
+        agent.core.material.dispose();
+        agent.glow.geometry.dispose();
+        agent.glow.material.dispose();
+        agent.eye.geometry.dispose();
+        agent.eye.material.dispose();
+        agent.trail.geometry.dispose();
+        agent.trail.material.dispose();
+        
+        agentSystem.agents.delete(sessionId);
+        console.log('[Agents] Removed:', sessionId);
+      }, 1500);
+    }
+    
+    /**
+     * Completion effect: DRAMATIC particle burst + golden flash + ascend beam
+     */
+    function createAgentCompletionEffect(agent) {
+      const pos = agent.group.position.clone();
+      
+      // 1. GOLDEN FLASH SPHERE
+      const flashGeo = new THREE.SphereGeometry(1.5, 16, 16);
+      const flashMat = new THREE.MeshBasicMaterial({
+        color: 0xffd700,
+        transparent: true,
+        opacity: 0.9
+      });
+      const flash = new THREE.Mesh(flashGeo, flashMat);
+      flash.position.copy(pos);
+      flash.userData = { startTime: Date.now(), duration: 600 };
+      scene.add(flash);
+      
+      function animateFlash() {
+        const elapsed = Date.now() - flash.userData.startTime;
+        const progress = elapsed / flash.userData.duration;
+        if (progress >= 1) {
+          scene.remove(flash);
+          flash.geometry.dispose();
+          flash.material.dispose();
+          return;
+        }
+        flash.scale.setScalar(1 + progress * 5);
+        flash.material.opacity = 0.9 * (1 - progress);
+        requestAnimationFrame(animateFlash);
+      }
+      animateFlash();
+      
+      // 2. ASCENDING BEAM (agent rises into light)
+      const beamGeo = new THREE.CylinderGeometry(0.5, 0.2, 40, 8);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.5
+      });
+      const beam = new THREE.Mesh(beamGeo, beamMat);
+      beam.position.set(pos.x, pos.y + 20, pos.z);
+      beam.userData = { startTime: Date.now(), duration: 1500 };
+      scene.add(beam);
+      
+      function animateBeam() {
+        const elapsed = Date.now() - beam.userData.startTime;
+        const progress = elapsed / beam.userData.duration;
+        if (progress >= 1) {
+          scene.remove(beam);
+          beam.geometry.dispose();
+          beam.material.dispose();
+          return;
+        }
+        beam.position.y = pos.y + 20 + progress * 30;
+        beam.material.opacity = 0.5 * (1 - progress);
+        requestAnimationFrame(animateBeam);
+      }
+      animateBeam();
+      
+      // 3. GOLDEN PARTICLE BURST
+      const burstCount = 30;
+      for (let i = 0; i < burstCount; i++) {
+        const particleGeo = new THREE.SphereGeometry(0.2, 4, 4);
+        const particleMat = new THREE.MeshBasicMaterial({
+          color: i % 3 === 0 ? 0xffffff : 0xffd700,
+          transparent: true,
+          opacity: 1
+        });
+        const particle = new THREE.Mesh(particleGeo, particleMat);
+        particle.position.copy(pos);
+        
+        const angle = (i / burstCount) * Math.PI * 2;
+        const speed = 0.2 + Math.random() * 0.3;
+        const velocity = new THREE.Vector3(
+          Math.cos(angle) * speed,
+          Math.random() * 0.4 + 0.2,
+          Math.sin(angle) * speed
+        );
+        
+        particle.userData = { velocity, startTime: Date.now(), duration: 1200 };
+        scene.add(particle);
+        
+        function animateParticle() {
+          const elapsed = Date.now() - particle.userData.startTime;
+          const progress = elapsed / particle.userData.duration;
+          
+          if (progress >= 1) {
+            scene.remove(particle);
+            particle.geometry.dispose();
+            particle.material.dispose();
+            return;
+          }
+          
+          particle.position.add(velocity);
+          velocity.y -= 0.008;
+          particle.material.opacity = 1 - progress;
+          particle.scale.setScalar(1 + progress);
+          requestAnimationFrame(animateParticle);
+        }
+        animateParticle();
+      }
+      
+      // 4. SUCCESS RIPPLE
+      const ringGeo = new THREE.RingGeometry(1, 2, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xffd700,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(pos.x, 0.3, pos.z);
+      ring.userData = { startTime: Date.now(), duration: 1500 };
+      scene.add(ring);
+      
+      function animateRing() {
+        const elapsed = Date.now() - ring.userData.startTime;
+        const progress = elapsed / ring.userData.duration;
+        if (progress >= 1) {
+          scene.remove(ring);
+          ring.geometry.dispose();
+          ring.material.dispose();
+          return;
+        }
+        const scale = 1 + progress * 15;
+        ring.scale.set(scale, scale, 1);
+        ring.material.opacity = 0.8 * (1 - progress);
+        requestAnimationFrame(animateRing);
+      }
+      animateRing();
+    }
+    
+    /**
+     * Update all agents (called in animation loop)
+     */
+    function updateAgents(dt) {
+      agentSystem.agents.forEach(agent => {
+        const timeAlive = Date.now() - agent.createdAt;
+        
+        // Spawn animation (first second)
+        if (agent.state === 'spawning') {
+          agent.spawnProgress = Math.min(1, timeAlive / 1000);
+          
+          // Fade in
+          agent.core.material.opacity = agent.spawnProgress * 0.9;
+          agent.glow.material.opacity = agent.spawnProgress * 0.3;
+          agent.eye.material.opacity = agent.spawnProgress * 0.9;
+          
+          // Scale up
+          const scale = agent.spawnProgress;
+          agent.group.scale.setScalar(scale);
+          
+          if (agent.spawnProgress >= 1) {
+            agent.state = 'working';
+          }
+        }
+        
+        // Movement toward target district
+        if (agent.state === 'working' || agent.state === 'spawning') {
+          const direction = agent.targetPosition.clone().sub(agent.position);
+          const distance = direction.length();
+          
+          if (distance > 1) {
+            direction.normalize();
+            // Smooth acceleration
+            agent.velocity.lerp(direction.multiplyScalar(0.08), 0.02);
+            agent.position.add(agent.velocity);
+          }
+          
+          // Bob up and down
+          const bob = Math.sin(dt * 2 + agent.bobOffset) * 0.3;
+          agent.group.position.copy(agent.position);
+          agent.group.position.y += bob;
+        }
+        
+        // Despawn animation
+        if (agent.state === 'despawning') {
+          agent.group.position.y += 0.05; // Rise up
+          agent.core.material.opacity *= 0.95;
+          agent.glow.material.opacity *= 0.95;
+          agent.eye.material.opacity *= 0.95;
+          agent.trail.material.opacity *= 0.95;
+        }
+        
+        // Visual updates (always)
+        
+        // CONSTELLATION ANIMATION - Stars drift slightly but maintain form
+        if (agent.core.userData.isConstellation) {
+          const positions = agent.core.geometry.attributes.position.array;
+          const original = agent.core.userData.starOriginal;
+          
+          for (let i = 0; i < original.length; i++) {
+            // Each star drifts with unique phase
+            const phase = agent.pulsePhase + i * 0.5;
+            const drift = 0.08; // Drift amount
+            
+            positions[i * 3] = original[i].x + Math.sin(dt * 1.5 + phase) * drift;
+            positions[i * 3 + 1] = original[i].y + Math.cos(dt * 1.2 + phase * 0.7) * drift;
+            positions[i * 3 + 2] = original[i].z + Math.sin(dt * 0.9 + phase * 1.3) * drift;
+          }
+          agent.core.geometry.attributes.position.needsUpdate = true;
+          
+          // Gentle overall rotation
+          agent.group.rotation.y += agent.rotationSpeed * 0.005;
+        } else {
+          // Fallback for non-constellation agents
+          agent.core.rotation.y += agent.rotationSpeed * 0.01;
+          agent.core.rotation.x = Math.sin(dt * 0.5) * 0.2;
+        }
+        
+        // Heart star pulses
+        const heartPulse = 1 + Math.sin(dt * 3) * 0.3;
+        agent.eye.scale.setScalar(heartPulse);
+        
+        // Pulse effect when working - brighten everything
+        if (agent.state === 'working') {
+          const intensity = 0.7 + Math.sin(dt * 4 + agent.pulsePhase) * 0.3;
+          agent.core.material.opacity = intensity;
+          agent.glow.material.opacity = 0.2 + Math.sin(dt * 2) * 0.15;
+          agent.eye.material.opacity = 1;
+        }
+        
+        // Update trail
+        const positions = agent.trail.geometry.attributes.position.array;
+        // Shift all positions back
+        for (let i = positions.length - 3; i >= 3; i -= 3) {
+          positions[i] = positions[i - 3];
+          positions[i + 1] = positions[i - 2];
+          positions[i + 2] = positions[i - 1];
+        }
+        // Set newest position
+        positions[0] = agent.group.position.x;
+        positions[1] = agent.group.position.y;
+        positions[2] = agent.group.position.z;
+        agent.trail.geometry.attributes.position.needsUpdate = true;
+      });
+    }
+    
+    /**
+     * Handle agent events from WebSocket
+     */
+    function handleAgentEvent(event) {
+      console.log('[Agents] Event:', event.type, event);
+      
+      switch (event.type) {
+        case 'agent:spawn':
+          createAgent(event.sessionId, {
+            parentId: event.parentId,
+            task: event.task,
+            label: event.label,
+            district: event.district
+          });
+          break;
+          
+        case 'agent:work':
+          updateAgentState(event.sessionId, event.state);
+          break;
+          
+        case 'agent:complete':
+          updateAgentState(event.sessionId, 'complete');
+          break;
+          
+        case 'agent:heartbeat':
+          // Sync all agent states
+          if (event.agents) {
+            event.agents.forEach(a => {
+              if (!agentSystem.agents.has(a.sessionId)) {
+                createAgent(a.sessionId, a);
+              }
+            });
+            // Remove agents not in heartbeat
+            agentSystem.agents.forEach((agent, id) => {
+              if (!event.agents.find(a => a.sessionId === id)) {
+                removeAgent(id);
+              }
+            });
+          }
+          break;
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // WEBSOCKET & API
+    // ═══════════════════════════════════════════════════════════════════════
+
     // Try HTTP first (more reliable), then WebSocket for live updates
     async function loadCityFromAPI() {
       try {
@@ -6067,6 +9156,45 @@
           
           if (msg.type === 'state') {
             handleCognitiveState(msg.mode, msg.message);
+            
+            // Also trigger main agent visualization based on cognitive state
+            if (msg.mode === 'thinking' || msg.mode === 'responding') {
+              // Ensure main agent exists
+              if (!agentSystem.agents.has('main')) {
+                createAgent('main', { 
+                  task: msg.message || 'Processing...',
+                  district: activityState.activeDistrict || 'core'
+                });
+              } else {
+                // Cancel any pending removal and restore working state
+                const agent = agentSystem.agents.get('main');
+                if (agent && agent.state === 'despawning') {
+                  agent.state = 'working';
+                  // Restore opacity
+                  agent.core.material.opacity = 0.9;
+                  agent.glow.material.opacity = 0.3;
+                  agent.eye.material.opacity = 0.9;
+                  agent.trail.material.opacity = 0.6;
+                }
+              }
+              updateAgentState('main', 'working');
+            } else if (msg.mode === 'idle') {
+              // Remove main agent when idle (respects minDisplayTime)
+              if (agentSystem.agents.has('main')) {
+                removeAgent('main');
+              }
+            }
+          }
+          
+          // Agent-specific events
+          if (msg.type && msg.type.startsWith('agent:')) {
+            handleAgentEvent(msg);
+          }
+          
+          // Thought injection from API
+          if (msg.type === 'thought' && msg.text) {
+            console.log('[WS] Thought received:', msg.text);
+            addThought(msg.text);
           }
           
           if (msg.type === 'graph:full') {
@@ -6173,7 +9301,8 @@
             depth: spec.depth || 2.5,
             height: spec.height,
             district: spec.district,
-            label: spec.label
+            label: spec.label,
+            sources: spec.sources || []
           });
           created++;
         } catch (err) {
@@ -6214,6 +9343,9 @@
       console.log(`[City] Loaded ${city.buildings.length} buildings from knowledge`);
       updateStats();
       isLoadingCity = false;
+      
+      // Initialize the City Planner after city loads
+      setTimeout(() => initCityPlanner(), 1000);
     }
     
     // Pre-compiled keyword regexes for performance (avoid creating in tight loop)
@@ -6402,11 +9534,16 @@
     createDistrictLabels();
     createDrones();
     createParticles();
+    initThoughtBubbles();
     
     // Ambient life systems
     createTrafficLights();
     createFirefliesAndDust();
+    createEnergyMotes(); // AAA holographic particles
     createAircraft();
+    
+    // Brain-like activation system (energy flows, district beams)
+    initBrainActivationSystem();
     
     // Create core spire first (always present)
     createCoreSpire();

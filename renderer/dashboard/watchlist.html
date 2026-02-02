@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Absalom — Watchlist</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    html, body {
+      width: 100%;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0a0a15 0%, #0f0f20 50%, #0a0a15 100%);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: #e0e0e0;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(100, 200, 255, 0.2);
+    }
+    
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 300;
+      letter-spacing: 4px;
+      color: rgba(100, 200, 255, 0.9);
+    }
+    
+    .last-update {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    
+    .watchlist {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    
+    .stock-card {
+      background: rgba(10, 10, 20, 0.8);
+      border: 1px solid rgba(100, 200, 255, 0.15);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s;
+    }
+    
+    .stock-card:hover {
+      border-color: rgba(100, 200, 255, 0.4);
+      transform: translateY(-2px);
+    }
+    
+    .stock-card.positive {
+      border-left: 3px solid #00ff88;
+    }
+    
+    .stock-card.negative {
+      border-left: 3px solid #ff4444;
+    }
+    
+    .stock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    
+    .stock-symbol {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: rgba(100, 200, 255, 1);
+    }
+    
+    .stock-name {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 2px;
+    }
+    
+    .stock-price {
+      text-align: right;
+    }
+    
+    .price-current {
+      font-size: 1.3rem;
+      font-weight: 500;
+    }
+    
+    .price-change {
+      font-size: 0.85rem;
+      margin-top: 2px;
+    }
+    
+    .price-change.positive { color: #00ff88; }
+    .price-change.negative { color: #ff4444; }
+    
+    .stock-levels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(100, 200, 255, 0.1);
+    }
+    
+    .level {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+    }
+    
+    .level-label {
+      color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .level-value {
+      font-weight: 500;
+    }
+    
+    .level-value.support { color: #ff6644; }
+    .level-value.resistance { color: #00cc66; }
+    
+    .stock-tags {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    
+    .tag {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .tag.sector { background: rgba(100, 200, 255, 0.15); color: rgba(100, 200, 255, 0.9); }
+    .tag.catalyst { background: rgba(255, 200, 100, 0.15); color: rgba(255, 200, 100, 0.9); }
+    .tag.holding { background: rgba(0, 255, 136, 0.15); color: rgba(0, 255, 136, 0.9); }
+    
+    .refresh-btn {
+      padding: 8px 16px;
+      background: rgba(100, 200, 255, 0.1);
+      border: 1px solid rgba(100, 200, 255, 0.3);
+      border-radius: 6px;
+      color: rgba(100, 200, 255, 0.9);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .refresh-btn:hover {
+      background: rgba(100, 200, 255, 0.2);
+    }
+    
+    .refresh-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .market-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+    }
+    
+    .market-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    
+    .market-dot.open { background: #00ff88; animation: pulse 2s infinite; }
+    .market-dot.closed { background: #ff4444; }
+    .market-dot.pre { background: #ffaa00; animation: pulse 2s infinite; }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>📈 WATCHLIST</h1>
+        <div class="last-update" id="lastUpdate">Loading...</div>
+      </div>
+      <div style="display: flex; gap: 16px; align-items: center;">
+        <div class="market-status">
+          <span class="market-dot" id="marketDot"></span>
+          <span id="marketStatus">—</span>
+        </div>
+        <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">Refresh</button>
+      </div>
+    </div>
+    
+    <div class="watchlist" id="watchlist">
+      <div class="loading">Loading watchlist...</div>
+    </div>
+  </div>
+  
+  <script>
+    // Anton's watchlist with key levels
+    const WATCHLIST = [
+      {
+        symbol: 'LUNR',
+        name: 'Intuitive Machines',
+        sector: 'Space',
+        holding: true,
+        levels: { s1: 18.50, s2: 16.00, r1: 23.00, r2: 25.50 },
+        catalyst: 'Moon mission'
+      },
+      {
+        symbol: 'RDW',
+        name: 'Redwire Corp',
+        sector: 'Space',
+        holding: true,
+        levels: { s1: 12.50, s2: 11.00, r1: 15.00, r2: 17.00 }
+      },
+      {
+        symbol: 'RKLB',
+        name: 'Rocket Lab',
+        sector: 'Space',
+        holding: false,
+        levels: { s1: 24.00, s2: 21.50, r1: 28.00, r2: 30.00 }
+      },
+      {
+        symbol: 'UEC',
+        name: 'Uranium Energy',
+        sector: 'Nuclear',
+        holding: true,
+        levels: { s1: 7.20, s2: 6.80, r1: 8.00, r2: 8.50 }
+      },
+      {
+        symbol: 'IONQ',
+        name: 'IonQ Inc',
+        sector: 'Quantum',
+        holding: false,
+        levels: { s1: 32.00, s2: 28.00, r1: 40.00, r2: 45.00 }
+      },
+      {
+        symbol: 'AI',
+        name: 'C3.ai',
+        sector: 'AI',
+        holding: false,
+        levels: { s1: 10.50, s2: 9.50, r1: 12.00, r2: 14.00 },
+        catalyst: 'Monday play'
+      },
+      {
+        symbol: 'HIMS',
+        name: 'Hims & Hers',
+        sector: 'Healthcare',
+        holding: false,
+        levels: { s1: 27.00, s2: 25.00, r1: 30.50, r2: 32.00 },
+        catalyst: 'Monday play'
+      },
+      {
+        symbol: 'GFS',
+        name: 'GlobalFoundries',
+        sector: 'Semis',
+        holding: false,
+        levels: { s1: 39.00, s2: 37.00, r1: 45.00, r2: 48.00 },
+        catalyst: 'Earnings 2/11'
+      }
+    ];
+    
+    // State
+    let stockData = {};
+    
+    // Get market status
+    function getMarketStatus() {
+      const now = new Date();
+      const nyHour = parseInt(now.toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
+      const nyMinute = parseInt(now.toLocaleString('en-US', { timeZone: 'America/New_York', minute: 'numeric' }));
+      const dayOfWeek = parseInt(now.toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short' }));
+      
+      const isWeekday = !['Sat', 'Sun'].includes(now.toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short' }));
+      const totalMinutes = nyHour * 60 + nyMinute;
+      
+      if (!isWeekday) return { status: 'closed', text: 'Market Closed' };
+      if (totalMinutes >= 240 && totalMinutes < 570) return { status: 'pre', text: 'Pre-Market' };
+      if (totalMinutes >= 570 && totalMinutes < 960) return { status: 'open', text: 'Market Open' };
+      if (totalMinutes >= 960 && totalMinutes < 1200) return { status: 'pre', text: 'After Hours' };
+      return { status: 'closed', text: 'Market Closed' };
+    }
+    
+    // Update market status display
+    function updateMarketStatus() {
+      const status = getMarketStatus();
+      const dot = document.getElementById('marketDot');
+      const text = document.getElementById('marketStatus');
+      
+      dot.className = `market-dot ${status.status}`;
+      text.textContent = status.text;
+    }
+    
+    // Fetch stock data (simulated - would need real API)
+    async function fetchStockData() {
+      // In a real implementation, this would call Yahoo Finance or similar
+      // For now, we'll use placeholder data
+      const placeholderData = {
+        'LUNR': { price: 21.45, change: 2.35, changePct: 12.3 },
+        'RDW': { price: 13.82, change: 0.67, changePct: 5.1 },
+        'RKLB': { price: 26.33, change: -0.44, changePct: -1.6 },
+        'UEC': { price: 7.54, change: 0.12, changePct: 1.6 },
+        'IONQ': { price: 36.78, change: 1.89, changePct: 5.4 },
+        'AI': { price: 11.23, change: 0.45, changePct: 4.2 },
+        'HIMS': { price: 28.67, change: -0.33, changePct: -1.1 },
+        'GFS': { price: 42.15, change: 0.89, changePct: 2.2 }
+      };
+      
+      return placeholderData;
+    }
+    
+    // Render watchlist
+    function renderWatchlist() {
+      const container = document.getElementById('watchlist');
+      
+      container.innerHTML = WATCHLIST.map(stock => {
+        const data = stockData[stock.symbol] || { price: 0, change: 0, changePct: 0 };
+        const isPositive = data.change >= 0;
+        const changeSign = isPositive ? '+' : '';
+        
+        return `
+          <div class="stock-card ${isPositive ? 'positive' : 'negative'}">
+            <div class="stock-header">
+              <div>
+                <div class="stock-symbol">${stock.symbol}</div>
+                <div class="stock-name">${stock.name}</div>
+              </div>
+              <div class="stock-price">
+                <div class="price-current">$${data.price.toFixed(2)}</div>
+                <div class="price-change ${isPositive ? 'positive' : 'negative'}">
+                  ${changeSign}$${data.change.toFixed(2)} (${changeSign}${data.changePct.toFixed(1)}%)
+                </div>
+              </div>
+            </div>
+            
+            <div class="stock-levels">
+              <div class="level">
+                <span class="level-label">S1</span>
+                <span class="level-value support">$${stock.levels.s1.toFixed(2)}</span>
+              </div>
+              <div class="level">
+                <span class="level-label">R1</span>
+                <span class="level-value resistance">$${stock.levels.r1.toFixed(2)}</span>
+              </div>
+              <div class="level">
+                <span class="level-label">S2</span>
+                <span class="level-value support">$${stock.levels.s2.toFixed(2)}</span>
+              </div>
+              <div class="level">
+                <span class="level-label">R2</span>
+                <span class="level-value resistance">$${stock.levels.r2.toFixed(2)}</span>
+              </div>
+            </div>
+            
+            <div class="stock-tags">
+              <span class="tag sector">${stock.sector}</span>
+              ${stock.holding ? '<span class="tag holding">Holding</span>' : ''}
+              ${stock.catalyst ? `<span class="tag catalyst">${stock.catalyst}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // Refresh data
+    async function refreshData() {
+      const btn = document.getElementById('refreshBtn');
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+      
+      try {
+        stockData = await fetchStockData();
+        renderWatchlist();
+        document.getElementById('lastUpdate').textContent = 
+          `Last updated: ${new Date().toLocaleTimeString()}`;
+      } catch (e) {
+        console.error('Failed to fetch data:', e);
+      }
+      
+      btn.disabled = false;
+      btn.textContent = 'Refresh';
+    }
+    
+    // Initialize
+    async function init() {
+      updateMarketStatus();
+      setInterval(updateMarketStatus, 60000);
+      
+      await refreshData();
+      
+      // Auto-refresh every 5 minutes during market hours
+      setInterval(() => {
+        const status = getMarketStatus();
+        if (status.status !== 'closed') {
+          refreshData();
+        }
+      }, 300000);
+    }
+    
+    init();
+  </script>
+</body>
+</html>

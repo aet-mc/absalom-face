@@ -2,110 +2,132 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0a1612">
-  <link rel="manifest" href="/manifest.json">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Absalom</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     html, body {
+      width: 100%;
       height: 100%;
-      background: #0a1612;
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif;
-      color: #2dd4a8;
-      overflow: hidden;
+      background: #0a0a12;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 40px;
     }
     
-    .container {
-      height: 100%;
+    h1 {
+      font-size: 3rem;
+      font-weight: 200;
+      letter-spacing: 12px;
+      color: rgba(100, 200, 255, 0.8);
+      text-shadow: 0 0 30px rgba(100, 200, 255, 0.3);
+    }
+    
+    .subtitle {
+      font-size: 0.9rem;
+      letter-spacing: 4px;
+      color: rgba(255, 255, 255, 0.4);
+      text-transform: uppercase;
+    }
+    
+    .nav-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      max-width: 600px;
+      width: 90%;
+    }
+    
+    .nav-card {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 20px;
-    }
-    
-    .title {
-      font-size: 12px;
-      letter-spacing: 8px;
-      text-transform: uppercase;
-      opacity: 0.6;
-      margin-bottom: 60px;
-    }
-    
-    .links {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-    
-    a {
-      display: block;
-      padding: 16px 32px;
-      background: rgba(45, 212, 168, 0.08);
-      border: 1px solid rgba(45, 212, 168, 0.2);
-      border-radius: 8px;
-      color: #2dd4a8;
+      padding: 40px 30px;
+      background: rgba(10, 10, 20, 0.8);
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      border-radius: 16px;
       text-decoration: none;
-      font-size: 14px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
+      color: inherit;
+      transition: all 0.3s ease;
+    }
+    
+    .nav-card:hover {
+      border-color: rgba(100, 200, 255, 0.5);
+      background: rgba(100, 200, 255, 0.05);
+      transform: translateY(-4px);
+      box-shadow: 0 10px 40px rgba(100, 200, 255, 0.1);
+    }
+    
+    .nav-icon {
+      font-size: 3rem;
+      margin-bottom: 16px;
+    }
+    
+    .nav-title {
+      font-size: 1.1rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: rgba(100, 200, 255, 0.9);
+    }
+    
+    .nav-desc {
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.5);
       text-align: center;
-      transition: all 0.3s;
-    }
-    
-    a:hover {
-      background: rgba(45, 212, 168, 0.15);
-      border-color: rgba(45, 212, 168, 0.4);
-      box-shadow: 0 0 20px rgba(45, 212, 168, 0.2);
-    }
-    
-    .primary {
-      background: rgba(45, 212, 168, 0.15);
-      border-color: rgba(45, 212, 168, 0.4);
-    }
-    
-    .desc {
-      font-size: 10px;
-      opacity: 0.4;
-      margin-top: 4px;
-      letter-spacing: 1px;
     }
     
     .footer {
       position: fixed;
       bottom: 20px;
-      font-size: 10px;
-      opacity: 0.2;
-      letter-spacing: 1px;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.3);
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="title">absalom</div>
-    
-    <div class="links">
-      <a href="/renderer/layers/absalom-mind.html" class="primary">
-        Mind
-        <div class="desc">Living knowledge visualization</div>
-      </a>
-      
-      <a href="/renderer/layers/mycelium-mobile.html">
-        Minimal
-        <div class="desc">Lightweight mobile version</div>
-      </a>
-      
-      <a href="/renderer/layers/mycelium-test.html">
-        Lab
-        <div class="desc">Full-featured test environment</div>
-      </a>
-    </div>
-  </div>
+  <h1>🖤 ABSALOM</h1>
+  <p class="subtitle">Strategic AI — City of Mind</p>
   
-  <div class="footer">v3.0 — Living Mind</div>
+  <nav class="nav-grid">
+    <a href="renderer/city/absalom-city.html" class="nav-card">
+      <span class="nav-icon">🌃</span>
+      <span class="nav-title">City Visualization</span>
+      <span class="nav-desc">Interactive 3D mindscape with weather, agents, and districts</span>
+    </a>
+    
+    <a href="renderer/dashboard/command-center.html" class="nav-card">
+      <span class="nav-icon">📊</span>
+      <span class="nav-title">Command Center</span>
+      <span class="nav-desc">Monitor sessions, cron jobs, and infrastructure</span>
+    </a>
+    
+    <a href="renderer/face/absalom-face.html" class="nav-card">
+      <span class="nav-icon">👁️</span>
+      <span class="nav-title">Face Avatar</span>
+      <span class="nav-desc">Live cognitive state visualization</span>
+    </a>
+    
+    <a href="https://itself-partners-integrate-memories.trycloudflare.com/api" class="nav-card" target="_blank">
+      <span class="nav-icon">🔌</span>
+      <span class="nav-title">Knowledge API</span>
+      <span class="nav-desc">REST endpoints for city state and queries</span>
+    </a>
+    
+    <a href="renderer/dashboard/watchlist.html" class="nav-card">
+      <span class="nav-icon">📈</span>
+      <span class="nav-title">Trading Watchlist</span>
+      <span class="nav-desc">Live stock prices and key levels</span>
+    </a>
+  </nav>
+  
+  <footer class="footer">
+    Built with Three.js • Powered by OpenClaw
+  </footer>
 </body>
 </html>

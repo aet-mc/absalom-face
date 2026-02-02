@@ -85,8 +85,8 @@ function loadGraph() {
   }
   
   return {
-    nodes: [...graph.nodes.values()],
-    edges: [...graph.edges.values()]
+    nodes: graph.getNodes(),
+    edges: graph.getEdges()
   };
 }
 

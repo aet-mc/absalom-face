@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'absalom-knowledge',
-      script: 'index.js',
+      script: 'start.js',
       cwd: '/home/openclaw/Projects/absalom-face/knowledge-engine',
       env: {
         PORT: 3847

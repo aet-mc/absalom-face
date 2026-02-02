@@ -412,8 +412,289 @@ class KnowledgeServer {
       return;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // CITY PLANNER ENDPOINTS - Memory optimization
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    // POST /planner/scan - Report a building scan, get optimization hints
+    if (req.method === 'POST' && req.url === '/planner/scan') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { buildingId, district, label } = JSON.parse(body);
+          console.log(`[Planner] Scanning: ${label} (${district})`);
+          
+          // Track scan in planner stats
+          if (!this.plannerStats) {
+            this.plannerStats = { scans: 0, optimizations: 0, lastPatrol: null, findings: [] };
+          }
+          this.plannerStats.scans++;
+          
+          // Check if this entity might be stale (simple heuristic)
+          const finding = this.analyzeBuildingHealth(buildingId, label, district);
+          if (finding) {
+            this.plannerStats.findings.push(finding);
+          }
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            ok: true, 
+            scans: this.plannerStats.scans,
+            finding: finding || null
+          }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+    
+    // POST /planner/patrol-complete - Full patrol done, trigger optimization
+    if (req.method === 'POST' && req.url === '/planner/patrol-complete') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', async () => {
+        try {
+          console.log('[Planner] Patrol complete - running optimization...');
+          
+          if (!this.plannerStats) {
+            this.plannerStats = { scans: 0, optimizations: 0, lastPatrol: null, findings: [] };
+          }
+          
+          this.plannerStats.lastPatrol = Date.now();
+          this.plannerStats.optimizations++;
+          
+          // Run actual memory optimization
+          const result = await this.runMemoryOptimization();
+          
+          // Regenerate city after optimization
+          if (result.changes > 0) {
+            this.regenerateCityState();
+          }
+          
+          // Clear findings after optimization
+          const findings = [...this.plannerStats.findings];
+          this.plannerStats.findings = [];
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            ok: true, 
+            optimizations: this.plannerStats.optimizations,
+            result,
+            findings
+          }));
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+    
+    // GET /planner/status - Planner optimization stats
+    if (req.method === 'GET' && req.url === '/planner/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ok: true,
+        stats: this.plannerStats || { scans: 0, optimizations: 0, lastPatrol: null, findings: [] }
+      }));
+      return;
+    }
+
+    // GET /api/dashboard-stats - Stats for Command Center dashboard
+    if (req.method === 'GET' && req.url === '/api/dashboard-stats') {
+      const stats = this.getDashboardStats();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(stats));
+      return;
+    }
+
+    // POST /api/thought - Inject a thought into the city
+    if (req.method === 'POST' && req.url === '/api/thought') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          if (data.text) {
+            // Broadcast thought to WebSocket clients
+            this.broadcast({
+              type: 'thought',
+              text: data.text,
+              timestamp: Date.now()
+            });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, text: data.text }));
+          } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing text field' }));
+          }
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        }
+      });
+      return;
+    }
+
+    // GET /api - API documentation
+    if (req.method === 'GET' && req.url === '/api') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        name: 'Absalom Knowledge Engine',
+        version: '1.0.0',
+        endpoints: {
+          'GET /state': 'Current cognitive state',
+          'POST /state': 'Update cognitive state',
+          'GET /graph': 'Knowledge graph',
+          'GET /health': 'Health check',
+          'GET /city-state': 'City visualization state',
+          'POST /city-state/regenerate': 'Regenerate city from knowledge',
+          'POST /city-state/cognitive': 'Update cognitive state with context',
+          'POST /planner/scan': 'Report building scan',
+          'POST /planner/patrol-complete': 'Report patrol completion',
+          'GET /planner/status': 'Planner optimization stats',
+          'GET /api/dashboard-stats': 'Dashboard statistics',
+          'POST /api/thought': 'Inject a thought into the city visualization',
+        }
+      }));
+      return;
+    }
+
     res.writeHead(404);
     res.end('Not found');
+  }
+  
+  /**
+   * Get stats for Command Center dashboard
+   */
+  getDashboardStats() {
+    const fs = require('fs');
+    const path = require('path');
+    const workspace = process.env.WORKSPACE || path.join(process.env.HOME, '.openclaw/workspace');
+    
+    // Count buildings
+    const buildingCount = this.cityState?.buildings?.length || 0;
+    
+    // Count memory files
+    let memoryFileCount = 0;
+    let memoryTotalSize = 0;
+    const memoryDir = path.join(workspace, 'memory');
+    try {
+      if (fs.existsSync(memoryDir)) {
+        const files = fs.readdirSync(memoryDir).filter(f => f.endsWith('.md'));
+        memoryFileCount = files.length;
+        files.forEach(f => {
+          try {
+            memoryTotalSize += fs.statSync(path.join(memoryDir, f)).size;
+          } catch (e) {}
+        });
+      }
+      // Add MEMORY.md
+      const mainMemory = path.join(workspace, 'MEMORY.md');
+      if (fs.existsSync(mainMemory)) {
+        memoryFileCount++;
+        memoryTotalSize += fs.statSync(mainMemory).size;
+      }
+    } catch (e) {}
+    
+    return {
+      ok: true,
+      timestamp: Date.now(),
+      city: {
+        buildingCount,
+        cognitiveState: this.cityState?.cognitiveState || 'idle',
+        version: this.cityState?.version || 0,
+        lastUpdate: this.cityState?.lastUpdate || 0,
+      },
+      memory: {
+        fileCount: memoryFileCount,
+        totalSizeKB: (memoryTotalSize / 1024).toFixed(1),
+      },
+      planner: this.plannerStats || { scans: 0, optimizations: 0 },
+      uptime: process.uptime(),
+      serverVersion: '1.0.0',
+    };
+  }
+  
+  /**
+   * Analyze a building/entity for potential issues
+   */
+  analyzeBuildingHealth(buildingId, label, district) {
+    // Simple heuristics for now - can be expanded
+    const findings = [];
+    
+    // Check for potential staleness based on naming patterns
+    if (label && label.toLowerCase().includes('2024')) {
+      return { type: 'stale', buildingId, label, message: 'Contains old year reference' };
+    }
+    
+    if (label && label.toLowerCase().includes('todo')) {
+      return { type: 'actionable', buildingId, label, message: 'Unresolved TODO item' };
+    }
+    
+    if (label && label.toLowerCase().includes('temp')) {
+      return { type: 'cleanup', buildingId, label, message: 'Temporary item - consider removing' };
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Run actual memory optimization
+   */
+  async runMemoryOptimization() {
+    const fs = require('fs');
+    const path = require('path');
+    const workspace = process.env.WORKSPACE || path.join(process.env.HOME, '.openclaw/workspace');
+    
+    let changes = 0;
+    const actions = [];
+    
+    try {
+      // 1. Check MEMORY.md size
+      const memoryPath = path.join(workspace, 'MEMORY.md');
+      if (fs.existsSync(memoryPath)) {
+        const stats = fs.statSync(memoryPath);
+        const sizeKB = stats.size / 1024;
+        if (sizeKB > 4) {
+          actions.push({ type: 'warning', message: `MEMORY.md is ${sizeKB.toFixed(1)}KB (target: <4KB)` });
+        }
+      }
+      
+      // 2. Check for old daily memory files (>30 days)
+      const memoryDir = path.join(workspace, 'memory');
+      if (fs.existsSync(memoryDir)) {
+        const files = fs.readdirSync(memoryDir).filter(f => f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
+        const now = Date.now();
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        
+        for (const file of files) {
+          const filePath = path.join(memoryDir, file);
+          const stat = fs.statSync(filePath);
+          if (now - stat.mtime.getTime() > thirtyDaysMs) {
+            actions.push({ type: 'archive', file, message: `Old file: ${file} (>30 days)` });
+            changes++;
+          }
+        }
+      }
+      
+      // 3. Count entities in current graph
+      if (this.cityState && this.cityState.buildings) {
+        const buildingCount = this.cityState.buildings.length;
+        actions.push({ type: 'info', message: `Tracking ${buildingCount} knowledge entities` });
+      }
+      
+      console.log('[Planner] Optimization complete:', actions.length, 'actions');
+      
+    } catch (e) {
+      console.error('[Planner] Optimization error:', e.message);
+      actions.push({ type: 'error', message: e.message });
+    }
+    
+    return { changes, actions };
   }
 
   /**

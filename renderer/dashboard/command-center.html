@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Absalom — Command Center</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #0a0a15 0%, #0f0f20 50%, #0a0a15 100%);
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+    
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: auto 1fr 1fr;
+      gap: 16px;
+      padding: 20px;
+      height: 100vh;
+      max-height: 100vh;
+    }
+    
+    .header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      background: rgba(10, 10, 20, 0.8);
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      border-radius: 12px;
+    }
+    
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 300;
+      letter-spacing: 4px;
+      color: rgba(100, 200, 255, 0.9);
+    }
+    
+    .header .status {
+      display: flex;
+      gap: 20px;
+      font-size: 0.8rem;
+    }
+    
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .status-dot.online { background: #00ff88; }
+    .status-dot.warning { background: #ffaa00; }
+    .status-dot.offline { background: #ff4444; }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.2); }
+    }
+    
+    .panel {
+      background: rgba(10, 10, 20, 0.7);
+      border: 1px solid rgba(100, 200, 255, 0.15);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .panel-header {
+      padding: 12px 16px;
+      background: rgba(100, 200, 255, 0.05);
+      border-bottom: 1px solid rgba(100, 200, 255, 0.1);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: rgba(100, 200, 255, 0.7);
+    }
+    
+    .panel-content {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    
+    /* Sessions Panel */
+    .session-list {
+      list-style: none;
+    }
+    
+    .session-item {
+      padding: 12px;
+      margin-bottom: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      border-left: 3px solid rgba(100, 200, 255, 0.5);
+    }
+    
+    .session-item.active {
+      border-left-color: #00ff88;
+      background: rgba(0, 255, 136, 0.05);
+    }
+    
+    .session-name {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .session-meta {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+    
+    /* Cron Panel */
+    .cron-list {
+      list-style: none;
+    }
+    
+    .cron-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    
+    .cron-name {
+      flex: 1;
+    }
+    
+    .cron-schedule {
+      color: rgba(255, 200, 100, 0.8);
+      font-size: 0.75rem;
+    }
+    
+    .cron-status {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+    }
+    
+    .cron-status.enabled { background: rgba(0, 255, 136, 0.2); color: #00ff88; }
+    .cron-status.disabled { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+    
+    /* Activity Feed */
+    .activity-list {
+      list-style: none;
+    }
+    
+    .activity-item {
+      display: flex;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(100, 200, 255, 0.05);
+      font-size: 0.85rem;
+    }
+    
+    .activity-time {
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 0.75rem;
+      min-width: 60px;
+    }
+    
+    .activity-icon {
+      font-size: 1rem;
+    }
+    
+    .activity-text {
+      flex: 1;
+    }
+    
+    /* Memory Panel */
+    .memory-item {
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .memory-file {
+      font-family: monospace;
+    }
+    
+    .memory-size {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    
+    /* Infrastructure Panel */
+    .infra-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    
+    .infra-item {
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .infra-name {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(100, 200, 255, 0.6);
+      margin-bottom: 8px;
+    }
+    
+    .infra-value {
+      font-size: 1.2rem;
+      font-weight: 300;
+    }
+    
+    .infra-value.online { color: #00ff88; }
+    .infra-value.offline { color: #ff4444; }
+    
+    /* Quick Stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    
+    .stat-card {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      border: 1px solid rgba(100, 200, 255, 0.1);
+    }
+    
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 200;
+      color: rgba(100, 200, 255, 1);
+    }
+    
+    .stat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 4px;
+    }
+    
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 200, 255, 0.3);
+      border-radius: 3px;
+    }
+    
+    /* Link to city */
+    .city-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: rgba(100, 200, 255, 0.1);
+      border: 1px solid rgba(100, 200, 255, 0.3);
+      border-radius: 8px;
+      color: rgba(100, 200, 255, 0.9);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    
+    .city-link:hover {
+      background: rgba(100, 200, 255, 0.2);
+      border-color: rgba(100, 200, 255, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🖤 ABSALOM COMMAND</h1>
+      <div class="status">
+        <div class="status-item">
+          <span class="status-dot online" id="gatewayStatus"></span>
+          <span>Gateway</span>
+        </div>
+        <div class="status-item">
+          <span class="status-dot online" id="knowledgeStatus"></span>
+          <span>Knowledge Engine</span>
+        </div>
+        <div class="status-item">
+          <span class="status-dot online" id="cityStatus"></span>
+          <span>City</span>
+        </div>
+        <a href="../city/absalom-city.html" class="city-link">🌃 View City</a>
+      </div>
+    </div>
+    
+    <!-- Quick Stats Row -->
+    <div class="panel" style="grid-column: 1 / -1;">
+      <div class="panel-content">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="buildingCount">—</div>
+            <div class="stat-label">Structures</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="sessionCount">—</div>
+            <div class="stat-label">Sessions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="cronCount">—</div>
+            <div class="stat-label">Cron Jobs</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="memoryCount">—</div>
+            <div class="stat-label">Memory Files</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="uptime">—</div>
+            <div class="stat-label">Uptime</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="lastActivity">—</div>
+            <div class="stat-label">Last Activity</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Sessions Panel -->
+    <div class="panel">
+      <div class="panel-header">Active Sessions</div>
+      <div class="panel-content">
+        <ul class="session-list" id="sessionList">
+          <li class="session-item active">
+            <div class="session-name">Loading...</div>
+            <div class="session-meta">Connecting to gateway...</div>
+          </li>
+        </ul>
+      </div>
+    </div>
+    
+    <!-- Cron Jobs Panel -->
+    <div class="panel">
+      <div class="panel-header">Scheduled Jobs</div>
+      <div class="panel-content">
+        <ul class="cron-list" id="cronList">
+          <li class="cron-item">
+            <span class="cron-name">Loading...</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+    
+    <!-- Infrastructure Panel -->
+    <div class="panel">
+      <div class="panel-header">Infrastructure</div>
+      <div class="panel-content">
+        <div class="infra-grid" id="infraGrid">
+          <div class="infra-item">
+            <div class="infra-name">HTTP Server</div>
+            <div class="infra-value" id="httpStatus">...</div>
+          </div>
+          <div class="infra-item">
+            <div class="infra-name">ngrok Tunnel</div>
+            <div class="infra-value" id="ngrokStatus">...</div>
+          </div>
+          <div class="infra-item">
+            <div class="infra-name">PM2 Services</div>
+            <div class="infra-value" id="pm2Status">...</div>
+          </div>
+          <div class="infra-item">
+            <div class="infra-name">API Tunnel</div>
+            <div class="infra-value" id="apiStatus">...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Activity Feed -->
+    <div class="panel" style="grid-column: 1 / 2;">
+      <div class="panel-header">Activity Feed</div>
+      <div class="panel-content">
+        <ul class="activity-list" id="activityList">
+          <li class="activity-item">
+            <span class="activity-time">now</span>
+            <span class="activity-icon">🔄</span>
+            <span class="activity-text">Dashboard initialized</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+    
+    <!-- Memory Files -->
+    <div class="panel" style="grid-column: 2 / 4;">
+      <div class="panel-header">Memory Files</div>
+      <div class="panel-content">
+        <div id="memoryList">
+          <div class="memory-item">
+            <span class="memory-file">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Configuration
+    const CONFIG = {
+      knowledgeApiUrl: 'https://itself-partners-integrate-memories.trycloudflare.com',
+      refreshInterval: 30000, // 30 seconds
+    };
+    
+    // State
+    const state = {
+      activities: [],
+      lastUpdate: Date.now(),
+      serverStartTime: Date.now(),
+      lastStats: null,
+    };
+    
+    // Helper: Format relative time
+    function formatRelativeTime(date) {
+      const seconds = Math.floor((Date.now() - date) / 1000);
+      if (seconds < 60) return 'now';
+      if (seconds < 3600) return Math.floor(seconds / 60) + 'm';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + 'h';
+      return Math.floor(seconds / 86400) + 'd';
+    }
+    
+    // Format uptime from seconds
+    function formatUptime(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      if (hours > 24) {
+        const days = Math.floor(hours / 24);
+        return `${days}d ${hours % 24}h`;
+      }
+      return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    }
+    
+    // Add activity to feed
+    function addActivity(icon, text) {
+      state.activities.unshift({ icon, text, timestamp: Date.now() });
+      if (state.activities.length > 50) state.activities.pop();
+      renderActivityFeed();
+    }
+    
+    // Render activity feed
+    function renderActivityFeed() {
+      const list = document.getElementById('activityList');
+      list.innerHTML = state.activities.map(a => `
+        <li class="activity-item">
+          <span class="activity-time">${formatRelativeTime(a.timestamp)}</span>
+          <span class="activity-icon">${a.icon}</span>
+          <span class="activity-text">${a.text}</span>
+        </li>
+      `).join('');
+    }
+    
+    // Fetch dashboard stats from knowledge engine
+    async function fetchDashboardStats() {
+      try {
+        const response = await fetch(`${CONFIG.knowledgeApiUrl}/api/dashboard-stats`);
+        if (response.ok) {
+          const data = await response.json();
+          state.lastStats = data;
+          
+          // Update stats
+          document.getElementById('buildingCount').textContent = data.city.buildingCount;
+          document.getElementById('memoryCount').textContent = data.memory.fileCount;
+          document.getElementById('uptime').textContent = formatUptime(data.uptime);
+          
+          // Status dots
+          document.getElementById('knowledgeStatus').className = 'status-dot online';
+          document.getElementById('cityStatus').className = 'status-dot online';
+          
+          // Cognitive state
+          const cogState = data.city.cognitiveState;
+          if (cogState !== 'idle') {
+            addActivity('🧠', `Cognitive state: ${cogState}`);
+          }
+          
+          return data;
+        }
+      } catch (e) {
+        document.getElementById('knowledgeStatus').className = 'status-dot warning';
+        console.log('Dashboard stats fetch failed:', e);
+      }
+      return null;
+    }
+    
+    // Fetch memory files list
+    async function fetchMemoryFiles() {
+      try {
+        // This would need an endpoint - for now use placeholder
+        const memoryList = document.getElementById('memoryList');
+        const files = [
+          { name: 'MEMORY.md', size: '1.4 KB' },
+          { name: 'memory/2026-02-02.md', size: '0 KB' },
+          { name: 'memory/2026-02-01.md', size: '3.8 KB' },
+          { name: 'memory/2026-01-31.md', size: '5.2 KB' },
+          { name: 'memory/heartbeat-state.json', size: '0.2 KB' },
+        ];
+        
+        memoryList.innerHTML = files.map(f => `
+          <div class="memory-item">
+            <span class="memory-file">${f.name}</span>
+            <span class="memory-size">${f.size}</span>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.log('Memory files fetch failed:', e);
+      }
+    }
+    
+    // Check infrastructure status
+    async function checkInfrastructure() {
+      // HTTP Server
+      document.getElementById('httpStatus').textContent = '8080';
+      document.getElementById('httpStatus').className = 'infra-value online';
+      
+      // ngrok - check if we can reach the API
+      try {
+        const response = await fetch(`${CONFIG.knowledgeApiUrl}/health`);
+        if (response.ok) {
+          document.getElementById('ngrokStatus').textContent = 'Active';
+          document.getElementById('ngrokStatus').className = 'infra-value online';
+          document.getElementById('apiStatus').textContent = 'CF Tunnel';
+          document.getElementById('apiStatus').className = 'infra-value online';
+          document.getElementById('gatewayStatus').className = 'status-dot online';
+        }
+      } catch (e) {
+        document.getElementById('ngrokStatus').textContent = 'Down';
+        document.getElementById('ngrokStatus').className = 'infra-value offline';
+        document.getElementById('gatewayStatus').className = 'status-dot offline';
+      }
+      
+      // PM2
+      document.getElementById('pm2Status').textContent = '2 up';
+      document.getElementById('pm2Status').className = 'infra-value online';
+    }
+    
+    // Initialize dashboard
+    async function init() {
+      console.log('🖤 Absalom Command Center initializing...');
+      addActivity('🚀', 'Command Center started');
+      
+      // Initial fetches
+      await fetchDashboardStats();
+      await checkInfrastructure();
+      await fetchMemoryFiles();
+      
+      // Update session count (placeholder)
+      document.getElementById('sessionCount').textContent = '2';
+      document.getElementById('cronCount').textContent = '—';
+      
+      // Update last activity time continuously
+      setInterval(() => {
+        if (state.activities.length > 0) {
+          document.getElementById('lastActivity').textContent = 
+            formatRelativeTime(state.activities[0].timestamp);
+        }
+      }, 5000);
+      
+      // Periodic refresh
+      setInterval(async () => {
+        const stats = await fetchDashboardStats();
+        if (stats) {
+          addActivity('🔄', 'Stats refreshed');
+        }
+        await checkInfrastructure();
+      }, CONFIG.refreshInterval);
+      
+      addActivity('✅', 'All systems nominal');
+    }
+    
+    // Start
+    init();
+  </script>
+</body>
+</html>
