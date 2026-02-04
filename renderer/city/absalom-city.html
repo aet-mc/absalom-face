@@ -448,6 +448,8 @@
 
   <!-- Three.js with post-processing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Stats.js for FPS monitoring -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r17/Stats.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
@@ -474,8 +476,148 @@
     const qualityLevel = isMobile ? 'low' : 'high';
     
     // ═══════════════════════════════════════════════════════════════════════
+    // STATS.JS FPS MONITOR (for debugging/optimization)
+    // ═══════════════════════════════════════════════════════════════════════
+    let stats = null;
+    try {
+      stats = new Stats();
+      stats.showPanel(0); // 0: fps, 1: ms, 2: mb
+      stats.dom.style.cssText = 'position:fixed;bottom:20px;left:20px;z-index:200;opacity:0.8;';
+      document.body.appendChild(stats.dom);
+    } catch(e) { console.log('[Stats] stats.js not loaded'); }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // ADAPTIVE QUALITY SYSTEM - Auto-reduce effects when FPS drops
+    // ═══════════════════════════════════════════════════════════════════════
+    const adaptiveQuality = {
+      enabled: true,
+      targetFPS: 30,           // Minimum acceptable FPS
+      checkInterval: 1000,     // Check every 1 second for faster adaptation
+      lastCheck: 0,
+      fpsHistory: [],          // Rolling average
+      historySize: 5,
+      currentLevel: 'medium',  // Start medium, auto-adjusts (high/medium/low)
+      
+      // Quality settings per level
+      levels: {
+        high: {
+          bloomStrength: 1.5,
+          moteCount: 300,
+          dataStreamActive: 0.7,
+          windowUpdates: true,
+          edgeGlow: true
+        },
+        medium: {
+          bloomStrength: 1.0,
+          moteCount: 150,
+          dataStreamActive: 0.4,
+          windowUpdates: true,
+          edgeGlow: false
+        },
+        low: {
+          bloomStrength: 0.5,
+          moteCount: 50,
+          dataStreamActive: 0.2,
+          windowUpdates: false,
+          edgeGlow: false
+        }
+      },
+      
+      // Update quality based on FPS
+      update: function(currentFPS, time) {
+        if (!this.enabled || time - this.lastCheck < this.checkInterval) return;
+        this.lastCheck = time;
+        
+        // Add to history
+        this.fpsHistory.push(currentFPS);
+        if (this.fpsHistory.length > this.historySize) {
+          this.fpsHistory.shift();
+        }
+        
+        // Calculate average
+        const avgFPS = this.fpsHistory.reduce((a, b) => a + b, 0) / this.fpsHistory.length;
+        
+        // Determine target level - AGGRESSIVE thresholds
+        let targetLevel = this.currentLevel;
+        if (avgFPS < 25) {
+          targetLevel = 'low';  // Go straight to low if under 25
+          if (this.currentLevel !== 'low') {
+            console.log(`[AdaptiveQuality] FPS ${avgFPS.toFixed(1)} < 25, dropping to LOW`);
+          }
+        } else if (avgFPS < 40 && this.currentLevel === 'high') {
+          targetLevel = 'medium';
+          console.log(`[AdaptiveQuality] FPS ${avgFPS.toFixed(1)} < 40, reducing to MEDIUM`);
+        } else if (avgFPS > 55 && this.currentLevel !== 'high') {
+          targetLevel = this.currentLevel === 'low' ? 'medium' : 'high';
+          console.log(`[AdaptiveQuality] FPS ${avgFPS.toFixed(1)} > 55, increasing to ${targetLevel}`);
+        }
+        
+        // Apply new level
+        if (targetLevel !== this.currentLevel) {
+          this.applyLevel(targetLevel);
+        }
+      },
+      
+      applyLevel: function(level) {
+        this.currentLevel = level;
+        const settings = this.levels[level];
+        
+        // Adjust bloom strength
+        if (typeof bloomPass !== 'undefined' && bloomPass) {
+          bloomPass.strength = settings.bloomStrength;
+        }
+        
+        // Adjust data stream activity rate
+        if (city.dataStreams) {
+          city.dataStreams.forEach(stream => {
+            stream.userData.active = Math.random() < settings.dataStreamActive;
+          });
+        }
+        
+        // AGGRESSIVE: Disable post-processing passes based on level
+        if (typeof godRaysPass !== 'undefined' && godRaysPass) {
+          godRaysPass.enabled = (level === 'high');
+        }
+        if (typeof filmGrainPass !== 'undefined' && filmGrainPass) {
+          filmGrainPass.enabled = (level === 'high');
+        }
+        if (typeof chromaPass !== 'undefined' && chromaPass) {
+          chromaPass.enabled = (level !== 'low');
+        }
+        if (typeof vignettePass !== 'undefined' && vignettePass) {
+          vignettePass.enabled = (level !== 'low');
+        }
+        
+        // AGGRESSIVE: Hide particle systems in low mode
+        if (city.fireflies) city.fireflies.visible = (level !== 'low');
+        if (city.dustMotes) city.dustMotes.visible = (level !== 'low');
+        if (city.godRayParticles) city.godRayParticles.visible = (level === 'high');
+        if (city.stars) city.stars.visible = (level !== 'low');
+        
+        // Reduce render resolution in low mode
+        if (typeof renderer !== 'undefined' && renderer) {
+          const basePixelRatio = Math.min(window.devicePixelRatio, 2);
+          renderer.setPixelRatio(level === 'low' ? basePixelRatio * 0.5 : 
+                                  level === 'medium' ? basePixelRatio * 0.75 : 
+                                  basePixelRatio);
+        }
+        
+        console.log(`[AdaptiveQuality] Applied ${level} quality - passes: bloom=${bloomPass?.enabled}, godRays=${godRaysPass?.enabled}, grain=${filmGrainPass?.enabled}`);
+      }
+    };
+    
+    // ═══════════════════════════════════════════════════════════════════════
     // SCENE SETUP
     // ═══════════════════════════════════════════════════════════════════════
+    
+    // Pre-allocated colors to avoid GC during animation loop
+    const _tempColors = {
+      warmTint: new THREE.Color(0xff9944),
+      moonTint: new THREE.Color(0x2244aa),
+      windowGlow: new THREE.Color(0xffaa66),
+      connColor: new THREE.Color(0x00ffff),
+      scratch: new THREE.Color()
+    };
     
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x0a0a15, 0.006);
@@ -496,14 +638,18 @@
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     
-    // Post-processing: Full AAA Pipeline
+    // Post-processing: OPTIMIZED AAA Pipeline (half-res bloom/godrays)
     const composer = new THREE.EffectComposer(renderer);
     const renderPass = new THREE.RenderPass(scene, camera);
     composer.addPass(renderPass);
     
-    // 1. BLOOM - Enhanced for that cyberpunk glow
+    // OPTIMIZATION: Create half-resolution render target for bloom
+    const halfWidth = Math.floor(window.innerWidth * 0.5);
+    const halfHeight = Math.floor(window.innerHeight * 0.5);
+    
+    // 1. BLOOM - Enhanced for that cyberpunk glow (at half resolution for performance)
     const bloomPass = new THREE.UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      new THREE.Vector2(halfWidth, halfHeight),  // HALF resolution
       isMobile ? 1.0 : 1.5,  // strength - INCREASED for more glow
       0.5,                    // radius - slightly wider
       0.7                     // threshold - lower = more things glow
@@ -598,7 +744,7 @@
         decay: { value: 0.95 },
         density: { value: 0.8 },
         weight: { value: 0.4 },
-        samples: { value: isMobile ? 30 : 60 },
+        samples: { value: isMobile ? 20 : 40 },
         lightIntensity: { value: 0.0 }
       },
       vertexShader: `
@@ -634,7 +780,7 @@
           float illuminationDecay = 1.0;
           vec4 color = vec4(0.0);
           
-          for (int i = 0; i < 60; i++) {
+          for (int i = 0; i < 40; i++) {
             if (i >= samples) break;
             coord -= deltaTextCoord;
             vec4 texSample = texture2D(tDiffuse, coord);
@@ -755,15 +901,15 @@
         position: new THREE.Vector3(50, 0, 25),
         keywords: ['stock', 'trading', 'market', 'options', 'scanner', 'asymmetry', 'portfolio']
       },
-      execution: { 
-        name: 'EXECUTION', 
+      infrastructure: { 
+        name: 'INFRASTRUCTURE', 
         color: new THREE.Color(0xff6b9d),
         emissive: new THREE.Color(0x331122),
         position: new THREE.Vector3(-45, 0, 35),
         keywords: ['tool', 'skill', 'deploy', 'action', 'execute', 'integration']
       },
-      cognition: { 
-        name: 'COGNITION', 
+      projects: { 
+        name: 'PROJECTS', 
         color: new THREE.Color(0x9d6bff),
         emissive: new THREE.Color(0x220033),
         position: new THREE.Vector3(25, 0, -50),
@@ -1108,7 +1254,10 @@
       const positions = new Float32Array(moteCount * 3);
       const colors = new Float32Array(moteCount * 3);
       const sizes = new Float32Array(moteCount);
-      const phases = new Float32Array(moteCount);
+      // GPU OPTIMIZATION: Add velocity and life attributes for GPU-based animation
+      const velocities = new Float32Array(moteCount * 3);
+      const lifes = new Float32Array(moteCount);
+      const seeds = new Float32Array(moteCount); // Random seed per particle
       
       // District colors for energy motes
       const districtColors = [
@@ -1127,6 +1276,15 @@
         positions[i * 3 + 1] = 2 + Math.random() * 45; // Varied heights
         positions[i * 3 + 2] = Math.sin(angle) * radius;
         
+        // GPU OPTIMIZATION: Store velocity for GPU animation
+        velocities[i * 3] = (Math.random() - 0.5) * 0.02;     // vx
+        velocities[i * 3 + 1] = 0.01 + Math.random() * 0.02;  // vy (upward drift)
+        velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02; // vz
+        
+        // Random seed and life for variety
+        seeds[i] = Math.random() * 100.0;
+        lifes[i] = Math.random(); // 0-1 life phase
+        
         // Color based on nearest district
         const districtIdx = Math.floor(Math.random() * districtColors.length);
         const color = districtColors[districtIdx];
@@ -1136,47 +1294,80 @@
         
         // Varied sizes
         sizes[i] = 0.2 + Math.random() * 0.6;
-        phases[i] = Math.random() * Math.PI * 2;
       }
       
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
       geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+      geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
+      geometry.setAttribute('life', new THREE.BufferAttribute(lifes, 1));
+      geometry.setAttribute('seed', new THREE.BufferAttribute(seeds, 1));
       
-      // Custom shader material for glowing motes
+      // GPU OPTIMIZED shader - ALL position updates happen on GPU
       const moteMaterial = new THREE.ShaderMaterial({
         uniforms: {
           time: { value: 0 },
-          nightIntensity: { value: 0 }
+          nightIntensity: { value: 0 },
+          boundY: { value: 55.0 },  // Max Y before wrap
+          minY: { value: 2.0 }      // Min Y for respawn
         },
         vertexShader: `
           attribute float size;
+          attribute vec3 velocity;
+          attribute float life;
+          attribute float seed;
+          
           varying vec3 vColor;
+          varying float vLife;
+          
           uniform float time;
           uniform float nightIntensity;
+          uniform float boundY;
+          uniform float minY;
+          
+          // Simplex-like noise function
+          float hash(float n) { return fract(sin(n) * 43758.5453123); }
           
           void main() {
             vColor = color;
+            
+            // GPU-based position animation (no CPU involvement)
             vec3 pos = position;
             
-            // Gentle floating motion
-            float uniquePhase = position.x * 0.1 + position.z * 0.1;
-            pos.y += sin(time * 0.5 + uniquePhase) * 1.5;
-            pos.x += sin(time * 0.3 + uniquePhase * 2.0) * 0.5;
-            pos.z += cos(time * 0.4 + uniquePhase * 1.5) * 0.5;
+            // Time-based movement with velocity
+            float t = time + seed * 10.0;
+            
+            // Orbital motion around origin with velocity influence
+            float uniquePhase = seed * 6.28318;
+            pos.x += sin(t * 0.3 + uniquePhase) * 2.0 + velocity.x * t * 50.0;
+            pos.y += velocity.y * t * 30.0;
+            pos.z += cos(t * 0.4 + uniquePhase * 0.7) * 2.0 + velocity.z * t * 50.0;
+            
+            // Wrap Y position (GPU-based respawn)
+            float yRange = boundY - minY;
+            pos.y = minY + mod(pos.y - minY, yRange);
+            
+            // Gentle floating motion overlay
+            pos.y += sin(t * 0.5 + uniquePhase) * 1.5;
+            pos.x += sin(t * 0.3 + uniquePhase * 2.0) * 0.5;
+            pos.z += cos(t * 0.4 + uniquePhase * 1.5) * 0.5;
+            
+            // Life-based fade (smooth cycling)
+            vLife = 0.5 + 0.5 * sin(t * 0.2 + life * 6.28318);
             
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             
             // Pulsing size
-            float pulse = 0.8 + 0.4 * sin(time * 2.0 + uniquePhase * 3.0);
+            float pulse = 0.8 + 0.4 * sin(t * 2.0 + uniquePhase * 3.0);
             float nightBoost = 1.0 + nightIntensity * 0.8;
             
-            gl_PointSize = size * pulse * nightBoost * (300.0 / -mvPosition.z);
+            gl_PointSize = size * pulse * nightBoost * vLife * (300.0 / -mvPosition.z);
             gl_Position = projectionMatrix * mvPosition;
           }
         `,
         fragmentShader: `
           varying vec3 vColor;
+          varying float vLife;
           uniform float nightIntensity;
           
           void main() {
@@ -1189,8 +1380,8 @@
             float glow = 1.0 - smoothstep(0.0, 0.5, dist);
             glow = pow(glow, 1.5);
             
-            // Brighter at night
-            float alpha = glow * (0.4 + nightIntensity * 0.5);
+            // Brighter at night, modulated by life
+            float alpha = glow * vLife * (0.4 + nightIntensity * 0.5);
             
             gl_FragColor = vec4(vColor * (1.0 + glow * 0.5), alpha);
           }
@@ -1202,31 +1393,17 @@
       });
       
       city.energyMotes = new THREE.Points(geometry, moteMaterial);
-      city.energyMotes.userData = { phases };
       scene.add(city.energyMotes);
     }
     
+    // GPU OPTIMIZED: Only update uniforms, no position array updates
     function updateEnergyMotes(dt) {
       if (!city.energyMotes) return;
       
-      // Update shader uniforms
+      // Only update shader uniforms - positions computed entirely on GPU
       city.energyMotes.material.uniforms.time.value = dt;
       city.energyMotes.material.uniforms.nightIntensity.value = city.nightIntensity;
-      
-      // Respawn motes that drift too far
-      const positions = city.energyMotes.geometry.attributes.position.array;
-      for (let i = 0; i < positions.length / 3; i++) {
-        const y = positions[i * 3 + 1];
-        if (y > 55 || y < 1) {
-          // Reset to random position
-          const angle = Math.random() * Math.PI * 2;
-          const radius = 10 + Math.random() * 60;
-          positions[i * 3] = Math.cos(angle) * radius;
-          positions[i * 3 + 1] = 5 + Math.random() * 30;
-          positions[i * 3 + 2] = Math.sin(angle) * radius;
-        }
-      }
-      city.energyMotes.geometry.attributes.position.needsUpdate = true;
+      // No geometry.attributes.position.needsUpdate - all GPU!
     }
     
     function createFirefliesAndDust() {
@@ -1713,6 +1890,9 @@
     }
     
     function updateWindowActivity(dt) {
+      // OPTIMIZATION: Skip window updates in low quality mode
+      if (!adaptiveQuality.levels[adaptiveQuality.currentLevel].windowUpdates) return;
+      
       city.windowStates.forEach((windows, building) => {
         const districtRhythm = DISTRICT_RHYTHMS[building.district] || DISTRICT_RHYTHMS.core;
         
@@ -3967,6 +4147,130 @@
     }
     
     // ═══════════════════════════════════════════════════════════════════════
+    // INSTANCED MESH SYSTEM - Major Performance Optimization
+    // Groups buildings by type/district for batched rendering (reduces draw calls)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const instancedMeshes = {
+      pools: new Map(),        // Map of 'district_type' -> { mesh, count, maxCount, matrices, colors }
+      maxInstancesPerPool: 100,
+      initialized: false,
+      
+      // Get or create an instanced mesh pool for a building type
+      getPool: function(district, buildingType, width, depth, height) {
+        // Create a key based on approximate dimensions (bucket sizes for efficiency)
+        const wBucket = Math.round(width * 2) / 2;  // Round to 0.5
+        const dBucket = Math.round(depth * 2) / 2;
+        const hBucket = Math.round(height / 5) * 5; // Round to nearest 5
+        const key = `${district}_${buildingType}_${wBucket}_${dBucket}_${hBucket}`;
+        
+        if (!this.pools.has(key)) {
+          // Create new pool
+          this.createPool(key, district, buildingType, wBucket, dBucket, hBucket);
+        }
+        
+        return this.pools.get(key);
+      },
+      
+      createPool: function(key, district, buildingType, width, depth, height) {
+        const districtData = DISTRICTS[district] || DISTRICTS.core;
+        
+        // Create geometry based on type
+        let geometry;
+        switch(buildingType) {
+          case 'cylinder':
+          case 'octagon':
+          case 'hex':
+            const segments = buildingType === 'hex' ? 6 : (buildingType === 'octagon' ? 8 : 12);
+            geometry = new THREE.CylinderGeometry(width/2, width/2, height, segments);
+            break;
+          case 'tapered':
+            geometry = new THREE.CylinderGeometry(width * 0.4, width/2, height, 8);
+            break;
+          default: // tower
+            geometry = new THREE.BoxGeometry(width, height, depth);
+        }
+        
+        // Create instanced material with emissive support
+        const material = new THREE.MeshStandardMaterial({
+          color: 0x1a1a2e,
+          emissive: districtData.emissive,
+          emissiveIntensity: 0.7,
+          roughness: 0.5,
+          metalness: 0.4,
+        });
+        
+        // Create InstancedMesh
+        const mesh = new THREE.InstancedMesh(geometry, material, this.maxInstancesPerPool);
+        mesh.count = 0; // Start with 0 visible instances
+        mesh.castShadow = !isMobile;
+        mesh.receiveShadow = !isMobile;
+        mesh.frustumCulled = true;
+        
+        // Store pool data
+        this.pools.set(key, {
+          mesh,
+          geometry,
+          material,
+          district,
+          type: buildingType,
+          width, depth, height,
+          count: 0,
+          matrices: [],
+          buildings: []  // Reference to building data for updates
+        });
+        
+        scene.add(mesh);
+        return this.pools.get(key);
+      },
+      
+      // Add a building instance to a pool
+      addInstance: function(pool, x, z, height, building) {
+        if (pool.count >= this.maxInstancesPerPool) {
+          console.warn('[InstancedMesh] Pool full, creating overflow mesh');
+          return false;
+        }
+        
+        const matrix = new THREE.Matrix4();
+        const baseHeight = 1.5; // Account for building base
+        matrix.setPosition(x, baseHeight + height / 2, z);
+        
+        pool.mesh.setMatrixAt(pool.count, matrix);
+        pool.matrices.push(matrix);
+        pool.buildings.push(building);
+        pool.count++;
+        pool.mesh.count = pool.count;
+        pool.mesh.instanceMatrix.needsUpdate = true;
+        
+        return true;
+      },
+      
+      // Update all pool emissive colors based on district activity
+      updateEmissives: function() {
+        this.pools.forEach((pool, key) => {
+          const districtData = DISTRICTS[pool.district] || DISTRICTS.core;
+          const activity = activityState.districtActivity[pool.district];
+          const intensity = activity ? activity.currentIntensity : 0.3;
+          
+          // Update material emissive intensity based on activity
+          pool.material.emissiveIntensity = 0.4 + intensity * 0.8 + city.nightIntensity * 0.5;
+        });
+      },
+      
+      // Get total instance count across all pools
+      getTotalInstances: function() {
+        let total = 0;
+        this.pools.forEach(pool => total += pool.count);
+        return total;
+      },
+      
+      // Get number of draw calls (pools)
+      getDrawCallCount: function() {
+        return this.pools.size;
+      }
+    };
+    
+    // ═══════════════════════════════════════════════════════════════════════
     // ARCHITECTURAL BUILDING STYLES - Defines building appearance by function
     // ═══════════════════════════════════════════════════════════════════════
     
@@ -6179,6 +6483,11 @@
         agentCountEl.textContent = agentCount;
         agentRow.style.display = agentCount > 0 ? 'flex' : 'none';
       }
+      
+      // Show instanced mesh stats in console (for debugging performance)
+      if (instancedMeshes.pools.size > 0 && Math.random() < 0.01) {
+        console.log(`[Perf] ${instancedMeshes.getTotalInstances()} instances in ${instancedMeshes.getDrawCallCount()} draw calls`);
+      }
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -6217,7 +6526,7 @@
     const controlsHintEl = document.querySelector('.controls-hint');
     
     // District keys mapping for keyboard shortcuts
-    const DISTRICT_KEYS = ['core', 'trading', 'execution', 'cognition', 'memory', 'perception', 'growth', 'relationship', 'emotion'];
+    const DISTRICT_KEYS = ['core', 'trading', 'infrastructure', 'projects', 'memory', 'perception', 'growth', 'relationship', 'emotion'];
     
     // ─────────────────────────────────────────────────────────────────────────
     // RAYCASTING & SELECTION
@@ -6888,13 +7197,19 @@
         dt = time * 0.001;
       }
       
-      // FPS
+      // FPS tracking and stats.js update
+      if (stats) stats.begin();
+      
       frameCount++;
       if (time - lastFpsTime > 1000) {
-        fpsEl.textContent = `${frameCount} fps${interaction.isPaused ? ' (paused)' : ''}`;
+        const currentFPS = frameCount;
+        fpsEl.textContent = `${currentFPS} fps ${adaptiveQuality.currentLevel !== 'high' ? '(' + adaptiveQuality.currentLevel + ')' : ''}${interaction.isPaused ? ' (paused)' : ''}`;
         frameCount = 0;
         lastFpsTime = time;
         updateStats(); // Update HUD stats including agent count
+        
+        // Adaptive quality check
+        adaptiveQuality.update(currentFPS, time);
       }
       
       controls.update();
@@ -6950,8 +7265,8 @@
         }
       }
       
-      // Building effects with cinematic lighting response
-      if (Math.floor(time) % 100 < 16) {
+      // Building effects with cinematic lighting response (reduced frequency for perf)
+      if (Math.floor(time) % 250 < 16) {
         // Golden hour surface glow factor
         const goldenGlow = lighting.goldenHourIntensity;
         const rimFactor = lighting.rimLightIntensity;
@@ -6965,10 +7280,10 @@
             // Night boost for emissives
             const nightBoost = 0.5 + city.nightIntensity * 1.5;
             
-            // Golden hour warm tint on surfaces
+            // Golden hour warm tint on surfaces (using pre-allocated colors)
             if (goldenGlow > 0) {
-              const warmTint = new THREE.Color(0xff9944).multiplyScalar(goldenGlow * 0.3);
-              b.mesh.material.emissive.copy(districtData.emissive).add(warmTint);
+              _tempColors.scratch.copy(_tempColors.warmTint).multiplyScalar(goldenGlow * 0.3);
+              b.mesh.material.emissive.copy(districtData.emissive).add(_tempColors.scratch);
             } else {
               b.mesh.material.emissive.copy(districtData.emissive);
             }
@@ -6976,14 +7291,14 @@
             // Buildings glow more at night - city comes alive!
             b.mesh.material.emissiveIntensity = 0.4 + city.nightIntensity * 0.8;
             
-            // Moonlight blue tint at night
+            // Moonlight blue tint at night (using pre-allocated colors)
             if (city.nightIntensity > 0.3) {
-              const moonTint = new THREE.Color(0x2244aa).multiplyScalar(city.nightIntensity * 0.15);
-              b.mesh.material.emissive.add(moonTint);
+              _tempColors.scratch.copy(_tempColors.moonTint).multiplyScalar(city.nightIntensity * 0.15);
+              b.mesh.material.emissive.add(_tempColors.scratch);
               
               // Additional warm window glow to simulate interior lights
-              const windowGlow = new THREE.Color(0xffaa66).multiplyScalar(city.nightIntensity * 0.1);
-              b.mesh.material.emissive.add(windowGlow);
+              _tempColors.scratch.copy(_tempColors.windowGlow).multiplyScalar(city.nightIntensity * 0.1);
+              b.mesh.material.emissive.add(_tempColors.scratch);
             }
           }
           
@@ -7042,21 +7357,23 @@
         });
       }
       
-      // Connection pulse - brighter energy flow at night
-      city.connections.forEach((conn, i) => {
-        const baseSpeed = 2 + (i % 3) * 0.3; // Varied speeds
-        const pulse = Math.sin(dt * baseSpeed + i * 0.5) * 0.12 + 0.2;
-        const nightBoost = 1 + city.nightIntensity * 1.2;
-        conn.line.material.opacity = pulse * nightBoost;
-        
-        // Shift connection color slightly warmer during golden hour
-        if (lighting.goldenHourIntensity > 0) {
-          const warmShift = lighting.goldenHourIntensity * 0.2;
-          conn.line.material.color.setRGB(0 + warmShift, 1, 1 - warmShift * 0.5);
-        } else {
-          conn.line.material.color.setHex(0x00ffff);
-        }
-      });
+      // Connection pulse - brighter energy flow at night (skip in low quality)
+      if (adaptiveQuality.currentLevel !== 'low') {
+        city.connections.forEach((conn, i) => {
+          const baseSpeed = 2 + (i % 3) * 0.3; // Varied speeds
+          const pulse = Math.sin(dt * baseSpeed + i * 0.5) * 0.12 + 0.2;
+          const nightBoost = 1 + city.nightIntensity * 1.2;
+          conn.line.material.opacity = pulse * nightBoost;
+          
+          // Shift connection color slightly warmer during golden hour (using pre-allocated)
+          if (lighting.goldenHourIntensity > 0) {
+            const warmShift = lighting.goldenHourIntensity * 0.2;
+            conn.line.material.color.setRGB(0 + warmShift, 1, 1 - warmShift * 0.5);
+          } else {
+            conn.line.material.color.copy(_tempColors.connColor);
+          }
+        });
+      }
       
       // District labels float - more visible at night, subtle during day
       city.districtLabels.forEach(label => {
@@ -7182,7 +7499,8 @@
       }
       
       // Update building edge glow effects (cyberpunk neon)
-      if (!isMobile) {
+      // OPTIMIZATION: Skip if adaptive quality is low
+      if (!isMobile && adaptiveQuality.levels[adaptiveQuality.currentLevel].edgeGlow) {
         city.buildings.forEach(building => {
           if (!building.mesh) return;
           building.mesh.children.forEach(child => {
@@ -7195,6 +7513,9 @@
           });
         });
       }
+      
+      // Update instanced mesh emissives based on district activity
+      instancedMeshes.updateEmissives();
       
       // City growth
       growCity();
@@ -7229,6 +7550,9 @@
       
       // Render with full post-processing pipeline
       composer.render();
+      
+      // End stats.js frame timing
+      if (stats) stats.end();
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -7240,11 +7564,18 @@
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
       composer.setSize(window.innerWidth, window.innerHeight);
+      // Update bloom at half resolution
+      const halfW = Math.floor(window.innerWidth * 0.5);
+      const halfH = Math.floor(window.innerHeight * 0.5);
+      bloomPass.resolution.set(halfW, halfH);
     });
     
     // ═══════════════════════════════════════════════════════════════════════
     // WEBSOCKET (Live Knowledge Connection)
     // ═══════════════════════════════════════════════════════════════════════
+    
+    // API URL - same origin (knowledge engine serves both API and static files)
+    const API_URL = window.location.origin;
     
     // WebSocket URL derived from API_URL
     const WS_URL = API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
@@ -7290,9 +7621,6 @@
         pulsePhase: Math.random() * Math.PI * 2
       };
     });
-    
-    // API URL - same origin (knowledge engine serves both API and static files)
-    const API_URL = window.location.origin;
     
     // ═══════════════════════════════════════════════════════════════════════
     // BRAIN-LIKE ACTIVATION SYSTEM - Energy flows, district glows, cognitive visuals
@@ -9927,7 +10255,7 @@
         // Also activate buildings matching specific keywords in the message
         const buildingKeywords = [
           'trading', 'scanner', 'portfolio', 'memory', 'decision', 'analysis',
-          'execution', 'tool', 'skill', 'perception', 'growth', 'learning',
+          'infrastructure', 'tool', 'skill', 'perception', 'growth', 'learning',
           'emotion', 'relationship', 'identity', 'core'
         ];
         
@@ -10029,8 +10357,10 @@
     
     animate(0);
     
-    console.log('Absalom City — A Mind Made Manifest (Knowledge-Powered Edition)');
+    console.log('Absalom City — A Mind Made Manifest (OPTIMIZED Edition)');
     console.log(`Quality: ${qualityLevel} | Mobile: ${isMobile}`);
+    console.log('[Optimizations] Half-res bloom ✓ | GPU motes ✓ | Reduced god rays (40 samples) ✓ | Adaptive quality ✓');
+    console.log('[Optimizations] Stats.js FPS counter:', stats ? 'active' : 'disabled');
     
     /**
      * Fallback seeding when WebSocket unavailable
@@ -10122,7 +10452,7 @@
         },
         // Activate all districts in sequence
         brainScan: async () => {
-          const districts = ['core', 'memory', 'cognition', 'trading', 'execution', 'perception', 'growth', 'relationship', 'emotion'];
+          const districts = ['core', 'memory', 'projects', 'trading', 'infrastructure', 'perception', 'growth', 'relationship', 'emotion'];
           for (const d of districts) {
             window.AbsalomCity.activateDistrict(d);
             await new Promise(r => setTimeout(r, 800));
